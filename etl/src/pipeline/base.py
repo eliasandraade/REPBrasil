@@ -46,5 +46,5 @@ class BasePipeline(ABC):
             self.load(data)
             logger.info(f"[{self.name}] Carga concluída")
         except Exception as e:
-            logger.error(f"[{self.name}] Erro no pipeline: {e}")
+            logger.exception(f"[{self.name}] Erro no pipeline: {e}")
             raise
