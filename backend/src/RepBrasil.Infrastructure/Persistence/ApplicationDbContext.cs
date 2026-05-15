@@ -21,4 +21,47 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Source> Sources => Set<Source>();
     public DbSet<Evidence> Evidences => Set<Evidence>();
     public DbSet<Contestation> Contestations => Set<Contestation>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Politician>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Party>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Election>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<ElectionResult>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<AssetDeclaration>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Company>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Contract>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Amendment>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Municipality>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<LegalCase>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<ScoreSnapshot>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Flag>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Source>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Evidence>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Contestation>().HasQueryFilter(e => e.DeletedAt == null);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
+        {
+            if (entry.State == EntityState.Modified)
+                entry.Entity.UpdatedAt = now;
+        }
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override int SaveChanges()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
+        {
+            if (entry.State == EntityState.Modified)
+                entry.Entity.UpdatedAt = now;
+        }
+        return base.SaveChanges();
+    }
 }
