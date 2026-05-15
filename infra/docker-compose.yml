@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: repbrasil-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: repbrasil-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5-community
+    container_name: repbrasil-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH}
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  neo4j_data:
+  neo4j_logs:
