@@ -501,6 +501,9 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<string>("CamaraId")
                         .HasColumnType("text");
 
+                    b.Property<string>("CandidacyStatus")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -511,11 +514,23 @@ namespace RepBrasil.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Office")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PartyAcronym")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PartyName")
+                        .HasColumnType("text");
+
                     b.Property<string>("SenateId")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("SourceUpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("State")
+                        .HasColumnType("text");
 
                     b.Property<string>("TseId")
                         .HasColumnType("text");
