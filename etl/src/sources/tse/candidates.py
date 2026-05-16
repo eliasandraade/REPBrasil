@@ -44,6 +44,9 @@ class TseCandidatesPipeline(BasePipeline):
 
     def transform(self, raw: pl.DataFrame) -> list[dict[str, Any]]:
         available = [c for c in COLUMN_MAP if c in raw.columns]
+        missing = [c for c in COLUMN_MAP if c not in raw.columns]
+        if missing:
+            logger.warning(f"Colunas esperadas ausentes no CSV do TSE: {missing}")
         df = raw.select(available).rename({c: COLUMN_MAP[c] for c in available})
 
         if "candidacy_status" in df.columns:
@@ -55,12 +58,18 @@ class TseCandidatesPipeline(BasePipeline):
         now = datetime.now(UTC).isoformat()
         records = []
         for row in df.iter_rows(named=True):
+            tse_id = str(row.get("tse_id") or "").strip() or None
+            name = (row.get("name") or "").strip().title()
+            ballot_name = (row.get("ballot_name") or "").strip().title()
+            if tse_id is None:
+                logger.warning(f"Registro ignorado: SQ_CANDIDATO vazio para '{name}'")
+                continue
             records.append(
                 {
                     "id": str(uuid.uuid4()),
-                    "name": (row.get("name") or "").strip().title(),
-                    "ballot_name": (row.get("ballot_name") or "").strip().title(),
-                    "tse_id": str(row.get("tse_id") or "").strip() or None,
+                    "name": name,
+                    "ballot_name": ballot_name,
+                    "tse_id": tse_id,
                     "created_at": now,
                     "updated_at": now,
                     "source_updated_at": now,
@@ -87,4 +96,7 @@ class TseCandidatesPipeline(BasePipeline):
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.executemany(insert_sql, data)
-                logger.info(f"Inseridos/ignorados: {len(data)} registros")
+                logger.info(
+                    f"Submetidos ao banco: {len(data)} registros"
+                    " (duplicatas ignoradas por ON CONFLICT)"
+                )

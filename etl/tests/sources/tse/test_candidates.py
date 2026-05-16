@@ -1,3 +1,5 @@
+from uuid import UUID as _UUID
+
 import polars as pl
 import pytest
 
@@ -63,7 +65,7 @@ def test_transform_generates_uuid(
     pipeline: TseCandidatesPipeline, sample_df: pl.DataFrame
 ) -> None:
     result = pipeline.transform(sample_df)
-    assert len(result[0]["id"]) == 36
+    _UUID(result[0]["id"])  # raises ValueError if not a valid UUID
 
 
 def test_transform_handles_missing_columns(pipeline: TseCandidatesPipeline) -> None:

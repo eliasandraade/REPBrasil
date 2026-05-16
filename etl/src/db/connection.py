@@ -7,10 +7,13 @@ from psycopg2.extensions import connection as PgConnection
 
 
 def get_connection_string() -> str:
-    return os.environ.get(
-        "DATABASE_URL",
-        "host=localhost port=5432 dbname=repbrasil user=repbrasil password=repbrasil",
-    )
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is not set. "
+            "Example: host=localhost port=5432 dbname=repbrasil user=repbrasil password=repbrasil"
+        )
+    return url
 
 
 @contextmanager
