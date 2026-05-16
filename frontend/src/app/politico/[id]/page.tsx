@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PoliticianProfile } from "@/components/politicians/PoliticianProfile";
-import { getPolitician, getPoliticianElections, getPoliticianAssets, getPoliticianSources } from "@/lib/api";
-import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem } from "@/lib/types";
+import { getPolitician, getPoliticianElections, getPoliticianAssets, getPoliticianSources, getPoliticianScore } from "@/lib/api";
+import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem, ScoreStatusItem } from "@/lib/types";
 
 export default function PoliticoPage() {
   const params = useParams<{ id: string }>();
@@ -45,6 +45,13 @@ export default function PoliticoPage() {
     staleTime: 60_000,
   });
 
+  const { data: score } = useQuery<ScoreStatusItem>({
+    queryKey: ["politician-score", id],
+    queryFn: () => getPoliticianScore(id),
+    enabled: !!data,
+    staleTime: 300_000,
+  });
+
   if (isLoading) {
     return (
       <main className="min-h-screen px-4 py-12 max-w-2xl mx-auto">
@@ -74,7 +81,7 @@ export default function PoliticoPage() {
       <Link href="/politicos" className="text-sm text-slate-400 hover:text-slate-600 block mb-8">
         ← Voltar à busca
       </Link>
-      <PoliticianProfile politician={data} elections={elections} assets={assets} sources={sources} />
+      <PoliticianProfile politician={data} elections={elections} assets={assets} sources={sources} score={score} />
     </main>
   );
 }

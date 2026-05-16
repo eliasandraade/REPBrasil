@@ -75,3 +75,25 @@ export interface DataSourceItem {
   fileSizeBytes: number | null;
   license: string | null;
 }
+
+export interface ScoreFactorItem {
+  factorKey: string;
+  factorCategory: string;
+  factorLabel: string;
+  factorValue: number | null;
+  factorWeight: number | null;
+  evidenceId: string | null;
+  sourceId: string | null;
+  evidenceReference: string | null;
+  sourceReference: string | null;
+  explanation: string | null;
+}
+
+export interface ScoreStatusItem {
+  status: string;
+  methodologyVersion: string;
+  generatedAt: string | null;
+  totalScore: number | null;
+  factors: ScoreFactorItem[];
+  disclaimer: string;
+}

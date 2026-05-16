@@ -1,4 +1,4 @@
-import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem, PagedResult, PoliticianDetail, PoliticianSummary, SearchFilters } from "./types";
+import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem, PagedResult, PoliticianDetail, PoliticianSummary, ScoreStatusItem, SearchFilters } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
@@ -42,4 +42,8 @@ export function getPoliticianAssets(id: string): Promise<AssetDeclarationItem[]>
 
 export function getPoliticianSources(id: string): Promise<DataSourceItem[]> {
   return fetchJson<DataSourceItem[]>(`/api/v1/politicians/${id}/sources`);
+}
+
+export function getPoliticianScore(id: string): Promise<ScoreStatusItem> {
+  return fetchJson<ScoreStatusItem>(`/api/v1/politicians/${id}/score`);
 }
