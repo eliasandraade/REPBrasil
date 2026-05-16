@@ -9,7 +9,8 @@ from src.db.connection import get_db
 from src.pipeline.base import BasePipeline
 from src.sources.tse.downloader import extract_candidates_csv
 
-VALID_STATUSES = {"APTO", "INAPTO", "DEFERIDO", "DEFERIDO COM RECURSO"}
+# "#NE" é o código TSE para registros sem status de situação definido no arquivo consulta_cand_2024_BRASIL.csv
+VALID_STATUSES = {"APTO", "INAPTO", "DEFERIDO", "DEFERIDO COM RECURSO", "#NE"}
 
 COLUMN_MAP = {
     "SQ_CANDIDATO": "tse_id",
@@ -90,7 +91,7 @@ class TseCandidatesPipeline(BasePipeline):
             VALUES
                 (%(id)s, %(name)s, %(ballot_name)s, %(tse_id)s,
                  %(created_at)s, %(updated_at)s, %(source_updated_at)s)
-            ON CONFLICT ("TseId") DO NOTHING
+            ON CONFLICT ("TseId") WHERE "TseId" IS NOT NULL DO NOTHING
         """
 
         with get_db() as conn:
