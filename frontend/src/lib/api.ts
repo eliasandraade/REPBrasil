@@ -1,4 +1,4 @@
-import type { PagedResult, PoliticianDetail, PoliticianSummary, SearchFilters } from "./types";
+import type { ElectionResultItem, PagedResult, PoliticianDetail, PoliticianSummary, SearchFilters } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
@@ -30,4 +30,8 @@ export function searchPoliticians(
 
 export function getPolitician(id: string): Promise<PoliticianDetail> {
   return fetchJson<PoliticianDetail>(`/api/v1/politicians/${id}`);
+}
+
+export function getPoliticianElections(id: string): Promise<ElectionResultItem[]> {
+  return fetchJson<ElectionResultItem[]>(`/api/v1/politicians/${id}/elections`);
 }

@@ -39,3 +39,14 @@ export interface SearchFilters {
   party?: string;
   office?: string;
 }
+
+export interface ElectionResultItem {
+  year: number;
+  round: number;
+  office: string;
+  state: string;
+  city: string | null;
+  totalVotes: number;
+  situation: string | null;
+  elected: boolean;
+}
