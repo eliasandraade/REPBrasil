@@ -50,3 +50,17 @@ export interface ElectionResultItem {
   situation: string | null;
   elected: boolean;
 }
+
+export interface AssetItemDetail {
+  order: number;
+  typeCode: string | null;
+  typeDescription: string | null;
+  description: string | null;
+  value: number;
+}
+
+export interface AssetDeclarationItem {
+  year: number;
+  totalValue: number;
+  items: AssetItemDetail[];
+}
