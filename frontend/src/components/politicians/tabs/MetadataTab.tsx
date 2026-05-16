@@ -11,9 +11,9 @@ export function MetadataTab({ politician }: MetadataTabProps) {
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
         IDs externos
       </p>
-      <Row label="TSE" value={politician.tseId ?? "—"} />
-      <Row label="Câmara" value={politician.camaraId ?? "—"} />
-      <Row label="Senado" value={politician.senateId ?? "—"} />
+      <Row label="TSE" value={politician.tseId} />
+      <Row label="Câmara" value={politician.camaraId} />
+      <Row label="Senado" value={politician.senateId} />
 
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mt-6 mb-2">
         Coleta de dados
