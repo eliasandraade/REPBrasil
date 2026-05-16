@@ -15,10 +15,13 @@ public class ScoreRepository(ApplicationDbContext db) : IScoreRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(ct);
 
-    public async Task<IReadOnlyList<ScoreSnapshot>> GetHistoryAsync(Guid politicianId, CancellationToken ct = default) =>
-        await db.ScoreSnapshots
+    public async Task<IReadOnlyList<ScoreSnapshot>> GetHistoryAsync(Guid politicianId, CancellationToken ct = default)
+    {
+        // Factors intentionally not included — history items are summary rows only (no per-factor breakdown in v0).
+        return await db.ScoreSnapshots
             .Where(s => s.PoliticianId == politicianId)
             .OrderByDescending(s => s.CalculatedAt)
             .AsNoTracking()
             .ToListAsync(ct);
+    }
 }

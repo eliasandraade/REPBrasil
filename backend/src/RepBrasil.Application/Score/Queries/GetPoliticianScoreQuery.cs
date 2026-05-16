@@ -8,23 +8,19 @@ namespace RepBrasil.Application.Score.Queries;
 // TotalScore is always null while status = "em_desenvolvimento" to prevent accidental exposure of raw Score values.
 public class GetPoliticianScoreQuery(IScoreRepository repository)
 {
-    private const string StatusEmDesenvolvimento = "em_desenvolvimento";
-    private const string Disclaimer =
-        "Score Público em desenvolvimento. Não representa recomendação de voto, julgamento moral ou inferência automática.";
-
     public async Task<ScoreStatusDto> ExecuteAsync(Guid politicianId, CancellationToken ct = default)
     {
         var snapshot = await repository.GetCurrentAsync(politicianId, ct);
         if (snapshot is null)
-            return new ScoreStatusDto(StatusEmDesenvolvimento, "v0", null, null, [], Disclaimer);
+            return new ScoreStatusDto(ScoreConstants.StatusEmDesenvolvimento, "v0", null, null, [], ScoreConstants.Disclaimer);
 
         var factors = snapshot.Factors.Select(ScoreFactorDto.FromEntity).ToList();
         return new ScoreStatusDto(
-            StatusEmDesenvolvimento,
+            ScoreConstants.StatusEmDesenvolvimento,
             snapshot.MethodologyVersion,
             snapshot.CalculatedAt,
             null, // TotalScore always null while em_desenvolvimento
             factors,
-            Disclaimer);
+            ScoreConstants.Disclaimer);
     }
 }
