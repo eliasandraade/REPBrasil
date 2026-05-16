@@ -12,7 +12,7 @@ function PoliticosContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const q = searchParams.get("q") ?? "";
-  const page = Number(searchParams.get("page") ?? "1");
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["politicians", q, page],
@@ -50,21 +50,22 @@ function PoliticosContent() {
             {q ? ` para "${q}"` : ""}
           </p>
 
-          <div className="space-y-2">
-            {data.items.map((p) => (
-              <PoliticianCard key={p.id} politician={p} />
-            ))}
-          </div>
-
-          {data.items.length === 0 && (
+          {data.items.length === 0 ? (
             <p className="text-slate-500 text-center py-12">
               Nenhum político encontrado{q ? ` para "${q}"` : ""}.
             </p>
+          ) : (
+            <div className="space-y-2">
+              {data.items.map((p) => (
+                <PoliticianCard key={p.id} politician={p} />
+              ))}
+            </div>
           )}
 
           {(data.hasPrevious || data.hasNext) && (
             <div className="flex justify-between mt-8">
               <button
+                type="button"
                 onClick={() => goToPage(page - 1)}
                 disabled={!data.hasPrevious}
                 className="px-4 py-2 text-sm border border-slate-300 rounded-lg disabled:opacity-40 hover:bg-slate-50"
@@ -75,6 +76,7 @@ function PoliticosContent() {
                 Página {data.page} de {data.totalPages}
               </span>
               <button
+                type="button"
                 onClick={() => goToPage(page + 1)}
                 disabled={!data.hasNext}
                 className="px-4 py-2 text-sm border border-slate-300 rounded-lg disabled:opacity-40 hover:bg-slate-50"
