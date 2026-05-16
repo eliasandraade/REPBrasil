@@ -16,15 +16,18 @@
 - [x] docker-compose com PostgreSQL + Redis + Neo4j
 - [x] `GET /health` e `GET /api/v1/status` funcionando
 
-## Fase 1 — Dados básicos
+## Fase 1 — Dados básicos ✅
 
-- [ ] Importar candidatos TSE (últimas eleições)
-- [ ] Importar bens declarados TSE
-- [ ] Importar resultados eleitorais TSE
-- [ ] Importar filiações partidárias TSE
-- [ ] Criar modelo `Politician` / `Candidate` com dados reais
-- [ ] Criar busca básica por nome/partido/estado
-- [ ] Criar perfil básico com dados eleitorais
+- [x] Importar candidatos TSE 2024 (dataset de validação técnica)
+- [x] Criar modelo `Politician` com dados reais do TSE
+- [x] Criar busca básica por nome (EF Core + ILike, paginação)
+- [x] Criar perfil básico com dados eleitorais e IDs externos
+- [x] ETL `TseCandidatesPipeline` — download, parse, carga PostgreSQL
+- [x] API `GET /api/v1/politicians` e `GET /api/v1/politicians/{id}`
+- [x] Frontend: home com busca, listagem `/politicos`, perfil `/politico/[id]`
+- [ ] Importar bens declarados TSE (Fase 2)
+- [ ] Importar resultados eleitorais TSE (Fase 2)
+- [ ] Importar filiações partidárias TSE (Fase 2)
 
 ## Fase 2 — Score v0
 
