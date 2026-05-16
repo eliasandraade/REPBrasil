@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
 using RepBrasil.Application.Politicians.Queries;
 using RepBrasil.Infrastructure.Persistence;
@@ -10,6 +11,8 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<IPoliticianRepository, PoliticianRepository>();
 builder.Services.AddScoped<SearchPoliticiansQuery>();
 builder.Services.AddScoped<GetPoliticianByIdQuery>();
+builder.Services.AddScoped<IElectionResultRepository, ElectionResultRepository>();
+builder.Services.AddScoped<GetPoliticianElectionsQuery>();
 
 if (builder.Environment.IsDevelopment())
 {
