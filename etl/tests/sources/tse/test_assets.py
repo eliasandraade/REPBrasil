@@ -29,19 +29,19 @@ def test_parse_br_decimal_empty_returns_zero():
 def _make_raw(rows: list[dict]) -> pl.DataFrame:
     return pl.DataFrame(rows, schema={
         "SQ_CANDIDATO": pl.Utf8,
-        "NR_ORDEM_BEM": pl.Utf8,
-        "CD_TIPO_BEM": pl.Utf8,
-        "DS_TIPO_BEM": pl.Utf8,
-        "DS_BEM": pl.Utf8,
+        "NR_ORDEM_BEM_CANDIDATO": pl.Utf8,
+        "CD_TIPO_BEM_CANDIDATO": pl.Utf8,
+        "DS_TIPO_BEM_CANDIDATO": pl.Utf8,
+        "DS_BEM_CANDIDATO": pl.Utf8,
         "VR_BEM_CANDIDATO": pl.Utf8,
     })
 
 def test_transform_single_candidate_two_items():
     raw = _make_raw([
-        {"SQ_CANDIDATO": "111", "NR_ORDEM_BEM": "1", "CD_TIPO_BEM": "01",
-         "DS_TIPO_BEM": "Imóvel", "DS_BEM": "Casa", "VR_BEM_CANDIDATO": "500.000,00"},
-        {"SQ_CANDIDATO": "111", "NR_ORDEM_BEM": "2", "CD_TIPO_BEM": "02",
-         "DS_TIPO_BEM": "Veículo", "DS_BEM": "Carro", "VR_BEM_CANDIDATO": "50.000,00"},
+        {"SQ_CANDIDATO": "111", "NR_ORDEM_BEM_CANDIDATO": "1", "CD_TIPO_BEM_CANDIDATO": "01",
+         "DS_TIPO_BEM_CANDIDATO": "Imóvel", "DS_BEM_CANDIDATO": "Casa", "VR_BEM_CANDIDATO": "500.000,00"},
+        {"SQ_CANDIDATO": "111", "NR_ORDEM_BEM_CANDIDATO": "2", "CD_TIPO_BEM_CANDIDATO": "02",
+         "DS_TIPO_BEM_CANDIDATO": "Veículo", "DS_BEM_CANDIDATO": "Carro", "VR_BEM_CANDIDATO": "50.000,00"},
     ])
     pipeline = TseAssetsPipeline()
     result = pipeline.transform(raw)
@@ -53,16 +53,16 @@ def test_transform_single_candidate_two_items():
 
 def test_transform_skips_empty_tse_id():
     raw = _make_raw([
-        {"SQ_CANDIDATO": "", "NR_ORDEM_BEM": "1", "CD_TIPO_BEM": "01",
-         "DS_TIPO_BEM": "X", "DS_BEM": "Y", "VR_BEM_CANDIDATO": "100,00"},
+        {"SQ_CANDIDATO": "", "NR_ORDEM_BEM_CANDIDATO": "1", "CD_TIPO_BEM_CANDIDATO": "01",
+         "DS_TIPO_BEM_CANDIDATO": "X", "DS_BEM_CANDIDATO": "Y", "VR_BEM_CANDIDATO": "100,00"},
     ])
     result = TseAssetsPipeline().transform(raw)
     assert result == []
 
 def test_transform_respects_limit():
     rows = [
-        {"SQ_CANDIDATO": str(i), "NR_ORDEM_BEM": "1", "CD_TIPO_BEM": "01",
-         "DS_TIPO_BEM": "X", "DS_BEM": "Y", "VR_BEM_CANDIDATO": "100,00"}
+        {"SQ_CANDIDATO": str(i), "NR_ORDEM_BEM_CANDIDATO": "1", "CD_TIPO_BEM_CANDIDATO": "01",
+         "DS_TIPO_BEM_CANDIDATO": "X", "DS_BEM_CANDIDATO": "Y", "VR_BEM_CANDIDATO": "100,00"}
         for i in range(10)
     ]
     raw = _make_raw(rows)

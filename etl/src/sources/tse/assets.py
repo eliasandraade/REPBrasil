@@ -12,10 +12,10 @@ from src.sources.tse.downloader import extract_assets_csv
 
 ASSETS_COLUMNS = [
     "SQ_CANDIDATO",
-    "NR_ORDEM_BEM",
-    "CD_TIPO_BEM",
-    "DS_TIPO_BEM",
-    "DS_BEM",
+    "NR_ORDEM_BEM_CANDIDATO",
+    "CD_TIPO_BEM_CANDIDATO",
+    "DS_TIPO_BEM_CANDIDATO",
+    "DS_BEM_CANDIDATO",
     "VR_BEM_CANDIDATO",
 ]
 
@@ -71,7 +71,7 @@ class TseAssetsPipeline(BasePipeline):
                 continue
 
             value = _parse_br_decimal(str(row.get("VR_BEM_CANDIDATO") or ""))
-            order = int(str(row.get("NR_ORDEM_BEM") or "0").strip() or "0")
+            order = int(str(row.get("NR_ORDEM_BEM_CANDIDATO") or "0").strip() or "0")
 
             if tse_id not in declarations:
                 declarations[tse_id] = {
@@ -85,9 +85,9 @@ class TseAssetsPipeline(BasePipeline):
             declarations[tse_id]["total_value"] += value
             declarations[tse_id]["items"].append({
                 "order": order,
-                "type_code": (str(row.get("CD_TIPO_BEM") or "")).strip() or None,
-                "type_description": (str(row.get("DS_TIPO_BEM") or "")).strip() or None,
-                "description": (str(row.get("DS_BEM") or "")).strip() or None,
+                "type_code": (str(row.get("CD_TIPO_BEM_CANDIDATO") or "")).strip() or None,
+                "type_description": (str(row.get("DS_TIPO_BEM_CANDIDATO") or "")).strip() or None,
+                "description": (str(row.get("DS_BEM_CANDIDATO") or "")).strip() or None,
                 "value": value,
             })
 
