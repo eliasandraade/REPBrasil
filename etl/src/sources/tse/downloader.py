@@ -139,3 +139,70 @@ def extract_results_csv() -> Path:
 
     logger.info(f"CSV extraído: {RESULTS_CSV_PATH}")
     return RESULTS_CSV_PATH
+
+
+TSE_ASSETS_URL = (
+    "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2024.zip"
+)
+ASSETS_ZIP_PATH = RAW_DIR / "bem_candidato_2024.zip"
+ASSETS_CSV_PATH = RAW_DIR / "bem_candidato_2024_BRASIL.csv"
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=30))
+def download_assets_zip() -> Path:
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+
+    if ASSETS_ZIP_PATH.exists():
+        logger.info(f"ZIP de bens já em cache: {ASSETS_ZIP_PATH}")
+        return ASSETS_ZIP_PATH
+
+    tmp = ASSETS_ZIP_PATH.with_suffix(".tmp")
+    logger.info(f"Baixando bens declarados TSE 2024 de {TSE_ASSETS_URL}")
+    try:
+        with httpx.stream("GET", TSE_ASSETS_URL, follow_redirects=True, timeout=300) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", 0))
+            downloaded = 0
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_bytes(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        pct = downloaded / total * 100
+                        logger.debug(f"Download bens: {pct:.1f}%")
+        tmp.rename(ASSETS_ZIP_PATH)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+    logger.info(f"Download de bens concluído: {ASSETS_ZIP_PATH}")
+    return ASSETS_ZIP_PATH
+
+
+def extract_assets_csv() -> Path:
+    if ASSETS_CSV_PATH.exists():
+        logger.info(f"CSV de bens já extraído: {ASSETS_CSV_PATH}")
+        return ASSETS_CSV_PATH
+
+    zip_path = download_assets_zip()
+    logger.info("Extraindo CSV de bens do ZIP...")
+    tmp_csv = ASSETS_CSV_PATH.with_suffix(".tmp")
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names = zf.namelist()
+            brasil_csv = next(
+                (n for n in names if "BRASIL" in n.upper() and n.endswith(".csv")), None
+            )
+            if not brasil_csv:
+                raise FileNotFoundError(
+                    f"CSV BRASIL não encontrado no ZIP. Arquivos: {names}"
+                )
+            data = zf.read(brasil_csv)
+            tmp_csv.write_bytes(data)
+        tmp_csv.rename(ASSETS_CSV_PATH)
+    except Exception:
+        tmp_csv.unlink(missing_ok=True)
+        raise
+
+    logger.info(f"CSV de bens extraído: {ASSETS_CSV_PATH}")
+    return ASSETS_CSV_PATH
