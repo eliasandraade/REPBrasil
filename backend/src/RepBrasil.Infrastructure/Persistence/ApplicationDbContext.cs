@@ -30,6 +30,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Party>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Election>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<ElectionResult>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<ElectionResult>()
+            .HasIndex(e => new { e.PoliticianId, e.ElectionId, e.Round })
+            .IsUnique()
+            .HasDatabaseName("IX_ElectionResults_Politician_Election_Round");
         modelBuilder.Entity<AssetDeclaration>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Company>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Contract>().HasQueryFilter(e => e.DeletedAt == null);

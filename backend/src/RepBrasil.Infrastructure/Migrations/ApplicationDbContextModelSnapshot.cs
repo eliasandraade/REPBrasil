@@ -277,11 +277,20 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<Guid>("ElectionId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("PartyId")
+                    b.Property<Guid?>("PartyId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Percentage")
+                        .HasColumnType("numeric");
 
                     b.Property<Guid>("PoliticianId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("Round")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Situation")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("SourceUpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -293,6 +302,12 @@ namespace RepBrasil.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ElectionId");
+
+                    b.HasIndex("PoliticianId", "ElectionId", "Round")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ElectionResults_Politician_Election_Round");
 
                     b.ToTable("ElectionResults");
                 });
@@ -624,6 +639,17 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Sources");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.ElectionResult", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.Election", "Election")
+                        .WithMany()
+                        .HasForeignKey("ElectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Election");
                 });
 #pragma warning restore 612, 618
         }
