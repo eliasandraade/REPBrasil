@@ -18,7 +18,9 @@ function formatStatus(status: string | null): string {
   if (!status || status === "#NE") return "—";
   return status
     .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 export function PoliticianProfile({ politician }: PoliticianProfileProps) {
