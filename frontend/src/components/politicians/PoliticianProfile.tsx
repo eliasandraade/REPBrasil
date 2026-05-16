@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { AssetDeclarationItem, ElectionResultItem, PoliticianDetail } from "@/lib/types";
 import { formatStatus } from "./utils";
+import { OverviewTab } from "./tabs/OverviewTab";
+import { ElectionTab } from "./tabs/ElectionTab";
 
 type TabId = "overview" | "elections" | "assets" | "metadata" | "score";
 
@@ -68,8 +70,12 @@ export function PoliticianProfile({ politician, elections, assets }: PoliticianP
 
       {/* Tab content */}
       <div>
-        {activeTab === "overview"  && <p className="text-slate-400 text-sm">Visão Geral — em breve</p>}
-        {activeTab === "elections" && <p className="text-slate-400 text-sm">Eleições — em breve</p>}
+        {activeTab === "overview" && (
+          <OverviewTab politician={politician} elections={elections} assets={assets} />
+        )}
+        {activeTab === "elections" && (
+          <ElectionTab elections={elections} />
+        )}
         {activeTab === "assets"    && <p className="text-slate-400 text-sm">Patrimônio — em breve</p>}
         {activeTab === "metadata"  && <p className="text-slate-400 text-sm">Fontes — em breve</p>}
         {activeTab === "score"     && <p className="text-slate-400 text-sm">Score — em breve</p>}
