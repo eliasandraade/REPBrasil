@@ -79,3 +79,40 @@ def test_transform_handles_missing_columns(pipeline: TseCandidatesPipeline) -> N
     result = pipeline.transform(df)
     assert len(result) == 1
     assert result[0]["tse_id"] == "999"
+
+
+def test_transform_includes_electoral_fields(
+    pipeline: TseCandidatesPipeline, sample_df: pl.DataFrame
+) -> None:
+    result = pipeline.transform(sample_df)
+    assert result[0]["state"] == "SP"
+    assert result[0]["party_acronym"] == "PT"
+    assert result[0]["party_name"] == "Partido dos Trabalhadores"
+    assert result[0]["office"] == "DEPUTADO FEDERAL"
+    assert result[0]["candidacy_status"] == "APTO"
+
+
+def test_transform_electoral_fields_none_when_columns_missing(
+    pipeline: TseCandidatesPipeline,
+) -> None:
+    df = pl.DataFrame(
+        {
+            "SQ_CANDIDATO": ["555"],
+            "NM_CANDIDATO": ["SEM PARTIDO"],
+            "NM_URNA_CANDIDATO": ["SEM PARTIDO"],
+            "DS_SITUACAO_CANDIDATURA": ["DEFERIDO"],
+        }
+    )
+    result = pipeline.transform(df)
+    assert result[0]["state"] is None
+    assert result[0]["party_acronym"] is None
+    assert result[0]["party_name"] is None
+    assert result[0]["office"] is None
+
+
+def test_transform_upsert_preserves_created_at_key(
+    pipeline: TseCandidatesPipeline, sample_df: pl.DataFrame
+) -> None:
+    result = pipeline.transform(sample_df)
+    assert "created_at" in result[0]
+    assert "updated_at" in result[0]

@@ -71,6 +71,11 @@ class TseCandidatesPipeline(BasePipeline):
                     "name": name,
                     "ballot_name": ballot_name,
                     "tse_id": tse_id,
+                    "state": row.get("state") or None,
+                    "party_acronym": row.get("party_acronym") or None,
+                    "party_name": row.get("party_name") or None,
+                    "office": row.get("office") or None,
+                    "candidacy_status": row.get("candidacy_status") or None,
                     "created_at": now,
                     "updated_at": now,
                     "source_updated_at": now,
@@ -87,11 +92,23 @@ class TseCandidatesPipeline(BasePipeline):
 
         insert_sql = """
             INSERT INTO "Politicians"
-                ("Id", "Name", "BallotName", "TseId", "CreatedAt", "UpdatedAt", "SourceUpdatedAt")
+                ("Id", "Name", "BallotName", "TseId",
+                 "State", "PartyAcronym", "PartyName", "Office", "CandidacyStatus",
+                 "CreatedAt", "UpdatedAt", "SourceUpdatedAt")
             VALUES
                 (%(id)s, %(name)s, %(ballot_name)s, %(tse_id)s,
+                 %(state)s, %(party_acronym)s, %(party_name)s, %(office)s, %(candidacy_status)s,
                  %(created_at)s, %(updated_at)s, %(source_updated_at)s)
-            ON CONFLICT ("TseId") WHERE "TseId" IS NOT NULL DO NOTHING
+            ON CONFLICT ("TseId") WHERE "TseId" IS NOT NULL DO UPDATE SET
+                "Name" = EXCLUDED."Name",
+                "BallotName" = EXCLUDED."BallotName",
+                "State" = EXCLUDED."State",
+                "PartyAcronym" = EXCLUDED."PartyAcronym",
+                "PartyName" = EXCLUDED."PartyName",
+                "Office" = EXCLUDED."Office",
+                "CandidacyStatus" = EXCLUDED."CandidacyStatus",
+                "UpdatedAt" = EXCLUDED."UpdatedAt",
+                "SourceUpdatedAt" = EXCLUDED."SourceUpdatedAt"
         """
 
         with get_db() as conn:
@@ -99,5 +116,5 @@ class TseCandidatesPipeline(BasePipeline):
                 cur.executemany(insert_sql, data)
                 logger.info(
                     f"Submetidos ao banco: {len(data)} registros"
-                    " (duplicatas ignoradas por ON CONFLICT)"
+                    " (novos inseridos, existentes atualizados)"
                 )
