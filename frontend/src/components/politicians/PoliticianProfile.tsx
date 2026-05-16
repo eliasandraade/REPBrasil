@@ -14,13 +14,37 @@ function formatDate(iso: string | null): string {
   });
 }
 
+function formatStatus(status: string | null): string {
+  if (!status || status === "#NE") return "—";
+  return status
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function PoliticianProfile({ politician }: PoliticianProfileProps) {
+  const partyLabel = [politician.partyAcronym, politician.partyName]
+    .filter(Boolean)
+    .join(" — ");
+
   return (
     <div className="space-y-8">
       {/* Identidade */}
       <section className="space-y-1">
         <h1 className="text-3xl font-bold text-slate-900">{politician.ballotName}</h1>
         <p className="text-lg text-slate-500">{politician.name}</p>
+      </section>
+
+      {/* Dados eleitorais */}
+      <section className="border border-slate-200 rounded-lg divide-y divide-slate-100">
+        <div className="px-4 py-3">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+            Dados eleitorais — TSE 2024
+          </p>
+        </div>
+        <Row label="Cargo" value={politician.office} />
+        <Row label="Partido" value={partyLabel || null} />
+        <Row label="UF" value={politician.state} />
+        <Row label="Situação da candidatura" value={formatStatus(politician.candidacyStatus)} />
       </section>
 
       {/* IDs externos */}
@@ -48,10 +72,10 @@ export function PoliticianProfile({ politician }: PoliticianProfileProps) {
 
       {/* Score — placeholder */}
       <section className="border border-dashed border-slate-300 rounded-lg p-6 text-center">
-        <p className="text-slate-400 text-sm font-medium">Score Público</p>
+        <p className="text-slate-400 text-sm font-medium">Score Público de Transparência</p>
         <p className="text-slate-300 text-4xl font-bold mt-1">—</p>
         <p className="text-slate-400 text-xs mt-2">
-          Metodologia em desenvolvimento. Disponível na Fase 2.
+          Disponível quando votações e gastos forem integrados.
         </p>
       </section>
     </div>
