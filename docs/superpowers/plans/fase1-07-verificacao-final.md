@@ -5,6 +5,8 @@
 
 **Objetivo:** Verificar que o fluxo completo funciona de ponta a ponta — ETL popula o banco, API serve os dados, frontend busca e exibe perfil. Confirmar que todos os builds, testes e lints passam. Atualizar o roadmap.
 
+> **⚠️ Escopo da Fase 1:** Os dados do TSE 2024 carregados nesta verificação são exclusivamente para validação técnica do fluxo (ETL real → PostgreSQL → API → frontend). Não representam a base eleitoral definitiva do REPBrasil 2026. A curadoria de quais eleições e cargos integrar é decisão de produto da Fase 2+.
+
 ---
 
 ## Checklist completo da Fase 1
@@ -63,7 +65,7 @@ docker compose ps
 
 Todos os 3 serviços devem estar `healthy`.
 
-- [ ] **2. Rodar ETL com dados reais**
+- [ ] **2. Rodar ETL com dados de validação**
 
 ```bash
 cd etl
@@ -81,7 +83,9 @@ docker exec repbrasil-postgres psql -U repbrasil -d repbrasil \
   -c 'SELECT COUNT(*) FROM "Politicians";'
 ```
 
-Esperado: 200 (ou próximo — alguns podem ser filtrados por status).
+Esperado: 200 (ou próximo — alguns podem ser filtrados por status de candidatura).
+
+> Estes 200 registros são uma amostra técnica do TSE 2024, usada apenas para validar o fluxo completo. Não representam a base definitiva do produto.
 
 - [ ] **3. Rodar API**
 

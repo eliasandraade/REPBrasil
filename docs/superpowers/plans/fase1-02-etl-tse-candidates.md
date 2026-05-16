@@ -5,11 +5,15 @@
 
 **Objetivo:** Implementar o `TseCandidatesPipeline` que baixa o CSV de candidatos do TSE (eleição 2024), parseia com Polars, normaliza para `PoliticianSchema` e insere no PostgreSQL. Inclui logging com loguru, tratamento de erros e testes mínimos com pytest.
 
+> **⚠️ Dataset de validação técnica:** Os dados do TSE 2024 usados neste bloco servem exclusivamente para validar o fluxo técnico (ETL → PostgreSQL → API → frontend). Não representam a base eleitoral definitiva do REPBrasil 2026. A curadoria completa das eleições — quais anos, quais cargos, quais filtros aplicar — é decisão de produto da Fase 2+, não deste bloco.
+
 ---
 
-## Fonte de dados
+## Fonte de dados (validação técnica)
 
 **URL:** `https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2024.zip`
+
+Este arquivo é usado apenas para validar o pipeline técnico. A decisão sobre quais eleições (2022, 2024, outras) e quais cargos integrar na base definitiva do REPBrasil será tomada na Fase 2, após o fluxo técnico estar comprovado.
 
 O ZIP contém o arquivo `consulta_cand_2024_BRASIL.csv` com:
 - Separador: `;`
@@ -397,40 +401,26 @@ p.run()
 
 Esperado: logs mostrando download, transformação e inserção de 50 registros.
 
+> Este teste carrega 50 candidatos do TSE 2024 exclusivamente para validar que o pipeline funciona de ponta a ponta. Não representa uma importação de produção.
+
 Verificar no banco:
 ```bash
 docker exec repbrasil-postgres psql -U repbrasil -d repbrasil \
   -c 'SELECT "Id", "Name", "BallotName", "TseId" FROM "Politicians" LIMIT 5;'
 ```
 
-- [ ] **13. Adicionar constraint UNIQUE em TseId via migration**
+- [ ] **13. Verificar índice único em TseId**
 
-Para o `ON CONFLICT ("TseId")` funcionar, é necessário um índice único. Criar uma nova migration:
+O índice `IX_Politicians_TseId` foi criado na migration inicial do Bloco 1. Confirmar antes de rodar o pipeline:
 
 ```bash
-dotnet ef migrations add AddPoliticianTseIdUniqueIndex \
-  --project src/RepBrasil.Infrastructure \
-  --startup-project src/RepBrasil.API \
-  --output-dir Migrations
+docker exec repbrasil-postgres psql -U repbrasil -d repbrasil \
+  -c "SELECT indexname FROM pg_indexes WHERE tablename = 'Politicians' AND indexname = 'IX_Politicians_TseId';"
 ```
 
-Editar o arquivo de migration gerado para adicionar manualmente:
+Esperado: uma linha com `IX_Politicians_TseId`. Se retornar vazio, o Bloco 1 não aplicou o índice — resolver antes de prosseguir.
 
-```csharp
-migrationBuilder.CreateIndex(
-    name: "IX_Politicians_TseId",
-    table: "Politicians",
-    column: "TseId",
-    unique: true,
-    filter: "\"TseId\" IS NOT NULL");
-```
-
-Aplicar:
-```bash
-dotnet ef database update \
-  --project src/RepBrasil.Infrastructure \
-  --startup-project src/RepBrasil.API
-```
+> O índice está embutido na `InitialCreate` (Bloco 1), não como migration separada. Isso garante que qualquer desenvolvedor que clonar o repositório e rodar `dotnet ef database update` já terá o schema completo desde o início.
 
 - [ ] **14. Commit**
 

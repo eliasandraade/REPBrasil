@@ -78,7 +78,32 @@ Esperado: pasta `src/RepBrasil.Infrastructure/Migrations/` criada com 3 arquivos
 - `YYYYMMDDHHMMSS_InitialCreate.Designer.cs`
 - `ApplicationDbContextModelSnapshot.cs`
 
-- [ ] **4. Aplicar a migration ao banco**
+- [ ] **4. Adicionar índice único filtrado em `TseId` à migration gerada**
+
+**Este passo é obrigatório antes de aplicar a migration.** O ETL usa `ON CONFLICT ("TseId") DO NOTHING` — sem o índice único, o insert falhará.
+
+Abrir o arquivo `YYYYMMDDHHMMSS_InitialCreate.cs` e adicionar, **dentro do método `Up()`**, após a criação da tabela `Politicians`:
+
+```csharp
+migrationBuilder.CreateIndex(
+    name: "IX_Politicians_TseId",
+    table: "Politicians",
+    column: "TseId",
+    unique: true,
+    filter: "\"TseId\" IS NOT NULL");
+```
+
+E, **dentro do método `Down()`**, antes de `DropTable("Politicians")`:
+
+```csharp
+migrationBuilder.DropIndex(
+    name: "IX_Politicians_TseId",
+    table: "Politicians");
+```
+
+> **Por que filtrado (`IS NOT NULL`)?** Políticos sem `TseId` (ex: importados de outras fontes futuras) não devem conflitar entre si. O índice único parcial garante unicidade apenas onde o valor existe.
+
+- [ ] **5. Aplicar a migration ao banco**
 
 ```bash
 dotnet ef database update \
@@ -96,13 +121,20 @@ docker exec repbrasil-postgres psql -U repbrasil -d repbrasil -c "\dt"
 
 Esperado: listagem com tabelas `Politicians`, `Parties`, `Elections`, `ElectionResults`, `AssetDeclarations`, `Companies`, `Contracts`, `Amendments`, `Municipalities`, `LegalCases`, `ScoreSnapshots`, `Flags`, `Sources`, `Evidences`, `Contestations` e `__EFMigrationsHistory`.
 
-- [ ] **6. Verificar estrutura da tabela Politicians**
+- [ ] **6. Verificar estrutura da tabela Politicians e índice TseId**
 
 ```bash
 docker exec repbrasil-postgres psql -U repbrasil -d repbrasil -c "\d \"Politicians\""
 ```
 
 Esperado: colunas `Id` (uuid), `Name` (text), `BallotName` (text), `TseId` (text nullable), `CamaraId` (text nullable), `SenateId` (text nullable), `CreatedAt` (timestamp), `UpdatedAt` (timestamp), `DeletedAt` (timestamp nullable), `SourceUpdatedAt` (timestamp nullable).
+
+A saída deve também listar o índice:
+```
+Indexes:
+    "PK_Politicians" PRIMARY KEY, btree ("Id")
+    "IX_Politicians_TseId" UNIQUE, btree ("TseId") WHERE "TseId" IS NOT NULL
+```
 
 - [ ] **7. Commit**
 
@@ -121,6 +153,7 @@ git push
 - [ ] `dotnet ef migrations add` cria os arquivos de migration sem erros
 - [ ] `dotnet ef database update` aplica ao banco local sem erros
 - [ ] Tabela `Politicians` existe no PostgreSQL com todas as colunas esperadas
+- [ ] Índice `IX_Politicians_TseId` existe como UNIQUE filtrado (`WHERE "TseId" IS NOT NULL`)
 - [ ] `__EFMigrationsHistory` registra a migration `InitialCreate`
 
 ---
