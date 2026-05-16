@@ -1,0 +1,28 @@
+import type { PagedResult, PoliticianDetail, PoliticianSummary } from "./types";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`);
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${path}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export function searchPoliticians(
+  query: string,
+  page: number,
+  pageSize = 20,
+): Promise<PagedResult<PoliticianSummary>> {
+  const params = new URLSearchParams({
+    q: query,
+    page: String(page),
+    pageSize: String(pageSize),
+  });
+  return fetchJson<PagedResult<PoliticianSummary>>(`/api/v1/politicians?${params}`);
+}
+
+export function getPolitician(id: string): Promise<PoliticianDetail> {
+  return fetchJson<PoliticianDetail>(`/api/v1/politicians/${id}`);
+}

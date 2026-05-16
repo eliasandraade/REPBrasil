@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "REPBrasil — Apenas dados. Sem discursos.",
   description:
-    "Plataforma open source de transparência política e reputação pública documental. Dados públicos oficiais sobre políticos brasileiros.",
+    "Plataforma open source de transparência política e reputação pública documental.",
   keywords: ["transparência", "política", "dados públicos", "Brasil", "score público"],
   openGraph: {
     title: "REPBrasil",
@@ -15,14 +16,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
