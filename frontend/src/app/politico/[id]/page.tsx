@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PoliticianProfile } from "@/components/politicians/PoliticianProfile";
-import { getPolitician } from "@/lib/api";
+import { getPolitician, getPoliticianElections } from "@/lib/api";
+import type { ElectionResultItem } from "@/lib/types";
 
 export default function PoliticoPage() {
   const params = useParams<{ id: string }>();
@@ -17,6 +18,14 @@ export default function PoliticoPage() {
       if (error instanceof Error && error.message.includes("404")) return false;
       return failureCount < 2;
     },
+  });
+
+  const { data: elections = [] } = useQuery<ElectionResultItem[]>({
+    queryKey: ["politician-elections", id],
+    queryFn: () => getPoliticianElections(id),
+    enabled: !!data,
+    retry: 1,
+    staleTime: 60_000,
   });
 
   if (isLoading) {
@@ -48,7 +57,7 @@ export default function PoliticoPage() {
       <Link href="/politicos" className="text-sm text-slate-400 hover:text-slate-600 block mb-8">
         ← Voltar à busca
       </Link>
-      <PoliticianProfile politician={data} />
+      <PoliticianProfile politician={data} elections={elections} />
     </main>
   );
 }
