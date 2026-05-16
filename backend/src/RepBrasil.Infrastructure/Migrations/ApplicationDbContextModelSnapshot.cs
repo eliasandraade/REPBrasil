@@ -610,6 +610,68 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.ToTable("Politicians");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.ScoreFactor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EvidenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Explanation")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FactorCategory")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FactorKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FactorLabel")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("FactorValue")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("FactorWeight")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("ScoreSnapshotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceReference")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SourceUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScoreSnapshotId")
+                        .HasDatabaseName("IX_ScoreFactors_SnapshotId");
+
+                    b.ToTable("ScoreFactors");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.ScoreSnapshot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -726,9 +788,23 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Navigation("Election");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.ScoreFactor", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.ScoreSnapshot", null)
+                        .WithMany("Factors")
+                        .HasForeignKey("ScoreSnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.AssetDeclaration", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.ScoreSnapshot", b =>
+                {
+                    b.Navigation("Factors");
                 });
 #pragma warning restore 612, 618
         }

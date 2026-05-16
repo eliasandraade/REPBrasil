@@ -18,6 +18,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Municipality> Municipalities => Set<Municipality>();
     public DbSet<LegalCase> LegalCases => Set<LegalCase>();
     public DbSet<ScoreSnapshot> ScoreSnapshots => Set<ScoreSnapshot>();
+    public DbSet<ScoreFactor> ScoreFactors => Set<ScoreFactor>();
     public DbSet<Flag> Flags => Set<Flag>();
     public DbSet<Source> Sources => Set<Source>();
     public DbSet<Evidence> Evidences => Set<Evidence>();
@@ -52,6 +53,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<Municipality>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<LegalCase>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<ScoreSnapshot>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<ScoreFactor>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<ScoreFactor>()
+            .HasOne<ScoreSnapshot>()
+            .WithMany(s => s.Factors)
+            .HasForeignKey(f => f.ScoreSnapshotId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ScoreFactor>()
+            .HasIndex(f => f.ScoreSnapshotId)
+            .HasDatabaseName("IX_ScoreFactors_SnapshotId");
         modelBuilder.Entity<Flag>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Source>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Source>()
