@@ -1,10 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using RepBrasil.Application.Interfaces;
+using RepBrasil.Application.Politicians.Queries;
 using RepBrasil.Infrastructure.Persistence;
+using RepBrasil.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddScoped<IPoliticianRepository, PoliticianRepository>();
+builder.Services.AddScoped<SearchPoliticiansQuery>();
+builder.Services.AddScoped<GetPoliticianByIdQuery>();
 
 if (builder.Environment.IsDevelopment())
 {
