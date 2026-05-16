@@ -10,6 +10,9 @@ public class PoliticianRepository(ApplicationDbContext db) : IPoliticianReposito
 {
     public async Task<PagedResult<Politician>> SearchAsync(
         string? query,
+        string? state,
+        string? party,
+        string? office,
         int page,
         int pageSize,
         CancellationToken ct = default)
@@ -26,6 +29,25 @@ public class PoliticianRepository(ApplicationDbContext db) : IPoliticianReposito
             q = q.Where(p =>
                 EF.Functions.ILike(p.Name, pattern, @"\") ||
                 EF.Functions.ILike(p.BallotName, pattern, @"\"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(state))
+            q = q.Where(p => p.State != null &&
+                EF.Functions.ILike(p.State, state.Trim()));
+
+        if (!string.IsNullOrWhiteSpace(party))
+            q = q.Where(p => p.PartyAcronym != null &&
+                EF.Functions.ILike(p.PartyAcronym, party.Trim()));
+
+        if (!string.IsNullOrWhiteSpace(office))
+        {
+            var escaped = office.Trim()
+                .Replace(@"\", @"\\")
+                .Replace("%", @"\%")
+                .Replace("_", @"\_");
+            var pattern = $"%{escaped}%";
+            q = q.Where(p => p.Office != null &&
+                EF.Functions.ILike(p.Office, pattern, @"\"));
         }
 
         var total = await q.CountAsync(ct);

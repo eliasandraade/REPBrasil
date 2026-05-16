@@ -6,9 +6,12 @@ public record PoliticianSummaryDto(
     Guid Id,
     string Name,
     string BallotName,
-    string? TseId
+    string? TseId,
+    string? PartyAcronym,
+    string? Office,
+    string? State
 )
 {
     public static PoliticianSummaryDto FromEntity(Politician p) =>
-        new(p.Id, p.Name, p.BallotName, p.TseId);
+        new(p.Id, p.Name, p.BallotName, p.TseId, p.PartyAcronym, p.Office, p.State);
 }

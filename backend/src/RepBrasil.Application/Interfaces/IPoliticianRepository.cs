@@ -7,6 +7,9 @@ public interface IPoliticianRepository
 {
     Task<PagedResult<Politician>> SearchAsync(
         string? query,
+        string? state,
+        string? party,
+        string? office,
         int page,
         int pageSize,
         CancellationToken ct = default);

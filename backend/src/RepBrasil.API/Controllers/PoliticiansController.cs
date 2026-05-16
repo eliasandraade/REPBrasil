@@ -15,11 +15,14 @@ public class PoliticiansController(
     [ProducesResponseType(typeof(PagedResult<PoliticianSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Search(
         [FromQuery] string? q,
+        [FromQuery] string? state,
+        [FromQuery] string? party,
+        [FromQuery] string? office,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await searchQuery.ExecuteAsync(q, page, pageSize, ct);
+        var result = await searchQuery.ExecuteAsync(q, state, party, office, page, pageSize, ct);
         return Ok(result);
     }
 

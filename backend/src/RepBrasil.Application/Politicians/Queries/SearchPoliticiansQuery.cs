@@ -8,6 +8,9 @@ public class SearchPoliticiansQuery(IPoliticianRepository repository)
 {
     public async Task<PagedResult<PoliticianSummaryDto>> ExecuteAsync(
         string? query,
+        string? state,
+        string? party,
+        string? office,
         int page = 1,
         int pageSize = 20,
         CancellationToken ct = default)
@@ -15,7 +18,7 @@ public class SearchPoliticiansQuery(IPoliticianRepository repository)
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await repository.SearchAsync(query, page, pageSize, ct);
+        var result = await repository.SearchAsync(query, state, party, office, page, pageSize, ct);
         var dtos = result.Items.Select(PoliticianSummaryDto.FromEntity).ToList();
         return new PagedResult<PoliticianSummaryDto>(dtos, result.TotalCount, page, pageSize);
     }

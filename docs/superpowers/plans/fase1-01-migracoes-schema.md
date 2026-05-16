@@ -113,7 +113,7 @@ dotnet ef database update \
 
 Esperado: saída terminando com `Done.`
 
-- [ ] **5. Verificar tabelas criadas**
+- [ ] **6. Verificar tabelas criadas**
 
 ```bash
 docker exec repbrasil-postgres psql -U repbrasil -d repbrasil -c "\dt"
@@ -121,7 +121,7 @@ docker exec repbrasil-postgres psql -U repbrasil -d repbrasil -c "\dt"
 
 Esperado: listagem com tabelas `Politicians`, `Parties`, `Elections`, `ElectionResults`, `AssetDeclarations`, `Companies`, `Contracts`, `Amendments`, `Municipalities`, `LegalCases`, `ScoreSnapshots`, `Flags`, `Sources`, `Evidences`, `Contestations` e `__EFMigrationsHistory`.
 
-- [ ] **6. Verificar estrutura da tabela Politicians e índice TseId**
+- [ ] **7. Verificar estrutura da tabela Politicians e índice TseId**
 
 ```bash
 docker exec repbrasil-postgres psql -U repbrasil -d repbrasil -c "\d \"Politicians\""
@@ -136,7 +136,7 @@ Indexes:
     "IX_Politicians_TseId" UNIQUE, btree ("TseId") WHERE "TseId" IS NOT NULL
 ```
 
-- [ ] **7. Commit**
+- [ ] **8. Commit**
 
 ```bash
 cd ..
