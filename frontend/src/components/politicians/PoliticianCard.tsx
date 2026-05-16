@@ -6,6 +6,10 @@ interface PoliticianCardProps {
 }
 
 export function PoliticianCard({ politician }: PoliticianCardProps) {
+  const meta = [politician.office, politician.partyAcronym, politician.state]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <Link
       href={`/politico/${politician.id}`}
@@ -13,9 +17,7 @@ export function PoliticianCard({ politician }: PoliticianCardProps) {
     >
       <p className="font-semibold text-slate-900">{politician.ballotName}</p>
       <p className="text-sm text-slate-500">{politician.name}</p>
-      {politician.tseId && (
-        <p className="text-xs text-slate-400 mt-1">TSE: {politician.tseId}</p>
-      )}
+      {meta && <p className="text-xs text-slate-400 mt-1">{meta}</p>}
     </Link>
   );
 }
