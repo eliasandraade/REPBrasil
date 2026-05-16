@@ -33,11 +33,11 @@ public class PoliticianRepository(ApplicationDbContext db) : IPoliticianReposito
 
         if (!string.IsNullOrWhiteSpace(state))
             q = q.Where(p => p.State != null &&
-                EF.Functions.ILike(p.State, state.Trim()));
+                EF.Functions.ILike(p.State, state.Trim(), @"\"));
 
         if (!string.IsNullOrWhiteSpace(party))
             q = q.Where(p => p.PartyAcronym != null &&
-                EF.Functions.ILike(p.PartyAcronym, party.Trim()));
+                EF.Functions.ILike(p.PartyAcronym, party.Trim(), @"\"));
 
         if (!string.IsNullOrWhiteSpace(office))
         {
