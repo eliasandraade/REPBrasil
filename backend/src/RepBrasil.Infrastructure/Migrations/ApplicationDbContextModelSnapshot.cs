@@ -78,6 +78,9 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<Guid>("PoliticianId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("SourceElectionYear")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("SourceUpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -92,7 +95,56 @@ namespace RepBrasil.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PoliticianId", "ElectionYear")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AssetDeclarations_Politician_Year");
+
                     b.ToTable("AssetDeclarations");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.AssetItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DeclarationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SourceUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TypeCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TypeDescription")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeclarationId", "Order")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AssetItems_Declaration_Order");
+
+                    b.ToTable("AssetItems");
                 });
 
             modelBuilder.Entity("RepBrasil.Domain.Entities.Company", b =>
@@ -641,6 +693,17 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.ToTable("Sources");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.AssetItem", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.AssetDeclaration", "Declaration")
+                        .WithMany("Items")
+                        .HasForeignKey("DeclarationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Declaration");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.ElectionResult", b =>
                 {
                     b.HasOne("RepBrasil.Domain.Entities.Election", "Election")
@@ -650,6 +713,11 @@ namespace RepBrasil.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Election");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.AssetDeclaration", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

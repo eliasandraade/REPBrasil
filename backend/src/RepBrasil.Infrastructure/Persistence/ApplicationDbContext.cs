@@ -11,6 +11,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Election> Elections => Set<Election>();
     public DbSet<ElectionResult> ElectionResults => Set<ElectionResult>();
     public DbSet<AssetDeclaration> AssetDeclarations => Set<AssetDeclaration>();
+    public DbSet<AssetItem> AssetItems => Set<AssetItem>();
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Contract> Contracts => Set<Contract>();
     public DbSet<Amendment> Amendments => Set<Amendment>();
@@ -35,6 +36,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .IsUnique()
             .HasDatabaseName("IX_ElectionResults_Politician_Election_Round");
         modelBuilder.Entity<AssetDeclaration>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<AssetDeclaration>()
+            .HasIndex(e => new { e.PoliticianId, e.ElectionYear })
+            .IsUnique()
+            .HasDatabaseName("IX_AssetDeclarations_Politician_Year");
+
+        modelBuilder.Entity<AssetItem>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<AssetItem>()
+            .HasIndex(e => new { e.DeclarationId, e.Order })
+            .IsUnique()
+            .HasDatabaseName("IX_AssetItems_Declaration_Order");
         modelBuilder.Entity<Company>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Contract>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Amendment>().HasQueryFilter(e => e.DeletedAt == null);
