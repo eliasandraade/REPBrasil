@@ -7,7 +7,8 @@ import { PoliticianProfile } from "@/components/politicians/PoliticianProfile";
 import { getPolitician } from "@/lib/api";
 
 export default function PoliticoPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["politician", id],
