@@ -6,6 +6,8 @@ using RepBrasil.Application.ElectionResults.DTOs;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Politicians.DTOs;
 using RepBrasil.Application.Politicians.Queries;
+using RepBrasil.Application.Score.DTOs;
+using RepBrasil.Application.Score.Queries;
 using RepBrasil.Application.Sources.DTOs;
 using RepBrasil.Application.Sources.Queries;
 
@@ -18,7 +20,9 @@ public class PoliticiansController(
     GetPoliticianByIdQuery getByIdQuery,
     GetPoliticianElectionsQuery getElectionsQuery,
     GetPoliticianAssetsQuery getAssetsQuery,
-    GetPoliticianSourcesQuery getSourcesQuery) : ControllerBase
+    GetPoliticianSourcesQuery getSourcesQuery,
+    GetPoliticianScoreQuery getScoreQuery,
+    GetPoliticianScoreHistoryQuery getScoreHistoryQuery) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<PoliticianSummaryDto>), StatusCodes.Status200OK)]
@@ -80,5 +84,29 @@ public class PoliticiansController(
 
         var sources = await getSourcesQuery.ExecuteAsync(ct);
         return Ok(sources);
+    }
+
+    [HttpGet("{id:guid}/score")]
+    [ProducesResponseType(typeof(ScoreStatusDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetScore(Guid id, CancellationToken ct)
+    {
+        var politician = await getByIdQuery.ExecuteAsync(id, ct);
+        if (politician is null) return NotFound();
+
+        var score = await getScoreQuery.ExecuteAsync(id, ct);
+        return Ok(score);
+    }
+
+    [HttpGet("{id:guid}/score/history")]
+    [ProducesResponseType(typeof(IReadOnlyList<ScoreStatusDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetScoreHistory(Guid id, CancellationToken ct)
+    {
+        var politician = await getByIdQuery.ExecuteAsync(id, ct);
+        if (politician is null) return NotFound();
+
+        var history = await getScoreHistoryQuery.ExecuteAsync(id, ct);
+        return Ok(history);
     }
 }
