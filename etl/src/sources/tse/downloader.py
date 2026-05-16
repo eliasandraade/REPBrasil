@@ -71,3 +71,71 @@ def extract_candidates_csv() -> Path:
 
     logger.info(f"CSV extraído: {CSV_PATH}")
     return CSV_PATH
+
+
+TSE_RESULTS_URL = (
+    "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona"
+    "/votacao_candidato_munzona_2024.zip"
+)
+RESULTS_ZIP_PATH = RAW_DIR / "votacao_candidato_munzona_2024.zip"
+RESULTS_CSV_PATH = RAW_DIR / "votacao_candidato_munzona_2024_BRASIL.csv"
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=30))
+def download_results_zip() -> Path:
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+
+    if RESULTS_ZIP_PATH.exists():
+        logger.info(f"ZIP de resultados já em cache: {RESULTS_ZIP_PATH}")
+        return RESULTS_ZIP_PATH
+
+    tmp = RESULTS_ZIP_PATH.with_suffix(".tmp")
+    logger.info(f"Baixando resultados TSE 2024 de {TSE_RESULTS_URL}")
+    try:
+        with httpx.stream("GET", TSE_RESULTS_URL, follow_redirects=True, timeout=300) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", 0))
+            downloaded = 0
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_bytes(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        pct = downloaded / total * 100
+                        logger.debug(f"Download resultados: {pct:.1f}%")
+        tmp.rename(RESULTS_ZIP_PATH)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+    logger.info(f"Download de resultados concluído: {RESULTS_ZIP_PATH}")
+    return RESULTS_ZIP_PATH
+
+
+def extract_results_csv() -> Path:
+    if RESULTS_CSV_PATH.exists():
+        logger.info(f"CSV de resultados já extraído: {RESULTS_CSV_PATH}")
+        return RESULTS_CSV_PATH
+
+    zip_path = download_results_zip()
+    logger.info("Extraindo CSV de resultados do ZIP...")
+    tmp_csv = RESULTS_CSV_PATH.with_suffix(".tmp")
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names = zf.namelist()
+            brasil_csv = next(
+                (n for n in names if "BRASIL" in n.upper() and n.endswith(".csv")), None
+            )
+            if not brasil_csv:
+                raise FileNotFoundError(
+                    f"CSV BRASIL não encontrado no ZIP. Arquivos: {names}"
+                )
+            data = zf.read(brasil_csv)
+            tmp_csv.write_bytes(data)
+        tmp_csv.rename(RESULTS_CSV_PATH)
+    except Exception:
+        tmp_csv.unlink(missing_ok=True)
+        raise
+
+    logger.info(f"CSV extraído: {RESULTS_CSV_PATH}")
+    return RESULTS_CSV_PATH
