@@ -3,6 +3,9 @@ export interface PoliticianSummary {
   name: string;
   ballotName: string;
   tseId: string | null;
+  partyAcronym: string | null;
+  office: string | null;
+  state: string | null;
 }
 
 export interface PoliticianDetail {
@@ -12,6 +15,11 @@ export interface PoliticianDetail {
   tseId: string | null;
   camaraId: string | null;
   senateId: string | null;
+  state: string | null;
+  partyAcronym: string | null;
+  partyName: string | null;
+  office: string | null;
+  candidacyStatus: string | null;
   createdAt: string;
   sourceUpdatedAt: string | null;
 }
@@ -24,4 +32,10 @@ export interface PagedResult<T> {
   totalPages: number;
   hasNext: boolean;
   hasPrevious: boolean;
+}
+
+export interface SearchFilters {
+  state?: string;
+  party?: string;
+  office?: string;
 }

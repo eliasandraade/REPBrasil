@@ -1,4 +1,4 @@
-import type { PagedResult, PoliticianDetail, PoliticianSummary } from "./types";
+import type { PagedResult, PoliticianDetail, PoliticianSummary, SearchFilters } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
@@ -15,12 +15,16 @@ export function searchPoliticians(
   query: string,
   page: number,
   pageSize = 20,
+  filters: SearchFilters = {},
 ): Promise<PagedResult<PoliticianSummary>> {
   const params = new URLSearchParams({
     q: query,
     page: String(page),
     pageSize: String(pageSize),
   });
+  if (filters.state) params.set("state", filters.state);
+  if (filters.party) params.set("party", filters.party);
+  if (filters.office) params.set("office", filters.office);
   return fetchJson<PagedResult<PoliticianSummary>>(`/api/v1/politicians?${params}`);
 }
 
