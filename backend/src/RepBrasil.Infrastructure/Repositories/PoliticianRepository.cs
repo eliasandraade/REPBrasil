@@ -14,14 +14,18 @@ public class PoliticianRepository(ApplicationDbContext db) : IPoliticianReposito
         int pageSize,
         CancellationToken ct = default)
     {
-        var q = db.Politicians.AsQueryable();
+        var q = db.Politicians.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var pattern = $"%{query.Trim()}%";
+            var escaped = query.Trim()
+                .Replace(@"\", @"\\")
+                .Replace("%", @"\%")
+                .Replace("_", @"\_");
+            var pattern = $"%{escaped}%";
             q = q.Where(p =>
-                EF.Functions.ILike(p.Name, pattern) ||
-                EF.Functions.ILike(p.BallotName, pattern));
+                EF.Functions.ILike(p.Name, pattern, @"\") ||
+                EF.Functions.ILike(p.BallotName, pattern, @"\"));
         }
 
         var total = await q.CountAsync(ct);
@@ -35,5 +39,5 @@ public class PoliticianRepository(ApplicationDbContext db) : IPoliticianReposito
     }
 
     public async Task<Politician?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        await db.Politicians.FirstOrDefaultAsync(p => p.Id == id, ct);
+        await db.Politicians.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
 }
