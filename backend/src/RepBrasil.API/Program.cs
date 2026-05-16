@@ -3,6 +3,7 @@ using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
 using RepBrasil.Application.Politicians.Queries;
+using RepBrasil.Application.Sources.Queries;
 using RepBrasil.Infrastructure.Persistence;
 using RepBrasil.Infrastructure.Repositories;
 
@@ -16,6 +17,8 @@ builder.Services.AddScoped<IElectionResultRepository, ElectionResultRepository>(
 builder.Services.AddScoped<GetPoliticianElectionsQuery>();
 builder.Services.AddScoped<IAssetDeclarationRepository, AssetDeclarationRepository>();
 builder.Services.AddScoped<GetPoliticianAssetsQuery>();
+builder.Services.AddScoped<ISourceRepository, SourceRepository>();
+builder.Services.AddScoped<GetPoliticianSourcesQuery>();
 
 if (builder.Environment.IsDevelopment())
 {

@@ -6,6 +6,8 @@ using RepBrasil.Application.ElectionResults.DTOs;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Politicians.DTOs;
 using RepBrasil.Application.Politicians.Queries;
+using RepBrasil.Application.Sources.DTOs;
+using RepBrasil.Application.Sources.Queries;
 
 namespace RepBrasil.API.Controllers;
 
@@ -15,7 +17,8 @@ public class PoliticiansController(
     SearchPoliticiansQuery searchQuery,
     GetPoliticianByIdQuery getByIdQuery,
     GetPoliticianElectionsQuery getElectionsQuery,
-    GetPoliticianAssetsQuery getAssetsQuery) : ControllerBase
+    GetPoliticianAssetsQuery getAssetsQuery,
+    GetPoliticianSourcesQuery getSourcesQuery) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<PoliticianSummaryDto>), StatusCodes.Status200OK)]
@@ -65,5 +68,17 @@ public class PoliticiansController(
         if (politician is null) return NotFound();
         var assets = await getAssetsQuery.ExecuteAsync(id, ct);
         return Ok(assets);
+    }
+
+    [HttpGet("{id:guid}/sources")]
+    [ProducesResponseType(typeof(IReadOnlyList<DataSourceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSources(Guid id, CancellationToken ct)
+    {
+        var politician = await getByIdQuery.ExecuteAsync(id, ct);
+        if (politician is null) return NotFound();
+
+        var sources = await getSourcesQuery.ExecuteAsync(ct);
+        return Ok(sources);
     }
 }
