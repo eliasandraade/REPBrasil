@@ -80,6 +80,13 @@ def test_transform_handles_missing_columns(pipeline: TseResultsPipeline) -> None
     )
     result = pipeline.transform(df)
     assert isinstance(result, list)
+    assert len(result) == 1
+
+
+def test_transform_respects_limit(pipeline: TseResultsPipeline, sample_df: pl.DataFrame) -> None:
+    limited = TseResultsPipeline(limit=1)
+    result = limited.transform(sample_df)
+    assert len(result) == 1
 
 
 def test_transform_elected_for_eleito_por_qp(pipeline: TseResultsPipeline) -> None:

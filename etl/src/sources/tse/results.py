@@ -57,6 +57,13 @@ class TseResultsPipeline(BasePipeline):
             df = df.with_columns(
                 pl.col("NR_TURNO").cast(pl.Int32, strict=False).fill_null(1)
             )
+        if "DS_SIT_TOT_TURNO" in df.columns:
+            df = df.with_columns(
+                pl.col("DS_SIT_TOT_TURNO")
+                .str.to_uppercase()
+                .str.starts_with("ELEITO")
+                .alias("elected_flag")
+            )
 
         group_cols = [
             c for c in ["SQ_CANDIDATO", "NR_TURNO", "SG_UF", "NM_UE", "DS_CARGO"]
@@ -69,6 +76,8 @@ class TseResultsPipeline(BasePipeline):
             )
         if "DS_SIT_TOT_TURNO" in df.columns:
             agg_exprs.append(pl.col("DS_SIT_TOT_TURNO").first().alias("situation"))
+        if "elected_flag" in df.columns:
+            agg_exprs.append(pl.col("elected_flag").any().alias("elected"))
 
         if group_cols and agg_exprs:
             df = df.group_by(group_cols).agg(agg_exprs)
@@ -92,7 +101,7 @@ class TseResultsPipeline(BasePipeline):
                     "city": (str(row.get("NM_UE") or "")).strip() or None,
                     "total_votes": int(row.get("total_votes") or 0),
                     "situation": situation,
-                    "elected": situation is not None and situation.upper().startswith("ELEITO"),
+                    "elected": bool(row.get("elected") or False),
                 }
             )
 
