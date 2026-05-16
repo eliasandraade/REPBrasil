@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using RepBrasil.Application.Assets.DTOs;
+using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.Common;
 using RepBrasil.Application.ElectionResults.DTOs;
 using RepBrasil.Application.ElectionResults.Queries;
@@ -12,7 +14,8 @@ namespace RepBrasil.API.Controllers;
 public class PoliticiansController(
     SearchPoliticiansQuery searchQuery,
     GetPoliticianByIdQuery getByIdQuery,
-    GetPoliticianElectionsQuery getElectionsQuery) : ControllerBase
+    GetPoliticianElectionsQuery getElectionsQuery,
+    GetPoliticianAssetsQuery getAssetsQuery) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<PoliticianSummaryDto>), StatusCodes.Status200OK)]
@@ -51,5 +54,16 @@ public class PoliticiansController(
 
         var results = await getElectionsQuery.ExecuteAsync(id, ct);
         return Ok(results);
+    }
+
+    [HttpGet("{id:guid}/assets")]
+    [ProducesResponseType(typeof(IReadOnlyList<AssetDeclarationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAssets(Guid id, CancellationToken ct)
+    {
+        var politician = await getByIdQuery.ExecuteAsync(id, ct);
+        if (politician is null) return NotFound();
+        var assets = await getAssetsQuery.ExecuteAsync(id, ct);
+        return Ok(assets);
     }
 }
