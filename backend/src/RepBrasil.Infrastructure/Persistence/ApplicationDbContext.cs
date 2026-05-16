@@ -54,6 +54,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<ScoreSnapshot>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Flag>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Source>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Source>()
+            .HasIndex(s => new { s.Name, s.SourceType })
+            .IsUnique()
+            .HasDatabaseName("IX_Sources_Name_SourceType");
         modelBuilder.Entity<Evidence>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Contestation>().HasQueryFilter(e => e.DeletedAt == null);
     }

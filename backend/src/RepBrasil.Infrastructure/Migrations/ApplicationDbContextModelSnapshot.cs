@@ -664,6 +664,9 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long?>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Hash")
                         .HasColumnType("text");
 
@@ -671,6 +674,10 @@ namespace RepBrasil.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Organization")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -689,6 +696,10 @@ namespace RepBrasil.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Name", "SourceType")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Sources_Name_SourceType");
 
                     b.ToTable("Sources");
                 });
