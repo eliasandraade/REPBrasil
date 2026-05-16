@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AssetDeclarationItem, ElectionResultItem, PoliticianDetail } from "@/lib/types";
+import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem, PoliticianDetail } from "@/lib/types";
 import { formatStatus } from "./utils";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ElectionTab } from "./tabs/ElectionTab";
@@ -23,9 +23,10 @@ interface PoliticianProfileProps {
   politician: PoliticianDetail;
   elections: ElectionResultItem[];
   assets: AssetDeclarationItem[];
+  sources: DataSourceItem[];
 }
 
-export function PoliticianProfile({ politician, elections, assets }: PoliticianProfileProps) {
+export function PoliticianProfile({ politician, elections, assets, sources }: PoliticianProfileProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   const partyLabel = [politician.partyAcronym, politician.partyName]
@@ -82,7 +83,7 @@ export function PoliticianProfile({ politician, elections, assets }: PoliticianP
         {activeTab === "assets" && (
           <AssetsTab assets={assets} />
         )}
-        {activeTab === "metadata" && <MetadataTab politician={politician} />}
+        {activeTab === "metadata" && <MetadataTab politician={politician} sources={sources} />}
         {activeTab === "score" && <ScoreTab />}
       </div>
     </div>

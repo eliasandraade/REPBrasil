@@ -64,3 +64,14 @@ export interface AssetDeclarationItem {
   totalValue: number;
   items: AssetItemDetail[];
 }
+
+export interface DataSourceItem {
+  name: string;
+  organization: string;
+  sourceType: string;
+  originalUrl: string;
+  collectedAt: string;
+  hash: string | null;
+  fileSizeBytes: number | null;
+  license: string | null;
+}
