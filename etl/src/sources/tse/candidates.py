@@ -1,5 +1,7 @@
+import hashlib
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import polars as pl
@@ -7,7 +9,7 @@ from loguru import logger
 
 from src.db.connection import get_db
 from src.pipeline.base import BasePipeline
-from src.sources.tse.downloader import extract_candidates_csv
+from src.sources.tse.downloader import CSV_PATH, extract_candidates_csv
 
 # "#NE" é o código TSE para registros sem status de situação definido no arquivo consulta_cand_2024_BRASIL.csv
 VALID_STATUSES = {"APTO", "INAPTO", "DEFERIDO", "DEFERIDO COM RECURSO", "#NE"}
@@ -22,6 +24,27 @@ COLUMN_MAP = {
     "DS_CARGO": "office",
     "DS_SITUACAO_CANDIDATURA": "candidacy_status",
 }
+
+CANDIDATES_SOURCE_NAME = "TSE Candidatos 2024 — consulta_cand_2024_BRASIL.csv"
+CANDIDATES_SOURCE_ORG = "Tribunal Superior Eleitoral"
+CANDIDATES_SOURCE_URL = "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2024.zip"
+CANDIDATES_SOURCE_LICENSE = "Dados Abertos"
+
+
+def _compute_sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _get_file_size(path: Path) -> int | None:
+    if not path.exists():
+        return None
+    return path.stat().st_size
 
 
 class TseCandidatesPipeline(BasePipeline):
@@ -111,8 +134,41 @@ class TseCandidatesPipeline(BasePipeline):
                 "SourceUpdatedAt" = EXCLUDED."SourceUpdatedAt"
         """
 
+        now = datetime.now(UTC).isoformat()
+
         with get_db() as conn:
             with conn.cursor() as cur:
+                # Upsert Source record for provenance tracking
+                csv_hash = _compute_sha256(CSV_PATH)
+                csv_size = _get_file_size(CSV_PATH)
+                source_id = str(uuid.uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO "Sources"
+                        ("Id","Name","Organization","SourceType","OriginalUrl",
+                         "CollectedAt","Hash","FileSizeBytes","License","CreatedAt","UpdatedAt")
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT ("Name","SourceType") DO UPDATE SET
+                        "CollectedAt" = EXCLUDED."CollectedAt",
+                        "Hash" = EXCLUDED."Hash",
+                        "FileSizeBytes" = EXCLUDED."FileSizeBytes",
+                        "UpdatedAt" = EXCLUDED."UpdatedAt"
+                    """,
+                    (
+                        source_id,
+                        CANDIDATES_SOURCE_NAME,
+                        CANDIDATES_SOURCE_ORG,
+                        "candidates",
+                        CANDIDATES_SOURCE_URL,
+                        now,
+                        csv_hash,
+                        csv_size,
+                        CANDIDATES_SOURCE_LICENSE,
+                        now, now,
+                    ),
+                )
+                logger.info("Fonte 'candidates' registrada/atualizada em Sources.")
+
                 cur.executemany(insert_sql, data)
                 logger.info(
                     f"Submetidos ao banco: {len(data)} registros"

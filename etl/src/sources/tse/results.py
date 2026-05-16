@@ -1,5 +1,7 @@
+import hashlib
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import polars as pl
@@ -7,7 +9,7 @@ from loguru import logger
 
 from src.db.connection import get_db
 from src.pipeline.base import BasePipeline
-from src.sources.tse.downloader import extract_results_csv
+from src.sources.tse.downloader import RESULTS_CSV_PATH, extract_results_csv
 
 RESULTS_COLUMNS = [
     "SQ_CANDIDATO",
@@ -18,6 +20,27 @@ RESULTS_COLUMNS = [
     "QT_VOTOS_NOMINAIS_VALIDOS",
     "DS_SIT_TOT_TURNO",
 ]
+
+RESULTS_SOURCE_NAME = "TSE Resultados Eleitorais 2024 — votacao_candidato_munzona_2024_BRASIL.csv"
+RESULTS_SOURCE_ORG = "Tribunal Superior Eleitoral"
+RESULTS_SOURCE_URL = "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_2024.zip"
+RESULTS_SOURCE_LICENSE = "Dados Abertos"
+
+
+def _compute_sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _get_file_size(path: Path) -> int | None:
+    if not path.exists():
+        return None
+    return path.stat().st_size
 
 
 class TseResultsPipeline(BasePipeline):
@@ -117,6 +140,37 @@ class TseResultsPipeline(BasePipeline):
 
         with get_db() as conn:
             with conn.cursor() as cur:
+                # Upsert Source record for provenance tracking
+                csv_hash = _compute_sha256(RESULTS_CSV_PATH)
+                csv_size = _get_file_size(RESULTS_CSV_PATH)
+                source_id = str(uuid.uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO "Sources"
+                        ("Id","Name","Organization","SourceType","OriginalUrl",
+                         "CollectedAt","Hash","FileSizeBytes","License","CreatedAt","UpdatedAt")
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT ("Name","SourceType") DO UPDATE SET
+                        "CollectedAt" = EXCLUDED."CollectedAt",
+                        "Hash" = EXCLUDED."Hash",
+                        "FileSizeBytes" = EXCLUDED."FileSizeBytes",
+                        "UpdatedAt" = EXCLUDED."UpdatedAt"
+                    """,
+                    (
+                        source_id,
+                        RESULTS_SOURCE_NAME,
+                        RESULTS_SOURCE_ORG,
+                        "results",
+                        RESULTS_SOURCE_URL,
+                        now,
+                        csv_hash,
+                        csv_size,
+                        RESULTS_SOURCE_LICENSE,
+                        now, now,
+                    ),
+                )
+                logger.info("Fonte 'results' registrada/atualizada em Sources.")
+
                 tse_ids = list({r["tse_id"] for r in data})
                 cur.execute(
                     'SELECT "TseId", "Id" FROM "Politicians" WHERE "TseId" = ANY(%s)',
