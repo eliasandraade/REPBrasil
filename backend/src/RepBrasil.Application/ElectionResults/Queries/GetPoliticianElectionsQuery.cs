@@ -11,7 +11,9 @@ public class GetPoliticianElectionsQuery(IElectionResultRepository repository)
     {
         var results = await repository.GetByPoliticianIdAsync(politicianId, ct);
         return results
-            .Select(r => ElectionResultDto.FromEntities(r, r.Election))
+            .Select(r => ElectionResultDto.FromEntities(r, r.Election
+                ?? throw new InvalidOperationException(
+                    $"ElectionResult {r.Id} has no loaded Election navigation.")))
             .ToList();
     }
 }

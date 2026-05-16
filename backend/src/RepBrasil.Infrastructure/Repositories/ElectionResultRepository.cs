@@ -12,6 +12,7 @@ public class ElectionResultRepository(ApplicationDbContext db) : IElectionResult
         CancellationToken ct = default)
     {
         return await db.ElectionResults
+            .AsNoTracking()
             .Include(r => r.Election)
             .Where(r => r.PoliticianId == politicianId)
             .OrderByDescending(r => r.Election.Year)
