@@ -6,6 +6,8 @@ import { formatStatus } from "./utils";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ElectionTab } from "./tabs/ElectionTab";
 import { AssetsTab } from "./tabs/AssetsTab";
+import { MetadataTab } from "./tabs/MetadataTab";
+import { ScoreTab } from "./tabs/ScoreTab";
 
 type TabId = "overview" | "elections" | "assets" | "metadata" | "score";
 
@@ -80,8 +82,8 @@ export function PoliticianProfile({ politician, elections, assets }: PoliticianP
         {activeTab === "assets" && (
           <AssetsTab assets={assets} />
         )}
-        {activeTab === "metadata"  && <p className="text-slate-400 text-sm">Fontes — em breve</p>}
-        {activeTab === "score"     && <p className="text-slate-400 text-sm">Score — em breve</p>}
+        {activeTab === "metadata" && <MetadataTab politician={politician} />}
+        {activeTab === "score" && <ScoreTab />}
       </div>
     </div>
   );
