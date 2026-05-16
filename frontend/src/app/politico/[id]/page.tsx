@@ -49,6 +49,7 @@ export default function PoliticoPage() {
     queryKey: ["politician-score", id],
     queryFn: () => getPoliticianScore(id),
     enabled: !!data,
+    retry: 1,
     staleTime: 300_000,
   });
 

@@ -1,5 +1,3 @@
-"use client";
-
 import type { ScoreStatusItem } from "@/lib/types";
 
 const FACTOR_CATEGORIES = [
