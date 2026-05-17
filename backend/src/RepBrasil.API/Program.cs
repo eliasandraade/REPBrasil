@@ -8,8 +8,8 @@ using RepBrasil.Application.Sources.Queries;
 using RepBrasil.Infrastructure.Persistence;
 using RepBrasil.Infrastructure.Repositories;
 
-// Startup probe — written to stdout immediately so Railway logs capture it even if startup crashes.
-Console.WriteLine($"[STARTUP] RepBrasil.API starting. PORT={Environment.GetEnvironmentVariable("PORT") ?? "(not set)"} | ASPNETCORE_ENVIRONMENT={Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "(not set)"}");
+// Startup probe — written immediately so Railway logs capture it before any app code runs.
+Console.WriteLine($"[STARTUP] RepBrasil.API starting. PORT={Environment.GetEnvironmentVariable("PORT") ?? "(not set)"} | ENV={Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "(not set)"}");
 Console.Out.Flush();
 
 var builder = WebApplication.CreateBuilder(args);
@@ -57,24 +57,8 @@ builder.WebHost.UseUrls($"http://+:{port}");
 
 var app = builder.Build();
 
-// Run EF Core migrations at startup when MIGRATE_ON_STARTUP=true (safe for staging — migrations are idempotent)
-if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
-{
-    try
-    {
-        using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        app.Logger.LogInformation("Applying database migrations...");
-        await db.Database.MigrateAsync();
-        app.Logger.LogInformation("Database migrations applied successfully.");
-    }
-    catch (Exception ex)
-    {
-        // Log but do NOT crash — the health check must pass so Railway marks the deployment healthy.
-        // DB-dependent endpoints will fail until the connection/schema is fixed.
-        app.Logger.LogCritical(ex, "Failed to apply database migrations. Check DB connection and migration state.");
-    }
-}
+Console.WriteLine("[STARTUP] App built. Registering pipeline...");
+Console.Out.Flush();
 
 // Swagger active in staging — temporary, will be protected or removed before public launch
 app.UseSwagger();
@@ -89,5 +73,29 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+// Expose a manual migrate endpoint — call POST /migrate after deployment if needed.
+// This avoids blocking startup with a potentially slow DB connection.
+if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
+{
+    app.MapPost("/migrate", async (ApplicationDbContext db, ILogger<Program> logger) =>
+    {
+        try
+        {
+            logger.LogInformation("Applying database migrations...");
+            await db.Database.MigrateAsync();
+            logger.LogInformation("Database migrations applied successfully.");
+            return Results.Ok(new { status = "ok", message = "Migrations applied." });
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex, "Migration failed.");
+            return Results.Problem(ex.Message, statusCode: 500);
+        }
+    });
+}
+
+Console.WriteLine("[STARTUP] Starting app.Run()...");
+Console.Out.Flush();
 
 app.Run();
