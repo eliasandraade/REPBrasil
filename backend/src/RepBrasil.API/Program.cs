@@ -8,6 +8,10 @@ using RepBrasil.Application.Sources.Queries;
 using RepBrasil.Infrastructure.Persistence;
 using RepBrasil.Infrastructure.Repositories;
 
+// Startup probe — written to stdout immediately so Railway logs capture it even if startup crashes.
+Console.WriteLine($"[STARTUP] RepBrasil.API starting. PORT={Environment.GetEnvironmentVariable("PORT") ?? "(not set)"} | ASPNETCORE_ENVIRONMENT={Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "(not set)"}");
+Console.Out.Flush();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
