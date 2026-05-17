@@ -50,8 +50,9 @@ def _get_file_size(path: Path) -> int | None:
 class TseCandidatesPipeline(BasePipeline):
     """Pipeline de coleta de candidatos do TSE — eleição 2024 (validação técnica Fase 1)."""
 
-    def __init__(self, limit: int | None = None) -> None:
+    def __init__(self, limit: int | None = None, state_filter: str | None = None) -> None:
         self.limit = limit
+        self.state_filter = state_filter.upper() if state_filter else None
 
     def collect(self) -> pl.DataFrame:
         csv_path = extract_candidates_csv()
@@ -72,6 +73,12 @@ class TseCandidatesPipeline(BasePipeline):
         if missing:
             logger.warning(f"Colunas esperadas ausentes no CSV do TSE: {missing}")
         df = raw.select(available).rename({c: COLUMN_MAP[c] for c in available})
+
+        # Filtro de UF — aplicado APÓS rename, opera em coluna "state"
+        if self.state_filter and "state" in df.columns:
+            before = len(df)
+            df = df.filter(pl.col("state") == self.state_filter)
+            logger.info(f"Filtro UF={self.state_filter}: {before} → {len(df)} registros")
 
         if "candidacy_status" in df.columns:
             df = df.filter(pl.col("candidacy_status").is_in(list(VALID_STATUSES)))
