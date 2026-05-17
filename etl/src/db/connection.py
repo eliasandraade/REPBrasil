@@ -20,7 +20,7 @@ def get_connection_string() -> str:
     if not url:
         raise RuntimeError(
             "DATABASE_URL environment variable is not set. "
-            "Example: host=localhost port=5432 dbname=repbrasil user=repbrasil password=repbrasil"
+            "Example: postgresql://user:password@host:5432/dbname"
         )
     return url
 
@@ -32,6 +32,7 @@ def get_db() -> Generator[PgConnection, None, None]:
     try:
         yield conn
         conn.commit()
+    # Rollback em qualquer exceção do chamador, não apenas psycopg2.Error
     except Exception:
         conn.rollback()
         raise
@@ -44,10 +45,12 @@ def get_db_batch() -> Generator[PgConnection, None, None]:
     """Conexão para operações longas com batch commits. O chamador gerencia commits explicitamente.
     Keepalives ativados para sobreviver ao SSL timeout do Railway em loads de >5 minutos.
     Em exceção: rollback automático dos dados não-commitados da transação atual.
+    Autocommit desativado (padrão psycopg2). Caller deve chamar conn.commit() explicitamente.
     """
     conn = psycopg2.connect(get_connection_string(), **_KEEPALIVE_KWARGS)
     try:
         yield conn
+    # Rollback em qualquer exceção do chamador, não apenas psycopg2.Error
     except Exception:
         conn.rollback()
         raise
