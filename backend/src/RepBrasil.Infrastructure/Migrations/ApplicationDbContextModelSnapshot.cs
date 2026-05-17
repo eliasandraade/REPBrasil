@@ -392,10 +392,15 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<DateTime?>("SourceUpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("TransformationChainId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TransformationChainId");
 
                     b.ToTable("Evidences");
                 });
@@ -838,6 +843,106 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.ToTable("Sources");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.TransformationChain", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PipelineId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PipelineVersion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SourceUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TransformationChains");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.TransformationStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChainId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ExecutedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InputReference")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OutputHash")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OutputReference")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Parameters")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SourceHash")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SourceUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StepType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChainId");
+
+                    b.ToTable("TransformationSteps");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.AssetItem", b =>
                 {
                     b.HasOne("RepBrasil.Domain.Entities.AssetDeclaration", "Declaration")
@@ -860,6 +965,13 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Navigation("Election");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Evidence", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.TransformationChain", null)
+                        .WithMany("Evidences")
+                        .HasForeignKey("TransformationChainId");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.Politician", b =>
                 {
                     b.HasOne("RepBrasil.Domain.Entities.Person", "Person")
@@ -879,6 +991,17 @@ namespace RepBrasil.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.TransformationStep", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.TransformationChain", "Chain")
+                        .WithMany("Steps")
+                        .HasForeignKey("ChainId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chain");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.AssetDeclaration", b =>
                 {
                     b.Navigation("Items");
@@ -892,6 +1015,13 @@ namespace RepBrasil.Infrastructure.Migrations
             modelBuilder.Entity("RepBrasil.Domain.Entities.ScoreSnapshot", b =>
                 {
                     b.Navigation("Factors");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.TransformationChain", b =>
+                {
+                    b.Navigation("Evidences");
+
+                    b.Navigation("Steps");
                 });
 #pragma warning restore 612, 618
         }

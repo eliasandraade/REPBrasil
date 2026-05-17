@@ -28,6 +28,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Evidence> Evidences => Set<Evidence>();
     public DbSet<Contestation> Contestations => Set<Contestation>();
     public DbSet<Person> Persons => Set<Person>();
+    public DbSet<TransformationChain> TransformationChains => Set<TransformationChain>();
+    public DbSet<TransformationStep> TransformationSteps => Set<TransformationStep>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -89,6 +91,21 @@ public class ApplicationDbContext : DbContext
             .HasDatabaseName("IX_Sources_Name_SourceType");
         modelBuilder.Entity<Evidence>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Contestation>().HasQueryFilter(e => e.DeletedAt == null);
+
+        modelBuilder.Entity<TransformationChain>(entity =>
+        {
+            entity.HasQueryFilter(e => e.DeletedAt == null);
+        });
+
+        modelBuilder.Entity<TransformationStep>(entity =>
+        {
+            entity.HasQueryFilter(e => e.DeletedAt == null);
+            entity.Property(e => e.Parameters).HasColumnType("jsonb");
+            entity.HasOne(s => s.Chain)
+                  .WithMany(c => c.Steps)
+                  .HasForeignKey(s => s.ChainId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
