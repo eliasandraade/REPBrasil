@@ -27,12 +27,27 @@ public class ApplicationDbContext : DbContext
     public DbSet<Source> Sources => Set<Source>();
     public DbSet<Evidence> Evidences => Set<Evidence>();
     public DbSet<Contestation> Contestations => Set<Contestation>();
+    public DbSet<Person> Persons => Set<Person>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<Politician>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Person>(entity =>
+        {
+            entity.HasQueryFilter(e => e.DeletedAt == null);
+            entity.Property(e => e.Aliases).HasColumnType("text[]");
+            entity.Property(e => e.Metadata).HasColumnType("jsonb");
+        });
+
+        modelBuilder.Entity<Politician>(entity =>
+        {
+            entity.HasQueryFilter(e => e.DeletedAt == null);
+            entity.HasOne(p => p.Person)
+                  .WithMany(p => p.Politicians)
+                  .HasForeignKey(p => p.PersonId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
         modelBuilder.Entity<Party>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<Election>().HasQueryFilter(e => e.DeletedAt == null);
         modelBuilder.Entity<ElectionResult>().HasQueryFilter(e => e.DeletedAt == null);

@@ -12,4 +12,8 @@ public class Politician : AuditableEntity
     public string? PartyName { get; set; }
     public string? Office { get; set; }
     public string? CandidacyStatus { get; set; }
+
+    /// <summary>Vínculo opcional com a entidade Person. Nullable — não afeta registros existentes.</summary>
+    public Guid? PersonId { get; set; }
+    public Person? Person { get; set; }
 }

@@ -555,6 +555,48 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.ToTable("Parties");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Person", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string[]>("Aliases")
+                        .HasColumnType("text[]");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExternalId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("NormalizedDocumentHash")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SourceUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Persons");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.Politician", b =>
                 {
                     b.Property<Guid>("Id")
@@ -590,6 +632,9 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<string>("PartyName")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("PersonId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SenateId")
                         .HasColumnType("text");
 
@@ -606,6 +651,8 @@ namespace RepBrasil.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PersonId");
 
                     b.ToTable("Politicians");
                 });
@@ -788,6 +835,16 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Navigation("Election");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Politician", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.Person", "Person")
+                        .WithMany("Politicians")
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Person");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.ScoreFactor", b =>
                 {
                     b.HasOne("RepBrasil.Domain.Entities.ScoreSnapshot", null)
@@ -800,6 +857,11 @@ namespace RepBrasil.Infrastructure.Migrations
             modelBuilder.Entity("RepBrasil.Domain.Entities.AssetDeclaration", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Person", b =>
+                {
+                    b.Navigation("Politicians");
                 });
 
             modelBuilder.Entity("RepBrasil.Domain.Entities.ScoreSnapshot", b =>
