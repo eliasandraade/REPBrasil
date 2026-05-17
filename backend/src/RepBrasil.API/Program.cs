@@ -24,43 +24,56 @@ builder.Services.AddScoped<IScoreRepository, ScoreRepository>();
 builder.Services.AddScoped<GetPoliticianScoreQuery>();
 builder.Services.AddScoped<GetPoliticianScoreHistoryQuery>();
 
-if (builder.Environment.IsDevelopment())
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
 {
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen(c =>
+    c.SwaggerDoc("v1", new() { Title = "REPBrasil API", Version = "v1" });
+});
+
+var allowedOrigins = (builder.Configuration["AllowedOrigins"] ?? "http://localhost:3000")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("App", policy =>
     {
-        c.SwaggerDoc("v1", new() { Title = "REPBrasil API", Version = "v1" });
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
-    builder.Services.AddCors(options =>
-    {
-        options.AddPolicy("LocalDev", policy =>
-        {
-            policy
-                .WithOrigins("http://localhost:3000")
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        });
-    });
-}
+});
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
-builder.Services.AddStackExchangeRedisCache(options =>
-{
-    options.Configuration = builder.Configuration.GetConnectionString("Redis");
-});
+// Bind to Railway-injected PORT (fallback 5000 for local dev)
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+builder.WebHost.UseUrls($"http://+:{port}");
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+// Run EF Core migrations at startup when MIGRATE_ON_STARTUP=true (safe for staging — migrations are idempotent)
+if (builder.Configuration["MigrateOnStartup"] == "true")
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    app.UseCors("LocalDev");
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    app.Logger.LogInformation("Applying database migrations...");
+    await db.Database.MigrateAsync();
+    app.Logger.LogInformation("Database migrations applied.");
 }
 
-app.UseHttpsRedirection();
+// Swagger active in staging — temporary, will be protected or removed before public launch
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseCors("App");
+
+// UseHttpsRedirection omitted in Production — Railway terminates TLS at the proxy layer
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.MapControllers();
 
 app.Run();
