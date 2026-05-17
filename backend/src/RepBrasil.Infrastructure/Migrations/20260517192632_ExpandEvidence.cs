@@ -33,7 +33,7 @@ namespace RepBrasil.Infrastructure.Migrations
                 table: "Evidences",
                 type: "integer",
                 nullable: false,
-                defaultValue: 0);
+                defaultValue: 1);
 
             migrationBuilder.AddColumn<string>(
                 name: "ContentHash",
@@ -46,7 +46,7 @@ namespace RepBrasil.Infrastructure.Migrations
                 table: "Evidences",
                 type: "text",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "None");
 
             migrationBuilder.AddColumn<string>(
                 name: "DatasetId",
@@ -59,7 +59,7 @@ namespace RepBrasil.Infrastructure.Migrations
                 table: "Evidences",
                 type: "text",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "Primary");
 
             migrationBuilder.AddColumn<string>(
                 name: "Metadata",
