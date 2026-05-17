@@ -80,7 +80,7 @@ def main() -> None:
         logger.info(f"Pipeline concluído em {elapsed:.1f}s ({elapsed / 60:.1f} min)")
     except Exception as e:
         elapsed = time.time() - t0
-        logger.error(f"Pipeline falhou em {elapsed:.1f}s — {e}")
+        logger.exception(f"Pipeline falhou em {elapsed:.1f}s")
         sys.exit(1)
 
     with psycopg2.connect(conn_str) as conn:
