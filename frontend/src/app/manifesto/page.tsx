@@ -4,24 +4,30 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Manifesto — REPBrasil",
   description:
-    "Manifesto por uma inteligência pública mais clara. O REPBrasil existe para organizar dados públicos brasileiros em uma experiência rastreável e auditável.",
+    "Sem medo. Sem lados. Sem se ajoelhar para ninguém. O REPBrasil existe para organizar dados públicos verificáveis sobre agentes políticos brasileiros.",
 };
 
-function CommitmentCard({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-4 rounded-lg border border-white/8 bg-card p-4">
-      <div className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand" />
-      <div>
-        <p className="mb-1 text-sm font-semibold text-slate-200">{title}</p>
-        <p className="text-sm leading-relaxed text-slate-500">{description}</p>
-      </div>
+    <div className="space-y-3">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-brand/80">
+        {title}
+      </h2>
+      {children}
     </div>
+  );
+}
+
+function BulletList({ items }: { items: string[] }) {
+  return (
+    <ul className="space-y-2">
+      {items.map((item) => (
+        <li key={item} className="flex items-start gap-3 text-sm leading-relaxed text-slate-400">
+          <span className="mt-2 h-1 w-1 flex-shrink-0 rounded-full bg-brand/60" />
+          {item}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -45,150 +51,177 @@ export default function ManifestoPage() {
           </div>
 
           <h1 className="mb-4 text-3xl font-bold leading-tight tracking-tight text-slate-100 sm:text-4xl">
-            Manifesto por uma inteligência{" "}
-            <span className="text-gradient-brand">pública mais clara.</span>
+            Manifesto{" "}
+            <span className="text-gradient-brand">REPBrasil</span>
           </h1>
           <p className="text-base leading-relaxed text-slate-400">
-            Por que o REPBrasil existe e como opera.
+            Sem medo. Sem lados. Sem se ajoelhar para ninguém.
           </p>
         </div>
       </div>
 
       {/* Content */}
-      <div className="mx-auto max-w-3xl px-6 py-12">
-        {/* Main text */}
-        <div className="mb-12 space-y-6 text-base leading-relaxed text-slate-400">
-          <p>
-            O Brasil não sofre por falta de dados. Sofre porque dados públicos,
-            dispersos e difíceis de interpretar, raramente viram compreensão
-            pública.
-          </p>
-          <p>
-            Existe uma distância real entre o dado disponível e a informação
-            compreensível. Declarações patrimoniais existem, mas estão em
-            planilhas brutas. Resultados eleitorais existem, mas fragmentados
-            por ciclo, por cargo, por estado. Candidaturas existem, mas exigem
-            familiaridade técnica para serem localizadas.
-          </p>
-          <p className="text-slate-300">
-            O REPBrasil nasce para reduzir essa distância.
-          </p>
-          <p>
-            Organizamos informações oficiais sobre agentes políticos brasileiros
-            em uma experiência clara, rastreável e auditável. Não somos partido.
-            Não somos governo. Não somos tribunal.
-          </p>
-          <p>
-            Somos uma infraestrutura tecnológica para ampliar a transparência,
-            a análise e a responsabilidade pública.
-          </p>
+      <div className="mx-auto max-w-3xl px-6 py-12 space-y-12">
+
+        {/* Origem */}
+        <Section title="Origem">
+          <div className="space-y-4 text-sm leading-relaxed text-slate-400">
+            <p>
+              O REPBrasil nasce para combater a desinformação com clareza documental.
+            </p>
+            <p>
+              O projeto não é partido, imprensa, tribunal ou movimento ideológico.
+            </p>
+            <p>
+              O projeto não existe para dizer em quem o eleitor deve votar.
+            </p>
+            <p className="text-slate-300 font-medium">
+              O projeto existe para organizar dados públicos verificáveis, mostrar
+              conexões, expor padrões documentais e devolver ao cidadão a capacidade
+              de enxergar.
+            </p>
+          </div>
+        </Section>
+
+        <div className="flex items-center gap-4">
+          <div className="h-px flex-1 bg-white/6" />
+          <div className="h-1.5 w-1.5 rounded-full bg-brand/40" />
+          <div className="h-px flex-1 bg-white/6" />
         </div>
 
-        {/* Divider with accent */}
-        <div className="mb-10 flex items-center gap-4">
-          <div className="h-px flex-1 bg-white/8" />
-          <div className="h-2 w-2 rounded-full bg-brand/50" />
-          <div className="h-px flex-1 bg-white/8" />
+        {/* O que somos */}
+        <Section title="O que somos">
+          <div className="space-y-3 text-sm leading-relaxed text-slate-400">
+            <p>
+              Uma plataforma open source de transparência política e reputação pública documental.
+            </p>
+            <p>
+              Reunimos, organizamos, cruzamos e apresentamos dados públicos oficiais sobre
+              políticos brasileiros — para que qualquer cidadão compreenda, de forma simples
+              e verificável, quem são os representantes e candidatos que disputam ou exercem
+              poder público.
+            </p>
+          </div>
+        </Section>
+
+        {/* Compromisso central */}
+        <Section title="Compromisso central">
+          <BulletList items={[
+            "Com a verdade verificável.",
+            "Com a transparência.",
+            "Com a neutralidade.",
+            "Com o povo brasileiro.",
+            "Com a auditoria pública.",
+          ]} />
+        </Section>
+
+        <div className="flex items-center gap-4">
+          <div className="h-px flex-1 bg-white/6" />
+          <div className="h-1.5 w-1.5 rounded-full bg-brand/40" />
+          <div className="h-px flex-1 bg-white/6" />
         </div>
 
-        {/* Principles */}
-        <div className="mb-12">
-          <h2 className="mb-6 text-lg font-bold text-slate-100">
-            Princípios operacionais
-          </h2>
-          <div className="space-y-4 text-base leading-relaxed text-slate-400">
-            <div className="border-l-2 border-brand/40 pl-4">
-              <p className="font-medium text-slate-200">Rastreabilidade sobre afirmação.</p>
-              <p className="mt-1">
-                Toda informação exibida deve apontar para uma fonte. Nenhum dado é
-                exibido sem origem verificável. SHA-256 de cada arquivo-fonte está
-                disponível para auditoria.
-              </p>
-            </div>
-            <div className="border-l-2 border-brand/40 pl-4">
-              <p className="font-medium text-slate-200">Contexto sobre número isolado.</p>
-              <p className="mt-1">
-                Toda métrica deve ser explicável. Transparência sem método vira
-                ruído. Dados sem contexto viram confusão. Tecnologia sem
-                responsabilidade vira risco.
-              </p>
-            </div>
-            <div className="border-l-2 border-brand/40 pl-4">
-              <p className="font-medium text-slate-200">Limitação declarada antes de omitida.</p>
-              <p className="mt-1">
-                Toda limitação deve ser declarada. A base está em expansão. A
-                metodologia está em refinamento. Nenhum score definitivo é exibido
-                nesta fase. A honestidade sobre o estágio atual é parte do produto.
-              </p>
-            </div>
-            <div className="border-l-2 border-brand/40 pl-4">
-              <p className="font-medium text-slate-200">Contestação como direito.</p>
-              <p className="mt-1">
-                Toda pessoa citada deve ter caminho para contestar dados
-                inconsistentes. Políticos, assessorias e cidadãos podem solicitar
-                revisão mediante indicação de fonte oficial ou documento
-                comprobatório.
-              </p>
-            </div>
-            <div className="border-l-2 border-brand/40 pl-4">
-              <p className="font-medium text-slate-200">Neutralidade radical.</p>
-              <p className="mt-1">
-                Nenhuma afirmação sem fonte. Nenhum juízo moral. Nenhum ranque de
-                virtude. Os dados falam por si quando organizados com rigor.
-              </p>
-            </div>
+        {/* Duas colunas: usamos / não usamos */}
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="rounded-lg border border-white/8 bg-card p-5 space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-brand/80">
+              O que usamos
+            </h2>
+            <p className="text-xs text-slate-600 font-medium uppercase tracking-wider">Apenas:</p>
+            <BulletList items={[
+              "APIs governamentais",
+              "Bases públicas oficiais",
+              "Documentos públicos verificáveis",
+              "Dados eleitorais oficiais",
+              "Dados legislativos oficiais",
+              "Registros administrativos oficiais",
+              "Decisões judiciais oficiais",
+            ]} />
+          </div>
+
+          <div className="rounded-lg border border-white/8 bg-card p-5 space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+              O que não usamos
+            </h2>
+            <p className="text-xs text-slate-600 font-medium uppercase tracking-wider">Jamais:</p>
+            <BulletList items={[
+              "Notícias",
+              "Imprensa",
+              "Redes sociais",
+              "Rumores",
+              "Denúncias não verificadas",
+              "Vazamentos",
+              "Opinião editorial",
+              "Avaliação ideológica",
+            ]} />
           </div>
         </div>
 
-        {/* Commitments grid */}
-        <div className="mb-12">
-          <h2 className="mb-6 text-lg font-bold text-slate-100">
-            Compromissos da Andrade Systems com o REPBrasil
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <CommitmentCard
-              title="Neutralidade institucional"
-              description="Nenhuma afiliação partidária, governamental ou ideológica. Dados e metodologia são públicos e auditáveis."
-            />
-            <CommitmentCard
-              title="Rastreabilidade integral"
-              description="Cada dado aponta para uma fonte pública. SHA-256, data de importação e URL original estão disponíveis."
-            />
-            <CommitmentCard
-              title="Contestação fundamentada"
-              description="Canal dedicado para revisão de informações mediante indicação de fonte oficial ou documento comprobatório."
-            />
-            <CommitmentCard
-              title="Melhoria contínua da metodologia"
-              description="O score e os critérios analíticos serão publicados e explicados antes de qualquer resultado ser exibido."
-            />
-            <CommitmentCard
-              title="Transparência sobre o estágio"
-              description="O produto está em desenvolvimento. As limitações atuais são informadas claramente em todas as interfaces."
-            />
-            <CommitmentCard
-              title="Dados a serviço da compreensão"
-              description="O objetivo final não é ranquear políticos, mas tornar a vida pública brasileira mais compreensível."
-            />
+        <div className="flex items-center gap-4">
+          <div className="h-px flex-1 bg-white/6" />
+          <div className="h-1.5 w-1.5 rounded-full bg-brand/40" />
+          <div className="h-px flex-1 bg-white/6" />
+        </div>
+
+        {/* O sistema mostra / nunca diz */}
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="rounded-lg border border-brand/15 bg-brand/5 p-5 space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-brand/80">
+              O que o sistema mostra
+            </h2>
+            <BulletList items={[
+              "Dados",
+              "Fontes",
+              "Score",
+              "Flags",
+              "Conexões",
+              "Histórico",
+              "Metodologia",
+            ]} />
+          </div>
+
+          <div className="rounded-lg border border-white/8 bg-card p-5 space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+              O que o sistema nunca diz
+            </h2>
+            <ul className="space-y-2.5">
+              {[
+                "Este político é corrupto.",
+                "Este político é bom.",
+                "Este político é ruim.",
+                "Vote neste candidato.",
+                "Não vote neste candidato.",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2 text-sm leading-relaxed text-slate-500">
+                  <span className="mt-1 text-slate-700 flex-shrink-0">✗</span>
+                  <span className="italic">&ldquo;{item}&rdquo;</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
-        {/* Closing */}
-        <div className="rounded-xl border border-brand/20 bg-brand/5 p-6">
-          <p className="mb-4 text-base font-medium leading-relaxed text-slate-200">
-            &ldquo;O REPBrasil existe para transformar dados públicos em inteligência
-            cívica compreensível.&rdquo;
+        {/* Julgamento */}
+        <p className="text-sm text-slate-500 text-center border-l-2 border-brand/30 pl-4">
+          O juízo de valor pertence ao cidadão.
+        </p>
+
+        {/* Assinatura filosófica */}
+        <div className="rounded-xl border border-brand/20 bg-brand/5 p-6 sm:p-8 text-center">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand/60">
+            Assinatura filosófica
           </p>
-          <p className="text-sm text-slate-500">
+          <p className="text-xl font-bold leading-snug text-slate-100 sm:text-2xl">
+            Sem medo. Sem lados.<br />Sem se ajoelhar para ninguém.
+          </p>
+          <p className="mt-5 text-sm text-slate-500">
             REPBrasil é um produto da{" "}
             <span className="font-semibold text-slate-400">Andrade Systems</span>.
-            Desenvolvido com foco em neutralidade, rastreabilidade e responsabilidade
-            institucional.
           </p>
         </div>
 
         {/* Navigation */}
-        <div className="mt-10 flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3">
           <Link
             href="/politicos"
             className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-slate-900 transition-all hover:bg-brand-light"

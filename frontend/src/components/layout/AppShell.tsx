@@ -63,14 +63,47 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
+function ChevronLeftIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
 function LogoMark({ size = "md" }: { size?: "sm" | "md" }) {
-  const cls = size === "sm" ? "w-7 h-7 text-xs" : "w-8 h-8 text-sm";
+  const dim = size === "sm" ? 28 : 34;
   return (
-    <div className={`${cls} rounded-md bg-brand/10 border border-brand/20 flex items-center justify-center flex-shrink-0`}>
-      <span className="text-brand font-black leading-none">R</span>
-    </div>
+    <svg
+      width={dim}
+      height={dim}
+      viewBox="0 0 34 34"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="REPBrasil"
+      className="flex-shrink-0"
+    >
+      {/* Outer ring */}
+      <rect x="1" y="1" width="32" height="32" rx="8" fill="rgba(13,212,142,0.08)" stroke="rgba(13,212,142,0.25)" strokeWidth="1.5" />
+      {/* Data bars — left column */}
+      <rect x="7" y="20" width="3.5" height="7" rx="1" fill="rgba(13,212,142,0.45)" />
+      <rect x="7" y="14" width="3.5" height="5" rx="1" fill="rgba(13,212,142,0.65)" />
+      <rect x="7" y="10" width="3.5" height="3" rx="1" fill="#0dd48e" />
+      {/* Stylised R stem */}
+      <rect x="13.5" y="7" width="3" height="20" rx="1.5" fill="#0dd48e" />
+      {/* R bowl */}
+      <path d="M16.5 7 Q24 7 24 13.5 Q24 18 19 19L24 27" stroke="#0dd48e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
   );
 }
 
@@ -99,14 +132,27 @@ interface SidebarContentProps {
   pathname: string;
   alwaysShowLabels?: boolean;
   onLinkClick?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-function SidebarContent({ pathname, alwaysShowLabels = false, onLinkClick }: SidebarContentProps) {
+function SidebarContent({
+  pathname,
+  alwaysShowLabels = false,
+  onLinkClick,
+  collapsed = false,
+  onToggleCollapse,
+}: SidebarContentProps) {
   const labelCls = alwaysShowLabels
     ? "block"
+    : collapsed
+    ? "hidden"
     : "hidden group-hover/sidebar:block xl:block";
+
   const sectionLabelCls = alwaysShowLabels
     ? "block"
+    : collapsed
+    ? "hidden"
     : "hidden group-hover/sidebar:block xl:block";
 
   const isActive = (href: string, exact: boolean) =>
@@ -115,9 +161,9 @@ function SidebarContent({ pathname, alwaysShowLabels = false, onLinkClick }: Sid
   return (
     <>
       {/* Logo */}
-      <div className="flex items-center gap-2.5 p-4 border-b border-white/8">
+      <div className="flex items-center gap-2.5 p-4 border-b border-white/8 min-h-[60px]">
         <LogoMark />
-        <div className={`${labelCls} flex flex-col min-w-0`}>
+        <div className={`${labelCls} flex flex-col min-w-0 flex-1`}>
           <span className="font-bold text-slate-100 text-sm leading-tight tracking-tight whitespace-nowrap">
             REPBrasil
           </span>
@@ -125,6 +171,16 @@ function SidebarContent({ pathname, alwaysShowLabels = false, onLinkClick }: Sid
             Andrade Systems
           </span>
         </div>
+        {/* Desktop collapse toggle — only shown when labels visible */}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
+            className={`${sectionLabelCls} ml-auto p-1 rounded text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-colors flex-shrink-0`}
+          >
+            {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -165,11 +221,8 @@ function SidebarContent({ pathname, alwaysShowLabels = false, onLinkClick }: Sid
       {/* Bottom branding */}
       <div className="p-3 border-t border-white/8">
         <div className={labelCls}>
-          <span className="inline-flex items-center rounded border border-brand/25 bg-brand/10 px-2 py-0.5 text-[10px] font-semibold text-brand">
-            Preview Técnico
-          </span>
-          <p className="mt-1.5 text-[10px] text-slate-600 leading-tight">
-            © 2025 Andrade Systems
+          <p className="text-[10px] text-slate-600 leading-tight">
+            © 2026 Andrade Systems
           </p>
         </div>
       </div>
@@ -181,15 +234,32 @@ function SidebarContent({ pathname, alwaysShowLabels = false, onLinkClick }: Sid
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
+
+  const toggleCollapse = () => setSidebarCollapsed((v) => !v);
+
+  // Desktop spaceholder width: collapsed → icon-only (w-14), expanded → xl:w-56
+  const spaceHolderCls = sidebarCollapsed
+    ? "relative hidden flex-shrink-0 lg:block lg:w-14"
+    : "relative hidden flex-shrink-0 lg:block lg:w-14 xl:w-56";
+
+  // Sidebar actual width
+  const sidebarCls = sidebarCollapsed
+    ? "group/sidebar absolute inset-y-0 left-0 z-50 flex w-14 flex-col overflow-hidden border-r border-white/8 bg-sidebar transition-all duration-200 hover:z-[60] hover:w-56"
+    : "group/sidebar absolute inset-y-0 left-0 z-50 flex w-14 flex-col overflow-hidden border-r border-white/8 bg-sidebar transition-all duration-200 hover:z-[60] hover:w-56 xl:w-56";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop: space holder + absolute sidebar */}
-      <div className="relative hidden flex-shrink-0 lg:block lg:w-14 xl:w-56">
+      <div className={spaceHolderCls}>
         <div className="h-full w-full" />
-        <div className="group/sidebar absolute inset-y-0 left-0 z-50 flex w-14 flex-col overflow-hidden border-r border-white/8 bg-sidebar transition-all duration-200 hover:z-[60] hover:w-56 xl:w-56">
-          <SidebarContent pathname={pathname} />
+        <div className={sidebarCls}>
+          <SidebarContent
+            pathname={pathname}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleCollapse}
+          />
         </div>
       </div>
 

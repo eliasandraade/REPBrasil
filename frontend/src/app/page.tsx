@@ -132,10 +132,18 @@ export default function HomePage() {
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="hero-gradient relative overflow-hidden border-b border-white/8 py-16 md:py-24">
         <div className="bg-grid-pattern absolute inset-0 opacity-100" />
+
+        {/* Animated ambient orbs */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="animate-orb-1 absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-brand/6 blur-[80px]" />
+          <div className="animate-orb-2 absolute right-[8%] top-[30%] h-56 w-56 rounded-full bg-brand/5 blur-[70px]" />
+          <div className="animate-orb-3 absolute left-[55%] bottom-[-5%] h-64 w-64 rounded-full bg-brand/4 blur-[90px]" />
+        </div>
+
         <div className="relative mx-auto max-w-4xl px-6">
 
           {/* Badge bar */}
-          <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+          <div className="mb-6 flex flex-wrap items-center justify-center gap-2 animate-fade-in-up" style={{ animationDelay: "0ms" }}>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-medium text-brand">
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />
               Produto da Andrade Systems
@@ -152,14 +160,14 @@ export default function HomePage() {
           </div>
 
           {/* Title */}
-          <h1 className="mb-4 text-center text-3xl font-bold leading-tight tracking-tight text-slate-100 sm:text-4xl md:text-5xl">
+          <h1 className="mb-4 text-center text-3xl font-bold leading-tight tracking-tight text-slate-100 sm:text-4xl md:text-5xl animate-fade-in-up" style={{ animationDelay: "120ms" }}>
             Inteligência pública sobre{" "}
             <span className="text-gradient-brand">agentes políticos</span>{" "}
             brasileiros.
           </h1>
 
           {/* Subtitle */}
-          <p className="mx-auto mb-10 max-w-2xl text-center text-base leading-relaxed text-slate-400 sm:text-lg">
+          <p className="mx-auto mb-10 max-w-2xl text-center text-base leading-relaxed text-slate-400 sm:text-lg animate-fade-in-up" style={{ animationDelay: "240ms" }}>
             O REPBrasil organiza dados públicos oficiais, fontes rastreáveis e
             informações estruturadas para ampliar a compreensão sobre a vida
             pública no Brasil.
@@ -171,7 +179,7 @@ export default function HomePage() {
           </div>
 
           {/* CTAs */}
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3 animate-fade-in-up" style={{ animationDelay: "360ms" }}>
             <Link
               href="/politicos"
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-brand-sm transition-all hover:bg-brand-light hover:shadow-brand"
@@ -395,7 +403,7 @@ export default function HomePage() {
 
           <div className="flex flex-col items-center justify-between gap-3 border-t border-white/8 pt-6 sm:flex-row">
             <p className="text-xs text-slate-600">
-              © 2025 REPBrasil — um produto da Andrade Systems
+              © 2026 REPBrasil — um produto da Andrade Systems
             </p>
             <p className="text-xs text-slate-700">
               Dados públicos. Transparência sem militância.
