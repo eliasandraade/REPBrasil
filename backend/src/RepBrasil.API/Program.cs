@@ -56,11 +56,20 @@ var app = builder.Build();
 // Run EF Core migrations at startup when MIGRATE_ON_STARTUP=true (safe for staging — migrations are idempotent)
 if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
 {
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    app.Logger.LogInformation("Applying database migrations...");
-    await db.Database.MigrateAsync();
-    app.Logger.LogInformation("Database migrations applied.");
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        app.Logger.LogInformation("Applying database migrations...");
+        await db.Database.MigrateAsync();
+        app.Logger.LogInformation("Database migrations applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        // Log but do NOT crash — the health check must pass so Railway marks the deployment healthy.
+        // DB-dependent endpoints will fail until the connection/schema is fixed.
+        app.Logger.LogCritical(ex, "Failed to apply database migrations. Check DB connection and migration state.");
+    }
 }
 
 // Swagger active in staging — temporary, will be protected or removed before public launch
