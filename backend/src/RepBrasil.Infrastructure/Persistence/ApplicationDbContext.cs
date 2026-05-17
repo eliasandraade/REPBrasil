@@ -3,9 +3,13 @@ using RepBrasil.Domain.Entities;
 
 namespace RepBrasil.Infrastructure.Persistence;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-    : DbContext(options)
+public class ApplicationDbContext : DbContext
 {
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        : base(options)
+    {
+    }
+
     public DbSet<Politician> Politicians => Set<Politician>();
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<Election> Elections => Set<Election>();
