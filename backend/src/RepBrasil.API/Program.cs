@@ -54,7 +54,7 @@ builder.WebHost.UseUrls($"http://+:{port}");
 var app = builder.Build();
 
 // Run EF Core migrations at startup when MIGRATE_ON_STARTUP=true (safe for staging — migrations are idempotent)
-if (builder.Configuration["MigrateOnStartup"] == "true")
+if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
