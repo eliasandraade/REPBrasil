@@ -370,8 +370,27 @@ namespace RepBrasil.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("CertaintyGrade")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CollectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ConfidenceLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContentHash")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContestationStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DatasetId")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
@@ -382,6 +401,19 @@ namespace RepBrasil.Infrastructure.Migrations
 
                     b.Property<string>("DocumentUrl")
                         .HasColumnType("text");
+
+                    b.Property<string>("EvidenceType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("NormalizedReference")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ObservedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RawValue")
                         .HasColumnType("text");
@@ -399,6 +431,8 @@ namespace RepBrasil.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SourceId");
 
                     b.HasIndex("TransformationChainId");
 
@@ -967,9 +1001,20 @@ namespace RepBrasil.Infrastructure.Migrations
 
             modelBuilder.Entity("RepBrasil.Domain.Entities.Evidence", b =>
                 {
-                    b.HasOne("RepBrasil.Domain.Entities.TransformationChain", null)
+                    b.HasOne("RepBrasil.Domain.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RepBrasil.Domain.Entities.TransformationChain", "TransformationChain")
                         .WithMany("Evidences")
-                        .HasForeignKey("TransformationChainId");
+                        .HasForeignKey("TransformationChainId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Source");
+
+                    b.Navigation("TransformationChain");
                 });
 
             modelBuilder.Entity("RepBrasil.Domain.Entities.Politician", b =>

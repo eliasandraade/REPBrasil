@@ -89,7 +89,19 @@ public class ApplicationDbContext : DbContext
             .HasIndex(s => new { s.Name, s.SourceType })
             .IsUnique()
             .HasDatabaseName("IX_Sources_Name_SourceType");
-        modelBuilder.Entity<Evidence>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Evidence>(entity =>
+        {
+            entity.HasQueryFilter(e => e.DeletedAt == null);
+            entity.Property(e => e.Metadata).HasColumnType("jsonb");
+            entity.HasOne(e => e.Source)
+                  .WithMany()
+                  .HasForeignKey(e => e.SourceId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.TransformationChain)
+                  .WithMany(c => c.Evidences)
+                  .HasForeignKey(e => e.TransformationChainId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
         modelBuilder.Entity<Contestation>().HasQueryFilter(e => e.DeletedAt == null);
 
         modelBuilder.Entity<TransformationChain>(entity =>
