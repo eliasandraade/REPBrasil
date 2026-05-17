@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -63,47 +64,6 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
-function PinIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 17v5" />
-      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
-    </svg>
-  );
-}
-
-function PinOffIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 2l20 20" />
-      <path d="M22 6a2 2 0 0 0-2-2H9.17" />
-      <path d="M16 6v3.18" />
-      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11" />
-      <path d="M12 17v5" />
-    </svg>
-  );
-}
-
-// ─── Logo ─────────────────────────────────────────────────────────────────────
-
-function LogoMark({ size = "md" }: { size?: "sm" | "md" }) {
-  const dim = size === "sm" ? 30 : 36;
-  const fontSize = size === "sm" ? 15 : 18;
-  return (
-    <div
-      className="flex-shrink-0 rounded-lg bg-brand flex items-center justify-center"
-      style={{ width: dim, height: dim, minWidth: dim }}
-    >
-      <span
-        className="font-black text-slate-900 select-none leading-none"
-        style={{ fontSize }}
-      >
-        R
-      </span>
-    </div>
-  );
-}
-
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV_SECTIONS = [
@@ -123,53 +83,40 @@ const NAV_SECTIONS = [
   },
 ] as const;
 
-// ─── Sidebar Content ──────────────────────────────────────────────────────────
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-interface SidebarContentProps {
+interface SidebarProps {
   pathname: string;
-  alwaysShowLabels?: boolean;
   onLinkClick?: () => void;
-  pinned?: boolean;
-  onTogglePin?: () => void;
 }
 
-function SidebarContent({
-  pathname,
-  alwaysShowLabels = false,
-  onLinkClick,
-  pinned = true,
-  onTogglePin,
-}: SidebarContentProps) {
-  // Labels visible: always (mobile drawer) | hover OR pinned-xl (desktop)
-  const labelCls = alwaysShowLabels
-    ? "block"
-    : pinned
-    ? "hidden group-hover/sidebar:block xl:block"
-    : "hidden group-hover/sidebar:block";
-
+function Sidebar({ pathname, onLinkClick }: SidebarProps) {
   const isActive = (href: string, exact: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
 
   return (
     <div className="flex h-full flex-col">
-      {/* ── Logo header ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 py-5">
-        <LogoMark />
-        <span className={`${labelCls} text-[15px] font-bold text-slate-100 tracking-tight whitespace-nowrap`}>
-          REPBrasil
-        </span>
+      {/* Logo */}
+      <div className="flex items-center px-5 py-5 border-b border-white/[0.05]">
+        <Link href="/" onClick={onLinkClick}>
+          <Image
+            src="/logo.svg"
+            alt="REPBrasil"
+            width={148}
+            height={40}
+            className="h-9 w-auto"
+            priority
+          />
+        </Link>
       </div>
 
-      {/* ── Navigation ──────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-2">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
         {NAV_SECTIONS.map((section, idx) => (
-          <div key={section.label} className={idx > 0 ? "mt-2 border-t border-white/[0.05] pt-3" : ""}>
-            {/* Section label */}
-            <p className={`${labelCls} mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600`}>
+          <div key={section.label} className={idx > 0 ? "mt-3 border-t border-white/[0.05] pt-3" : ""}>
+            <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
               {section.label}
             </p>
-
-            {/* Nav items */}
             <div className="space-y-0.5">
               {section.items.map(({ href, label, Icon, exact }) => {
                 const active = isActive(href, exact);
@@ -177,22 +124,18 @@ function SidebarContent({
                   <Link
                     key={href}
                     href={href}
-                    title={label}
                     onClick={onLinkClick}
-                    className={`group relative flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors duration-100
+                    className={`relative flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors duration-100
                       ${active
                         ? "bg-brand/10 text-brand"
                         : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
                       }`}
                   >
-                    {/* Active left bar */}
                     {active && (
                       <span className="absolute inset-y-0 left-0 w-[3px] rounded-r-full bg-brand" />
                     )}
                     <Icon className="h-[18px] w-[18px] flex-shrink-0" />
-                    <span className={`${labelCls} font-medium whitespace-nowrap leading-none`}>
-                      {label}
-                    </span>
+                    <span>{label}</span>
                   </Link>
                 );
               })}
@@ -201,27 +144,9 @@ function SidebarContent({
         ))}
       </nav>
 
-      {/* ── Footer ──────────────────────────────────────────────────── */}
-      <div className="border-t border-white/[0.05] px-3 py-3">
-        <div className={`${labelCls} flex items-center justify-between`}>
-          <span className="text-[10px] text-slate-600">
-            © 2026 Andrade Systems
-          </span>
-
-          {/* Pin / unpin toggle — desktop only */}
-          {onTogglePin && (
-            <button
-              onClick={onTogglePin}
-              title={pinned ? "Recolher sidebar" : "Fixar sidebar"}
-              className="rounded p-1 text-slate-700 transition-colors hover:bg-white/5 hover:text-slate-400"
-            >
-              {pinned ? <PinOffIcon className="h-3.5 w-3.5" /> : <PinIcon className="h-3.5 w-3.5" />}
-            </button>
-          )}
-        </div>
-
-        {/* Collapsed state: just a small dot placeholder so footer has height */}
-        <div className={`${alwaysShowLabels ? "hidden" : "block group-hover/sidebar:hidden"} h-3`} />
+      {/* Footer */}
+      <div className="border-t border-white/[0.05] px-5 py-3">
+        <p className="text-[10px] text-slate-600">© 2026 Andrade Systems</p>
       </div>
     </div>
   );
@@ -231,35 +156,14 @@ function SidebarContent({
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pinned, setPinned] = useState(true);
   const pathname = usePathname();
-
-  // Spaceholder width: if pinned → always xl:w-56, else icon-only
-  const spaceHolderCls = pinned
-    ? "relative hidden flex-shrink-0 lg:block lg:w-14 xl:w-56"
-    : "relative hidden flex-shrink-0 lg:block lg:w-14";
-
-  // Sidebar width: hover always expands; xl:w-56 only when pinned
-  const sidebarWidthCls = pinned
-    ? "w-14 hover:w-56 xl:w-56"
-    : "w-14 hover:w-56";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop spaceholder */}
-      <div className={spaceHolderCls}>
-        <div className="h-full w-full" />
-        {/* Absolute sidebar */}
-        <div
-          className={`group/sidebar absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-white/[0.06] bg-sidebar transition-[width] duration-200 ease-in-out hover:z-[60] ${sidebarWidthCls}`}
-        >
-          <SidebarContent
-            pathname={pathname}
-            pinned={pinned}
-            onTogglePin={() => setPinned((v) => !v)}
-          />
-        </div>
-      </div>
+      {/* Desktop static sidebar */}
+      <aside className="hidden w-56 flex-shrink-0 flex-col border-r border-white/[0.06] bg-sidebar lg:flex">
+        <Sidebar pathname={pathname} />
+      </aside>
 
       {/* Mobile backdrop */}
       {mobileOpen && (
@@ -271,14 +175,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile drawer */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/[0.06] bg-sidebar transition-transform duration-300 ease-in-out lg:hidden
+        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-white/[0.06] bg-sidebar transition-transform duration-300 ease-in-out lg:hidden
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <SidebarContent
-          pathname={pathname}
-          alwaysShowLabels
-          onLinkClick={() => setMobileOpen(false)}
-        />
+        <Sidebar pathname={pathname} onLinkClick={() => setMobileOpen(false)} />
       </div>
 
       {/* Main content */}
@@ -292,9 +192,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             {mobileOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
-          <Link href="/" className="flex items-center gap-2.5">
-            <LogoMark size="sm" />
-            <span className="text-sm font-bold text-slate-100">REPBrasil</span>
+          <Link href="/">
+            <Image
+              src="/symbol.svg"
+              alt="REPBrasil"
+              width={28}
+              height={28}
+              className="h-7 w-auto"
+            />
           </Link>
         </div>
 
