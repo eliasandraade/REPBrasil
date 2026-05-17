@@ -1,25 +1,7 @@
 import Link from "next/link";
 import { SearchInput } from "@/components/politicians/SearchInput";
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-
-function StatCard({
-  value,
-  label,
-  note,
-}: {
-  value: string;
-  label: string;
-  note?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-white/8 bg-card p-4 text-center">
-      <p className="text-2xl font-bold text-brand">{value}</p>
-      <p className="mt-1 text-sm font-medium text-slate-300">{label}</p>
-      {note && <p className="mt-0.5 text-xs text-slate-600">{note}</p>}
-    </div>
-  );
-}
+import { TypewriterTitle } from "@/components/home/TypewriterTitle";
+import { AnimatedStatCard } from "@/components/home/AnimatedStatCard";
 
 // ─── Feature Card ─────────────────────────────────────────────────────────────
 
@@ -159,12 +141,8 @@ export default function HomePage() {
             </span>
           </div>
 
-          {/* Title */}
-          <h1 className="mb-4 text-center text-3xl font-bold leading-tight tracking-tight text-slate-100 sm:text-4xl md:text-5xl animate-fade-in-up" style={{ animationDelay: "120ms" }}>
-            Inteligência pública sobre{" "}
-            <span className="text-gradient-brand">agentes políticos</span>{" "}
-            brasileiros.
-          </h1>
+          {/* Title — typewriter */}
+          <TypewriterTitle />
 
           {/* Subtitle */}
           <p className="mx-auto mb-10 max-w-2xl text-center text-base leading-relaxed text-slate-400 sm:text-lg animate-fade-in-up" style={{ animationDelay: "240ms" }}>
@@ -201,10 +179,40 @@ export default function HomePage() {
       <section className="border-b border-white/8 py-10">
         <div className="mx-auto max-w-4xl px-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard value="1.000+" label="Políticos indexados" note="base inicial" />
-            <StatCard value="3" label="Fontes oficiais TSE" note="candidatos · bens · resultados" />
-            <StatCard value="2024" label="Ciclo eleitoral" note="dados do TSE" />
-            <StatCard value="Em dev." label="Score REPBrasil" note="metodologia em construção" />
+            <AnimatedStatCard
+              numericTarget={1000}
+              numericStart={0}
+              suffix="+"
+              displayValue="1.000+"
+              label="Políticos indexados"
+              note="base inicial"
+              tooltip="Base inicial com 1.000 políticos indexados, a partir dos dados eleitorais do TSE 2024. Expansão progressiva prevista com novos ciclos e integração com Câmara e Senado."
+              duration={1200}
+            />
+            <AnimatedStatCard
+              numericTarget={3}
+              numericStart={0}
+              displayValue="3"
+              label="Fontes oficiais TSE"
+              note="candidatos · bens · resultados"
+              tooltip="Três bases públicas do TSE: candidaturas 2024, bens declarados 2024 e resultados eleitorais 2024. Cada arquivo com hash SHA-256 e download original disponível."
+              duration={700}
+            />
+            <AnimatedStatCard
+              numericTarget={2024}
+              numericStart={2000}
+              displayValue="2024"
+              label="Ciclo eleitoral"
+              note="dados do TSE"
+              tooltip="Dados importados do ciclo eleitoral de 2024. Importação de ciclos anteriores e de eleições suplementares está prevista nas próximas fases da plataforma."
+              duration={900}
+            />
+            <AnimatedStatCard
+              displayValue="Em dev."
+              label="Score REPBrasil"
+              note="metodologia em construção"
+              tooltip="O Score REPBrasil está em desenvolvimento. Nenhum índice é exibido antes da metodologia ser publicada, explicada e aberta à auditoria pública."
+            />
           </div>
         </div>
       </section>
