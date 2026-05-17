@@ -29,9 +29,9 @@ export function Row({
   value: string | null | undefined;
 }) {
   return (
-    <div className="px-4 py-3 flex justify-between text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="text-slate-900 font-medium">{value ?? "—"}</span>
+    <div className="flex justify-between border-b border-white/5 px-4 py-2.5 last:border-0">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-slate-300">{value ?? "—"}</span>
     </div>
   );
 }
