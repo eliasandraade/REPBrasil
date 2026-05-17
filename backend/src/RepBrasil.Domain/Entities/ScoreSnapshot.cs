@@ -10,5 +10,5 @@ public class ScoreSnapshot : AuditableEntity
     public string? Notes { get; init; }
 
     // Navigation property — FK is on ScoreFactor.ScoreSnapshotId
-    public List<ScoreFactor> Factors { get; init; } = [];
+    public List<ScoreFactor> Factors { get; init; } = new List<ScoreFactor>();
 }

@@ -7,5 +7,5 @@ public class AssetDeclaration : AuditableEntity
     public string? SourceElectionYear { get; set; }
     public decimal TotalValue { get; set; }
     public string? TseSequential { get; set; }
-    public ICollection<AssetItem> Items { get; set; } = [];
+    public ICollection<AssetItem> Items { get; set; } = new List<AssetItem>();
 }
