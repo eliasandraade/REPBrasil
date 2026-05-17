@@ -18,7 +18,7 @@ public class GetPoliticianScoreHistoryQuery(IScoreRepository repository)
                 s.MethodologyVersion,
                 s.CalculatedAt,
                 null, // TotalScore always null while em_desenvolvimento
-                [],
+                Array.Empty<ScoreFactorDto>(),
                 ScoreConstants.Disclaimer))
             .ToList();
     }

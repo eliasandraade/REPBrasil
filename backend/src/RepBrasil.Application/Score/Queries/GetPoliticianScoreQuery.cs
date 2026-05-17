@@ -12,7 +12,7 @@ public class GetPoliticianScoreQuery(IScoreRepository repository)
     {
         var snapshot = await repository.GetCurrentAsync(politicianId, ct);
         if (snapshot is null)
-            return new ScoreStatusDto(ScoreConstants.StatusEmDesenvolvimento, "v0", null, null, [], ScoreConstants.Disclaimer);
+            return new ScoreStatusDto(ScoreConstants.StatusEmDesenvolvimento, "v0", null, null, Array.Empty<ScoreFactorDto>(), ScoreConstants.Disclaimer);
 
         var factors = snapshot.Factors.Select(ScoreFactorDto.FromEntity).ToList();
         return new ScoreStatusDto(
