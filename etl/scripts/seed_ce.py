@@ -5,7 +5,7 @@ Uso:
     cd etl
     # Exportar DATABASE_URL na sessão (nunca hardcodar):
     # $env:DATABASE_URL = "<RAILWAY_DATABASE_PUBLIC_URL>"
-    .\.venv\Scripts\python.exe scripts/seed_ce.py
+    .venv/Scripts/python.exe scripts/seed_ce.py
 
 Requisitos:
     - DATABASE_URL definida no ambiente (variável de sessão local)
