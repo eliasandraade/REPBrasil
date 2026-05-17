@@ -4,11 +4,10 @@ WORKDIR /app
 COPY . .
 RUN dotnet publish src/RepBrasil.API/RepBrasil.API.csproj -c Release -o /publish
 
-# Runtime stage — lean ASP.NET Core runtime (not SDK)
+# Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 COPY --from=build /publish .
 
-# CMD is overridden by railway.toml startCommand in production.
-# Kept here as a sensible fallback for local docker run.
-CMD ["dotnet", "RepBrasil.API.dll"]
+# Verify DLL exists and dotnet is available, then start the app.
+ENTRYPOINT ["/bin/sh", "-c", "echo '[DOCKER] Starting container' && which dotnet && ls /app/RepBrasil.API.dll && echo '[DOCKER] Launching app on port '${PORT:-8080} && ASPNETCORE_URLS=http://+:${PORT:-8080} dotnet /app/RepBrasil.API.dll"]
