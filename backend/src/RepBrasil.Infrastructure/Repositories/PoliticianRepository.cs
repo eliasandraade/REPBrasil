@@ -6,8 +6,15 @@ using RepBrasil.Infrastructure.Persistence;
 
 namespace RepBrasil.Infrastructure.Repositories;
 
-public class PoliticianRepository(ApplicationDbContext db) : IPoliticianRepository
+public class PoliticianRepository : IPoliticianRepository
 {
+    private readonly ApplicationDbContext _db;
+
+    public PoliticianRepository(ApplicationDbContext db)
+    {
+        _db = db;
+    }
+
     public async Task<PagedResult<Politician>> SearchAsync(
         string? query,
         string? state,
@@ -17,7 +24,7 @@ public class PoliticianRepository(ApplicationDbContext db) : IPoliticianReposito
         int pageSize,
         CancellationToken ct = default)
     {
-        var q = db.Politicians.AsNoTracking().AsQueryable();
+        var q = _db.Politicians.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -61,5 +68,5 @@ public class PoliticianRepository(ApplicationDbContext db) : IPoliticianReposito
     }
 
     public async Task<Politician?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        await db.Politicians.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
+        await _db.Politicians.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
 }

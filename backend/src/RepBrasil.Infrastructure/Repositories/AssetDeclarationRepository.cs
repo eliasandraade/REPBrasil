@@ -5,13 +5,20 @@ using RepBrasil.Infrastructure.Persistence;
 
 namespace RepBrasil.Infrastructure.Repositories;
 
-public class AssetDeclarationRepository(ApplicationDbContext db) : IAssetDeclarationRepository
+public class AssetDeclarationRepository : IAssetDeclarationRepository
 {
+    private readonly ApplicationDbContext _db;
+
+    public AssetDeclarationRepository(ApplicationDbContext db)
+    {
+        _db = db;
+    }
+
     public async Task<IReadOnlyList<AssetDeclaration>> GetByPoliticianIdAsync(
         Guid politicianId,
         CancellationToken ct = default)
     {
-        return await db.AssetDeclarations
+        return await _db.AssetDeclarations
             .AsNoTracking()
             .Include(d => d.Items)
             .Where(d => d.PoliticianId == politicianId)
