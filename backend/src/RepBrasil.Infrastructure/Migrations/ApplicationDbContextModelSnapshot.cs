@@ -767,6 +767,12 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<DateTime>("CollectedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CollectionMethod")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ConfidenceLevel")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -779,10 +785,20 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<string>("Hash")
                         .HasColumnType("text");
 
+                    b.Property<int?>("HistoricalReliability")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsAvailable")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("License")
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OperationalStatus")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -793,6 +809,15 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<string>("OriginalUrl")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("Periodicity")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SchemaVersion")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SourceDataUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SourceType")
                         .IsRequired()
