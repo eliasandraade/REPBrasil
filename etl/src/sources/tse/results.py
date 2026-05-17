@@ -46,8 +46,9 @@ def _get_file_size(path: Path) -> int | None:
 class TseResultsPipeline(BasePipeline):
     """Pipeline de resultados eleitorais TSE 2024 — votação por candidato/município."""
 
-    def __init__(self, limit: int | None = None) -> None:
+    def __init__(self, limit: int | None = None, state_filter: str | None = None) -> None:
         self.limit = limit
+        self.state_filter = state_filter.upper() if state_filter else None
 
     def collect(self) -> pl.DataFrame:
         csv_path = extract_results_csv()
@@ -69,6 +70,12 @@ class TseResultsPipeline(BasePipeline):
             logger.warning(f"Colunas ausentes no CSV de resultados TSE: {missing}")
 
         df = raw.select(available)
+
+        # Filtro de UF — aplicado sobre coluna original SG_UF antes de qualquer cast
+        if self.state_filter and "SG_UF" in df.columns:
+            before = len(df)
+            df = df.filter(pl.col("SG_UF") == self.state_filter)
+            logger.info(f"Filtro UF={self.state_filter}: {before} → {len(df)} linhas")
 
         if "QT_VOTOS_NOMINAIS_VALIDOS" in df.columns:
             df = df.with_columns(
