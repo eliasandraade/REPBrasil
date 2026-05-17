@@ -11,7 +11,7 @@ public class TransformationChain : AuditableEntity
     /// Status de execução da cadeia.
     /// Valores: "Running", "Completed", "Failed"
     /// </summary>
-    public string Status { get; set; } = "Completed";
+    public string Status { get; set; } = "Running";
 
     public string? ErrorMessage { get; set; }
 
