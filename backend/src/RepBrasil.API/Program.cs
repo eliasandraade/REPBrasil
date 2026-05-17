@@ -8,10 +8,6 @@ using RepBrasil.Application.Sources.Queries;
 using RepBrasil.Infrastructure.Persistence;
 using RepBrasil.Infrastructure.Repositories;
 
-// Startup probe — written immediately so Railway logs capture it before any app code runs.
-Console.WriteLine($"[STARTUP] RepBrasil.API starting. PORT={Environment.GetEnvironmentVariable("PORT") ?? "(not set)"} | ENV={Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "(not set)"}");
-Console.Out.Flush();
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -57,9 +53,6 @@ builder.WebHost.UseUrls($"http://+:{port}");
 
 var app = builder.Build();
 
-Console.WriteLine("[STARTUP] App built. Registering pipeline...");
-Console.Out.Flush();
-
 // Swagger active in staging — temporary, will be protected or removed before public launch
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -72,10 +65,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 // Expose a manual migrate endpoint — call POST /migrate after deployment if needed.
-// This avoids blocking startup with a potentially slow DB connection.
+// Avoids blocking startup with a potentially slow DB connection at Railway.
 if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
 {
     app.MapPost("/migrate", async (ApplicationDbContext db, ILogger<Program> logger) =>
@@ -94,8 +86,5 @@ if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringCompa
         }
     });
 }
-
-Console.WriteLine("[STARTUP] Starting app.Run()...");
-Console.Out.Flush();
 
 app.Run();
