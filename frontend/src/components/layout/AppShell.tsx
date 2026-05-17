@@ -5,11 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-// ─── Inline SVG Icons ────────────────────────────────────────────────────────
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function HomeIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
       <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
@@ -18,7 +18,7 @@ function HomeIcon({ className }: { className?: string }) {
 
 function SearchIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.35-4.35" />
     </svg>
@@ -27,7 +27,7 @@ function SearchIcon({ className }: { className?: string }) {
 
 function BookOpenIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 7v14" />
       <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
     </svg>
@@ -36,7 +36,7 @@ function BookOpenIcon({ className }: { className?: string }) {
 
 function LifeBuoyIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="10" />
       <path d="m4.93 4.93 4.24 4.24" />
       <path d="m14.83 9.17 4.24-4.24" />
@@ -49,7 +49,7 @@ function LifeBuoyIcon({ className }: { className?: string }) {
 
 function MenuIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M4 12h16" /><path d="M4 18h16" /><path d="M4 6h16" />
     </svg>
   );
@@ -57,24 +57,29 @@ function MenuIcon({ className }: { className?: string }) {
 
 function XIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M18 6 6 18" /><path d="m6 6 12 12" />
     </svg>
   );
 }
 
-function ChevronLeftIcon({ className }: { className?: string }) {
+function PinIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m15 18-6-6 6-6" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
     </svg>
   );
 }
 
-function ChevronRightIcon({ className }: { className?: string }) {
+function PinOffIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m9 18 6-6-6-6" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 2l20 20" />
+      <path d="M22 6a2 2 0 0 0-2-2H9.17" />
+      <path d="M16 6v3.18" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11" />
+      <path d="M12 17v5" />
     </svg>
   );
 }
@@ -82,28 +87,20 @@ function ChevronRightIcon({ className }: { className?: string }) {
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
 function LogoMark({ size = "md" }: { size?: "sm" | "md" }) {
-  const dim = size === "sm" ? 28 : 34;
+  const dim = size === "sm" ? 30 : 36;
+  const fontSize = size === "sm" ? 15 : 18;
   return (
-    <svg
-      width={dim}
-      height={dim}
-      viewBox="0 0 34 34"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="REPBrasil"
-      className="flex-shrink-0"
+    <div
+      className="flex-shrink-0 rounded-lg bg-brand flex items-center justify-center"
+      style={{ width: dim, height: dim, minWidth: dim }}
     >
-      {/* Outer ring */}
-      <rect x="1" y="1" width="32" height="32" rx="8" fill="rgba(13,212,142,0.08)" stroke="rgba(13,212,142,0.25)" strokeWidth="1.5" />
-      {/* Data bars — left column */}
-      <rect x="7" y="20" width="3.5" height="7" rx="1" fill="rgba(13,212,142,0.45)" />
-      <rect x="7" y="14" width="3.5" height="5" rx="1" fill="rgba(13,212,142,0.65)" />
-      <rect x="7" y="10" width="3.5" height="3" rx="1" fill="#0dd48e" />
-      {/* Stylised R stem */}
-      <rect x="13.5" y="7" width="3" height="20" rx="1.5" fill="#0dd48e" />
-      {/* R bowl */}
-      <path d="M16.5 7 Q24 7 24 13.5 Q24 18 19 19L24 27" stroke="#0dd48e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
+      <span
+        className="font-black text-slate-900 select-none leading-none"
+        style={{ fontSize }}
+      >
+        R
+      </span>
+    </div>
   );
 }
 
@@ -132,64 +129,47 @@ interface SidebarContentProps {
   pathname: string;
   alwaysShowLabels?: boolean;
   onLinkClick?: () => void;
-  collapsed?: boolean;
-  onToggleCollapse?: () => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
 }
 
 function SidebarContent({
   pathname,
   alwaysShowLabels = false,
   onLinkClick,
-  collapsed = false,
-  onToggleCollapse,
+  pinned = true,
+  onTogglePin,
 }: SidebarContentProps) {
+  // Labels visible: always (mobile drawer) | hover OR pinned-xl (desktop)
   const labelCls = alwaysShowLabels
     ? "block"
-    : collapsed
-    ? "hidden"
-    : "hidden group-hover/sidebar:block xl:block";
-
-  const sectionLabelCls = alwaysShowLabels
-    ? "block"
-    : collapsed
-    ? "hidden"
-    : "hidden group-hover/sidebar:block xl:block";
+    : pinned
+    ? "hidden group-hover/sidebar:block xl:block"
+    : "hidden group-hover/sidebar:block";
 
   const isActive = (href: string, exact: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
 
   return (
-    <>
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 p-4 border-b border-white/8 min-h-[60px]">
+    <div className="flex h-full flex-col">
+      {/* ── Logo header ─────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-5">
         <LogoMark />
-        <div className={`${labelCls} flex flex-col min-w-0 flex-1`}>
-          <span className="font-bold text-slate-100 text-sm leading-tight tracking-tight whitespace-nowrap">
-            REPBrasil
-          </span>
-          <span className="text-[10px] text-slate-500 leading-tight whitespace-nowrap">
-            Andrade Systems
-          </span>
-        </div>
-        {/* Desktop collapse toggle — only shown when labels visible */}
-        {onToggleCollapse && (
-          <button
-            onClick={onToggleCollapse}
-            title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
-            className={`${sectionLabelCls} ml-auto p-1 rounded text-slate-600 hover:text-slate-300 hover:bg-white/5 transition-colors flex-shrink-0`}
-          >
-            {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-          </button>
-        )}
+        <span className={`${labelCls} text-[15px] font-bold text-slate-100 tracking-tight whitespace-nowrap`}>
+          REPBrasil
+        </span>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto p-2 py-4 space-y-5">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.label}>
-            <p className={`${sectionLabelCls} px-3 mb-2 text-[9px] font-semibold text-slate-600 uppercase tracking-widest`}>
+      {/* ── Navigation ──────────────────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto px-3 pb-2">
+        {NAV_SECTIONS.map((section, idx) => (
+          <div key={section.label} className={idx > 0 ? "mt-2 border-t border-white/[0.05] pt-3" : ""}>
+            {/* Section label */}
+            <p className={`${labelCls} mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600`}>
               {section.label}
             </p>
+
+            {/* Nav items */}
             <div className="space-y-0.5">
               {section.items.map(({ href, label, Icon, exact }) => {
                 const active = isActive(href, exact);
@@ -199,17 +179,20 @@ function SidebarContent({
                     href={href}
                     title={label}
                     onClick={onLinkClick}
-                    className={`relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors duration-150
+                    className={`group relative flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors duration-100
                       ${active
-                        ? "bg-brand/10 text-brand font-medium"
-                        : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                        ? "bg-brand/10 text-brand"
+                        : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
                       }`}
                   >
+                    {/* Active left bar */}
                     {active && (
-                      <div className="absolute left-0 top-0 h-full w-0.5 bg-brand rounded-r-full" />
+                      <span className="absolute inset-y-0 left-0 w-[3px] rounded-r-full bg-brand" />
                     )}
-                    <Icon className="h-4 w-4 flex-shrink-0" />
-                    <span className={`${labelCls} whitespace-nowrap`}>{label}</span>
+                    <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+                    <span className={`${labelCls} font-medium whitespace-nowrap leading-none`}>
+                      {label}
+                    </span>
                   </Link>
                 );
               })}
@@ -218,62 +201,77 @@ function SidebarContent({
         ))}
       </nav>
 
-      {/* Bottom branding */}
-      <div className="p-3 border-t border-white/8">
-        <div className={labelCls}>
-          <p className="text-[10px] text-slate-600 leading-tight">
+      {/* ── Footer ──────────────────────────────────────────────────── */}
+      <div className="border-t border-white/[0.05] px-3 py-3">
+        <div className={`${labelCls} flex items-center justify-between`}>
+          <span className="text-[10px] text-slate-600">
             © 2026 Andrade Systems
-          </p>
+          </span>
+
+          {/* Pin / unpin toggle — desktop only */}
+          {onTogglePin && (
+            <button
+              onClick={onTogglePin}
+              title={pinned ? "Recolher sidebar" : "Fixar sidebar"}
+              className="rounded p-1 text-slate-700 transition-colors hover:bg-white/5 hover:text-slate-400"
+            >
+              {pinned ? <PinOffIcon className="h-3.5 w-3.5" /> : <PinIcon className="h-3.5 w-3.5" />}
+            </button>
+          )}
         </div>
+
+        {/* Collapsed state: just a small dot placeholder so footer has height */}
+        <div className={`${alwaysShowLabels ? "hidden" : "block group-hover/sidebar:hidden"} h-3`} />
       </div>
-    </>
+    </div>
   );
 }
 
-// ─── AppShell (exported) ──────────────────────────────────────────────────────
+// ─── AppShell ─────────────────────────────────────────────────────────────────
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pinned, setPinned] = useState(true);
   const pathname = usePathname();
 
-  const toggleCollapse = () => setSidebarCollapsed((v) => !v);
+  // Spaceholder width: if pinned → always xl:w-56, else icon-only
+  const spaceHolderCls = pinned
+    ? "relative hidden flex-shrink-0 lg:block lg:w-14 xl:w-56"
+    : "relative hidden flex-shrink-0 lg:block lg:w-14";
 
-  // Desktop spaceholder width: collapsed → icon-only (w-14), expanded → xl:w-56
-  const spaceHolderCls = sidebarCollapsed
-    ? "relative hidden flex-shrink-0 lg:block lg:w-14"
-    : "relative hidden flex-shrink-0 lg:block lg:w-14 xl:w-56";
-
-  // Sidebar actual width
-  const sidebarCls = sidebarCollapsed
-    ? "group/sidebar absolute inset-y-0 left-0 z-50 flex w-14 flex-col overflow-hidden border-r border-white/8 bg-sidebar transition-all duration-200 hover:z-[60] hover:w-56"
-    : "group/sidebar absolute inset-y-0 left-0 z-50 flex w-14 flex-col overflow-hidden border-r border-white/8 bg-sidebar transition-all duration-200 hover:z-[60] hover:w-56 xl:w-56";
+  // Sidebar width: hover always expands; xl:w-56 only when pinned
+  const sidebarWidthCls = pinned
+    ? "w-14 hover:w-56 xl:w-56"
+    : "w-14 hover:w-56";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop: space holder + absolute sidebar */}
+      {/* Desktop spaceholder */}
       <div className={spaceHolderCls}>
         <div className="h-full w-full" />
-        <div className={sidebarCls}>
+        {/* Absolute sidebar */}
+        <div
+          className={`group/sidebar absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-white/[0.06] bg-sidebar transition-[width] duration-200 ease-in-out hover:z-[60] ${sidebarWidthCls}`}
+        >
           <SidebarContent
             pathname={pathname}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleCollapse}
+            pinned={pinned}
+            onTogglePin={() => setPinned((v) => !v)}
           />
         </div>
       </div>
 
-      {/* Mobile: overlay backdrop */}
+      {/* Mobile backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Mobile: drawer sidebar */}
+      {/* Mobile drawer */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar border-r border-white/8 transition-transform duration-300 lg:hidden
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/[0.06] bg-sidebar transition-transform duration-300 ease-in-out lg:hidden
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <SidebarContent
@@ -283,24 +281,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         />
       </div>
 
-      {/* Main content column */}
-      <div className="flex flex-1 flex-col overflow-auto min-w-0">
-        {/* Mobile top bar */}
-        <div className="lg:hidden sticky top-0 z-30 flex items-center gap-3 px-4 h-14 bg-sidebar border-b border-white/8 flex-shrink-0">
+      {/* Main content */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-auto">
+        {/* Mobile topbar */}
+        <div className="sticky top-0 z-30 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/[0.06] bg-sidebar px-4 lg:hidden">
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors"
+            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200"
             aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
           >
             {mobileOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2.5">
             <LogoMark size="sm" />
-            <span className="font-bold text-slate-100 text-sm">REPBrasil</span>
+            <span className="text-sm font-bold text-slate-100">REPBrasil</span>
           </Link>
         </div>
 
-        {/* Page content */}
         {children}
       </div>
     </div>
