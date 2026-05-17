@@ -102,7 +102,22 @@ public class ApplicationDbContext : DbContext
                   .HasForeignKey(e => e.TransformationChainId)
                   .OnDelete(DeleteBehavior.SetNull);
         });
-        modelBuilder.Entity<Contestation>().HasQueryFilter(e => e.DeletedAt == null);
+        modelBuilder.Entity<Contestation>(entity =>
+        {
+            entity.HasQueryFilter(e => e.DeletedAt == null);
+            entity.HasOne(c => c.Politician)
+                  .WithMany()
+                  .HasForeignKey(c => c.PoliticianId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(c => c.Evidence)
+                  .WithMany()
+                  .HasForeignKey(c => c.EvidenceId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(c => c.Source)
+                  .WithMany()
+                  .HasForeignKey(c => c.SourceId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
 
         modelBuilder.Entity<TransformationChain>(entity =>
         {

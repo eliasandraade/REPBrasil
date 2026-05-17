@@ -211,17 +211,35 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("EvidenceId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PoliticianId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Resolution")
                         .HasColumnType("text");
 
+                    b.Property<string>("ReviewNotes")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewerRole")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("SourceUpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SubmitterType")
                         .HasColumnType("text");
 
                     b.Property<string>("SupportingDocumentUrl")
@@ -231,6 +249,12 @@ namespace RepBrasil.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EvidenceId");
+
+                    b.HasIndex("PoliticianId");
+
+                    b.HasIndex("SourceId");
 
                     b.ToTable("Contestations");
                 });
@@ -986,6 +1010,31 @@ namespace RepBrasil.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Declaration");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Contestation", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.Evidence", "Evidence")
+                        .WithMany()
+                        .HasForeignKey("EvidenceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("RepBrasil.Domain.Entities.Politician", "Politician")
+                        .WithMany()
+                        .HasForeignKey("PoliticianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RepBrasil.Domain.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Evidence");
+
+                    b.Navigation("Politician");
+
+                    b.Navigation("Source");
                 });
 
             modelBuilder.Entity("RepBrasil.Domain.Entities.ElectionResult", b =>
