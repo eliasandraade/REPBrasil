@@ -1,4 +1,5 @@
 import hashlib
+import time
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -8,7 +9,7 @@ from typing import Any
 import polars as pl
 from loguru import logger
 
-from src.db.connection import get_db
+from src.db.connection import get_db_batch
 from src.pipeline.base import BasePipeline
 from src.sources.tse.downloader import ASSETS_CSV_PATH, extract_assets_csv
 
@@ -57,15 +58,22 @@ def _parse_br_decimal(s: str | None) -> Decimal:
 
 
 class TseAssetsPipeline(BasePipeline):
-    """Pipeline de bens declarados TSE 2024."""
+    """Pipeline de bens declarados TSE 2024.
+
+    batch_size: declarações por commit — padrão 250.
+        Evita timeout SSL do Railway em loads longos.
+        Todos os upserts são idempotentes (ON CONFLICT DO UPDATE).
+    """
 
     def __init__(
         self,
         limit: int | None = None,
         tse_ids_filter: set[str] | None = None,
+        batch_size: int = 250,
     ) -> None:
         self.limit = limit
         self.tse_ids_filter = tse_ids_filter
+        self.batch_size = batch_size
 
     def collect(self) -> pl.DataFrame:
         csv_path = extract_assets_csv()
@@ -88,7 +96,6 @@ class TseAssetsPipeline(BasePipeline):
 
         df = raw.select(available)
 
-        # Filtro por TseIds específicos — evita iterar todo o BRASIL para candidatos de uma UF
         if self.tse_ids_filter is not None and "SQ_CANDIDATO" in df.columns:
             before = len(df)
             df = df.filter(pl.col("SQ_CANDIDATO").is_in(list(self.tse_ids_filter)))
@@ -138,10 +145,13 @@ class TseAssetsPipeline(BasePipeline):
             return
 
         now = datetime.now(UTC).isoformat()
+        t_start = time.perf_counter()
+        logger.info(f"Iniciando load de {len(data)} declarações (batch_size={self.batch_size})")
 
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                # Upsert Source record for provenance tracking
+        with get_db_batch() as conn:
+            cur = conn.cursor()
+            try:
+                # ── 1. Source upsert + commit imediato ───────────────────────
                 csv_hash = _compute_sha256(ASSETS_CSV_PATH)
                 csv_size = _get_file_size(ASSETS_CSV_PATH)
                 source_id = str(uuid.uuid4())
@@ -158,35 +168,32 @@ class TseAssetsPipeline(BasePipeline):
                         "UpdatedAt" = EXCLUDED."UpdatedAt"
                     """,
                     (
-                        source_id,
-                        ASSETS_SOURCE_NAME,
-                        ASSETS_SOURCE_ORG,
-                        "assets",
-                        ASSETS_SOURCE_URL,
-                        now,
-                        csv_hash,
-                        csv_size,
-                        ASSETS_SOURCE_LICENSE,
+                        source_id, ASSETS_SOURCE_NAME, ASSETS_SOURCE_ORG, "assets",
+                        ASSETS_SOURCE_URL, now, csv_hash, csv_size, ASSETS_SOURCE_LICENSE,
                         now, now,
                     ),
                 )
+                conn.commit()
                 logger.info("Fonte 'assets' registrada/atualizada em Sources.")
 
+                # ── 2. Lookup politicians ─────────────────────────────────────
                 tse_ids = [d["tse_id"] for d in data]
                 cur.execute(
                     'SELECT "TseId", "Id" FROM "Politicians" WHERE "TseId" = ANY(%s)',
                     (tse_ids,),
                 )
-                tse_to_politician: dict[str, str] = {
-                    row[0]: row[1] for row in cur.fetchall()
-                }
+                tse_to_politician: dict[str, str] = {row[0]: row[1] for row in cur.fetchall()}
                 logger.info(
                     f"Políticos encontrados: {len(tse_to_politician)} de {len(tse_ids)}"
                 )
 
+                # ── 3. Batch insert ───────────────────────────────────────────
                 loaded_decls = 0
                 loaded_items = 0
                 skipped = 0
+                batch_decls = 0
+                batches_committed = 0
+                t_batch = time.perf_counter()
 
                 for decl in data:
                     pid = tse_to_politician.get(decl["tse_id"])
@@ -208,19 +215,13 @@ class TseAssetsPipeline(BasePipeline):
                         RETURNING "Id"
                         """,
                         (
-                            str(uuid.uuid4()),
-                            pid,
-                            decl["year"],
-                            decl["source_election_year"],
-                            float(decl["total_value"]),
-                            now,
-                            now,
-                            now,
+                            str(uuid.uuid4()), pid, decl["year"], decl["source_election_year"],
+                            float(decl["total_value"]), now, now, now,
                         ),
                     )
-                    row = cur.fetchone()
-                    declaration_id = row[0]
+                    declaration_id = cur.fetchone()[0]
                     loaded_decls += 1
+                    batch_decls += 1
 
                     for item in decl["items"]:
                         cur.execute(
@@ -238,21 +239,44 @@ class TseAssetsPipeline(BasePipeline):
                                 "SourceUpdatedAt"=EXCLUDED."SourceUpdatedAt"
                             """,
                             (
-                                str(uuid.uuid4()),
-                                declaration_id,
-                                item["order"],
-                                item["type_code"],
-                                item["type_description"],
-                                item["description"],
-                                float(item["value"]),
-                                now,
-                                now,
-                                now,
+                                str(uuid.uuid4()), declaration_id, item["order"],
+                                item["type_code"], item["type_description"],
+                                item["description"], float(item["value"]), now, now, now,
                             ),
                         )
                         loaded_items += 1
 
-                logger.info(
-                    f"Carregado: {loaded_decls} declarações, {loaded_items} itens. "
-                    f"Ignorados: {skipped}"
-                )
+                    if batch_decls >= self.batch_size:
+                        conn.commit()
+                        elapsed = time.perf_counter() - t_batch
+                        rate = batch_decls / elapsed if elapsed > 0 else 0
+                        logger.info(
+                            f"Batch {batches_committed + 1}: {batch_decls} decls, "
+                            f"{loaded_items} itens acumulados — {elapsed:.1f}s "
+                            f"({rate:.1f} decls/s)"
+                        )
+                        batches_committed += 1
+                        batch_decls = 0
+                        t_batch = time.perf_counter()
+
+                # Commit final (registros restantes < batch_size)
+                if batch_decls > 0:
+                    conn.commit()
+                    elapsed = time.perf_counter() - t_batch
+                    logger.info(
+                        f"Batch final ({batches_committed + 1}): {batch_decls} decls "
+                        f"em {elapsed:.1f}s"
+                    )
+                    batches_committed += 1
+
+            finally:
+                cur.close()
+
+        total_elapsed = time.perf_counter() - t_start
+        rate_s = loaded_decls / total_elapsed if total_elapsed > 0 else 0
+        rate_m = rate_s * 60
+        logger.info(
+            f"Carregado: {loaded_decls} declarações, {loaded_items} itens. "
+            f"Ignorados: {skipped}. Batches: {batches_committed}. "
+            f"Total: {total_elapsed:.1f}s — {rate_s:.1f} decls/s ({rate_m:.0f} decls/min)"
+        )
