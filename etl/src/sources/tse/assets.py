@@ -59,8 +59,13 @@ def _parse_br_decimal(s: str | None) -> Decimal:
 class TseAssetsPipeline(BasePipeline):
     """Pipeline de bens declarados TSE 2024."""
 
-    def __init__(self, limit: int | None = None) -> None:
+    def __init__(
+        self,
+        limit: int | None = None,
+        tse_ids_filter: set[str] | None = None,
+    ) -> None:
         self.limit = limit
+        self.tse_ids_filter = tse_ids_filter
 
     def collect(self) -> pl.DataFrame:
         csv_path = extract_assets_csv()
@@ -82,6 +87,15 @@ class TseAssetsPipeline(BasePipeline):
             logger.warning(f"Colunas ausentes no CSV de bens TSE: {missing}")
 
         df = raw.select(available)
+
+        # Filtro por TseIds específicos — evita iterar todo o BRASIL para candidatos de uma UF
+        if self.tse_ids_filter is not None and "SQ_CANDIDATO" in df.columns:
+            before = len(df)
+            df = df.filter(pl.col("SQ_CANDIDATO").is_in(list(self.tse_ids_filter)))
+            logger.info(
+                f"Filtro tse_ids ({len(self.tse_ids_filter)} IDs): "
+                f"{before} → {len(df)} linhas"
+            )
 
         if self.limit:
             unique_ids = df.select("SQ_CANDIDATO").unique().head(self.limit)
