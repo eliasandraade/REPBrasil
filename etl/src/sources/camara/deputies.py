@@ -1,3 +1,4 @@
+import json as _json
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -100,5 +101,170 @@ class CamaraDeputadosPipeline(BasePipeline):
         return {"matched": matched, "unmatched": unmatched, "ambiguous": ambiguous}
 
     def load(self, data: dict[str, Any]) -> None:
-        # Implementado em Task 5
-        raise NotImplementedError("load() será implementado em Task 5")
+        matched = data["matched"]
+        now = datetime.now(UTC).isoformat()
+        chain_id = str(uuid.uuid4())
+        source_id = str(uuid.uuid4())
+
+        with get_db() as conn:
+            cur = conn.cursor()
+            try:
+                # ── 1. Source upsert ──────────────────────────────────────────
+                cur.execute(
+                    """
+                    INSERT INTO "Sources"
+                        ("Id","Name","Organization","SourceType","OriginalUrl",
+                         "CollectedAt","License","CreatedAt","UpdatedAt")
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT ("Name","SourceType") DO UPDATE SET
+                        "CollectedAt" = EXCLUDED."CollectedAt",
+                        "UpdatedAt" = EXCLUDED."UpdatedAt"
+                    RETURNING "Id"
+                    """,
+                    (
+                        source_id, CAMARA_SOURCE_NAME, CAMARA_SOURCE_ORG, "api",
+                        CAMARA_SOURCE_URL, now, CAMARA_SOURCE_LICENSE, now, now,
+                    ),
+                )
+                source_id = str(cur.fetchone()[0])
+
+                # ── 2. TransformationChain ────────────────────────────────────
+                cur.execute(
+                    """
+                    INSERT INTO "TransformationChains"
+                        ("Id","PipelineId","PipelineVersion","StartedAt","Status","CreatedAt","UpdatedAt")
+                    VALUES (%s,%s,%s,%s,'Running',%s,%s)
+                    """,
+                    (chain_id, PIPELINE_ID, PIPELINE_VERSION, now, now, now),
+                )
+
+                # ── 3. Steps ─────────────────────────────────────────────────
+                unmatched_count = len(data.get("unmatched", []))
+                ambiguous_count = len(data.get("ambiguous", []))
+                tse_sql = (
+                    'SELECT DISTINCT p."Id",p."Name",p."BallotName",p."State",p."PartyAcronym" '
+                    'FROM "Politicians" p JOIN "ElectionResults" er ON er."PoliticianId"=p."Id" '
+                    'WHERE p."Office" ILIKE \'%DEPUTADO FEDERAL%\' AND er."Elected"=true AND p."DeletedAt" IS NULL'
+                )
+                steps = [
+                    (
+                        "collect_deputies",
+                        f"Coleta de deputados via API Câmara — legislatura {self.legislature}",
+                        _json.dumps({"source": CAMARA_SOURCE_URL, "legislature": self.legislature,
+                                     "pipeline_version": PIPELINE_VERSION}),
+                        f"api:{CAMARA_SOURCE_URL}",
+                    ),
+                    (
+                        "normalize_names",
+                        "Normalização de nomes TSE e Câmara — remove acentos, lowercase, partículas PT-BR",
+                        _json.dumps({"tse_query": tse_sql}),
+                        "normalized_names",
+                    ),
+                    (
+                        "match_tse_camara",
+                        (
+                            f"Matching exact normalizado em 3 níveis (full_3way/ballot_3way/name_2way). "
+                            f"Resultado: {len(matched)} matched, {unmatched_count} sem match, "
+                            f"{ambiguous_count} ambíguos. pipeline_version={PIPELINE_VERSION}"
+                        ),
+                        _json.dumps({"algorithm": "exact_normalized_3level", "pipeline_version": PIPELINE_VERSION}),
+                        _json.dumps({"matched": len(matched), "unmatched": unmatched_count,
+                                     "ambiguous": ambiguous_count}),
+                    ),
+                    (
+                        "update_politicians",
+                        f"UPDATE CamaraId + INSERT Mandates + Evidence (Derived) para {len(matched)} políticos",
+                        None,
+                        _json.dumps({"camara_ids_updated": len(matched), "mandates_inserted": len(matched),
+                                     "evidences_inserted": len(matched)}),
+                    ),
+                ]
+                for order, (step_type, description, input_ref, output_ref) in enumerate(steps, 1):
+                    cur.execute(
+                        """
+                        INSERT INTO "TransformationSteps"
+                            ("Id","ChainId","Order","StepType","Description","Parameters",
+                             "InputReference","OutputReference","ExecutedAt","CreatedAt","UpdatedAt")
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        """,
+                        (str(uuid.uuid4()), chain_id, order, step_type, description, None,
+                         input_ref, output_ref, now, now, now),
+                    )
+
+                # ── 4. Loop: UPDATE CamaraId + INSERT Mandate + Evidence ──────
+                updated = 0
+                for m in matched:
+                    pol_id = m["politician_id"]
+                    camara_id = m["camara_id"]
+
+                    cur.execute(
+                        'UPDATE "Politicians" SET "CamaraId" = %s, "UpdatedAt" = %s WHERE "Id" = %s',
+                        (camara_id, now, pol_id),
+                    )
+
+                    cur.execute(
+                        """
+                        INSERT INTO "Mandates"
+                            ("Id","PoliticianId","House","Legislature","Title",
+                             "State","PartyAcronym","StartDate","EndDate",
+                             "ExternalId","ExternalUrl","SourceId","CreatedAt","UpdatedAt")
+                        VALUES (%s,%s,'CAMARA',%s,'DEPUTADO FEDERAL',%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT ("PoliticianId","House","Legislature") DO UPDATE SET
+                            "ExternalId" = EXCLUDED."ExternalId",
+                            "ExternalUrl" = EXCLUDED."ExternalUrl",
+                            "PartyAcronym" = EXCLUDED."PartyAcronym",
+                            "SourceId" = EXCLUDED."SourceId",
+                            "UpdatedAt" = EXCLUDED."UpdatedAt"
+                        """,
+                        (
+                            str(uuid.uuid4()), pol_id, self.legislature,
+                            m["tse_state"], m["tse_party"],
+                            MANDATE_START, MANDATE_END,
+                            camara_id,
+                            f"https://www.camara.leg.br/deputados/{camara_id}",
+                            source_id, now, now,
+                        ),
+                    )
+
+                    cur.execute(
+                        """
+                        INSERT INTO "Evidences"
+                            ("Id","SourceId","Description","EvidenceType","DatasetId",
+                             "ConfidenceLevel","NormalizedReference","TransformationChainId",
+                             "CollectedAt","ContestationStatus","Metadata","CreatedAt","UpdatedAt")
+                        VALUES (%s,%s,%s,'Derived','camara-deputados-57',%s,%s,%s,%s,'None',%s,%s,%s)
+                        """,
+                        (
+                            str(uuid.uuid4()), source_id,
+                            f"Match TSE->Camara: {m['tse_name']} [{m['tse_state']}/{m['tse_party']}] = CamaraId {camara_id} via {m['match_method']}",
+                            m["confidence_level"],
+                            f"https://dadosabertos.camara.leg.br/api/v2/deputados/{camara_id}",
+                            chain_id, now,
+                            _json.dumps({
+                                "politician_id": pol_id,
+                                "camara_id": camara_id,
+                                "match_method": m["match_method"],
+                                "camara_name": m["camara_name"],
+                            }),
+                            now, now,
+                        ),
+                    )
+                    updated += 1
+
+                # ── 5. Fechar TransformationChain ────────────────────────────
+                cur.execute(
+                    """
+                    UPDATE "TransformationChains"
+                    SET "Status" = 'Completed', "CompletedAt" = %s, "UpdatedAt" = %s
+                    WHERE "Id" = %s
+                    """,
+                    (now, now, chain_id),
+                )
+
+            finally:
+                cur.close()
+
+        logger.info(
+            f"Câmara load concluído: {updated} CamaraIds atualizados, "
+            f"{updated} Mandates inseridos, {updated} Evidências registradas."
+        )

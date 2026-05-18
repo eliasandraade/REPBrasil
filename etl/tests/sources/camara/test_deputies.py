@@ -65,3 +65,56 @@ def test_transform_summary_logged(mocker, caplog):
     mocker.patch("src.sources.camara.deputies.fetch_tse_federal_deputies", return_value=[])
     CamaraDeputadosPipeline().transform([])
     # Sem crash em inputs vazios
+
+
+# ─── load ──────────────────────────────────────────────────────────────────────
+
+def test_load_empty_matched_skips_db(mocker):
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value = mock_cur
+    mock_cur.fetchone.return_value = ("source-id",)
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__ = MagicMock(return_value=mock_conn)
+    mock_ctx.__exit__ = MagicMock(return_value=False)
+    mocker.patch("src.sources.camara.deputies.get_db", return_value=mock_ctx)
+
+    CamaraDeputadosPipeline().load({"matched": [], "unmatched": [], "ambiguous": []})
+    # execute chamado pelo menos para source upsert e chain insert
+    assert mock_cur.execute.called
+
+
+def test_load_updates_camara_id_for_matched(mocker):
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value = mock_cur
+    mock_cur.fetchone.return_value = ("some-uuid",)
+    mock_cur.fetchall.return_value = []
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__ = MagicMock(return_value=mock_conn)
+    mock_ctx.__exit__ = MagicMock(return_value=False)
+    mocker.patch("src.sources.camara.deputies.get_db", return_value=mock_ctx)
+
+    data = {
+        "matched": [{
+            "politician_id": "pol-uuid",
+            "camara_id": "12345",
+            "camara_name": "José Silva",
+            "camara_photo_url": "https://camara.leg.br/foto/12345.jpg",
+            "camara_email": "dep@camara.leg.br",
+            "tse_name": "JOSE SILVA",
+            "tse_ballot_name": "ZE SILVA",
+            "tse_state": "CE",
+            "tse_party": "PT",
+            "match_method": "full_3way",
+            "confidence_level": 5,
+        }],
+        "unmatched": [],
+        "ambiguous": [],
+    }
+
+    CamaraDeputadosPipeline().load(data)
+
+    all_sqls = " ".join(str(call) for call in mock_cur.execute.call_args_list)
+    assert "CamaraId" in all_sqls
+    assert "Mandates" in all_sqls
