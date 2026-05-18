@@ -30,6 +30,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Person> Persons => Set<Person>();
     public DbSet<TransformationChain> TransformationChains => Set<TransformationChain>();
     public DbSet<TransformationStep> TransformationSteps => Set<TransformationStep>();
+    public DbSet<Mandate> Mandates => Set<Mandate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -132,6 +133,22 @@ public class ApplicationDbContext : DbContext
                   .WithMany(c => c.Steps)
                   .HasForeignKey(s => s.ChainId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Mandate>(b =>
+        {
+            b.HasQueryFilter(m => m.DeletedAt == null);
+            b.HasIndex(m => new { m.PoliticianId, m.House, m.Legislature })
+                .IsUnique()
+                .HasDatabaseName("IX_Mandates_Politician_House_Legislature");
+            b.HasOne(m => m.Politician)
+                .WithMany()
+                .HasForeignKey(m => m.PoliticianId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(m => m.Source)
+                .WithMany()
+                .HasForeignKey(m => m.SourceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 

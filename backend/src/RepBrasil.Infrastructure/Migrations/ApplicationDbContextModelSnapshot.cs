@@ -550,6 +550,69 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.ToTable("LegalCases");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Mandate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExternalId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("House")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Legislature")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PartyAcronym")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PoliticianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SourceUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("State")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceId");
+
+                    b.HasIndex("PoliticianId", "House", "Legislature")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Mandates_Politician_House_Legislature");
+
+                    b.ToTable("Mandates");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.Municipality", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1064,6 +1127,24 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Navigation("Source");
 
                     b.Navigation("TransformationChain");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Mandate", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.Politician", "Politician")
+                        .WithMany()
+                        .HasForeignKey("PoliticianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RepBrasil.Domain.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Politician");
+
+                    b.Navigation("Source");
                 });
 
             modelBuilder.Entity("RepBrasil.Domain.Entities.Politician", b =>
