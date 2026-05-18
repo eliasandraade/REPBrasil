@@ -97,3 +97,16 @@ export interface ScoreStatusItem {
   factors: ScoreFactorItem[];
   disclaimer: string;
 }
+
+export interface Mandate {
+  id: string;
+  house: string;
+  legislature: number;
+  title: string | null;
+  state: string | null;
+  partyAcronym: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  externalId: string | null;
+  externalUrl: string | null;
+}

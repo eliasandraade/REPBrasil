@@ -15,16 +15,9 @@ import { ElectionTab } from "./tabs/ElectionTab";
 import { AssetsTab } from "./tabs/AssetsTab";
 import { MetadataTab } from "./tabs/MetadataTab";
 import { ScoreTab } from "./tabs/ScoreTab";
+import { CamaraTab } from "./tabs/CamaraTab";
 
-type TabId = "overview" | "elections" | "assets" | "metadata" | "score";
-
-const TABS: { id: TabId; label: string }[] = [
-  { id: "overview", label: "Visão Geral" },
-  { id: "elections", label: "Eleições" },
-  { id: "assets", label: "Patrimônio" },
-  { id: "metadata", label: "Fontes" },
-  { id: "score", label: "Score" },
-];
+type TabId = "overview" | "elections" | "assets" | "metadata" | "score" | "camara";
 
 interface PoliticianProfileProps {
   politician: PoliticianDetail;
@@ -77,6 +70,15 @@ export function PoliticianProfile({
   score,
 }: PoliticianProfileProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+
+  const TABS: { id: TabId; label: string }[] = [
+    { id: "overview", label: "Visão Geral" },
+    { id: "elections", label: "Eleições" },
+    { id: "assets", label: "Patrimônio" },
+    { id: "metadata", label: "Fontes" },
+    { id: "score", label: "Score" },
+    ...(politician.camaraId ? [{ id: "camara" as TabId, label: "Câmara" }] : []),
+  ];
 
   const partyLabel = [politician.partyAcronym, politician.partyName]
     .filter(Boolean)
@@ -207,6 +209,12 @@ export function PoliticianProfile({
             <MetadataTab politician={politician} sources={sources} />
           )}
           {activeTab === "score" && <ScoreTab score={score} />}
+          {activeTab === "camara" && (
+            <CamaraTab
+              politicianId={politician.id}
+              camaraId={politician.camaraId ?? null}
+            />
+          )}
         </div>
       </div>
 
