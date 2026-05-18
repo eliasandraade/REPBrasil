@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using RepBrasil.Application.Assets.DTOs;
 using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.Common;
@@ -10,6 +11,7 @@ using RepBrasil.Application.Score.DTOs;
 using RepBrasil.Application.Score.Queries;
 using RepBrasil.Application.Sources.DTOs;
 using RepBrasil.Application.Sources.Queries;
+using RepBrasil.Infrastructure.Persistence;
 
 namespace RepBrasil.API.Controllers;
 
@@ -24,6 +26,7 @@ public class PoliticiansController : ControllerBase
     private readonly GetPoliticianSourcesQuery _getSourcesQuery;
     private readonly GetPoliticianScoreQuery _getScoreQuery;
     private readonly GetPoliticianScoreHistoryQuery _getScoreHistoryQuery;
+    private readonly ApplicationDbContext _db;
 
     public PoliticiansController(
         SearchPoliticiansQuery searchQuery,
@@ -32,7 +35,8 @@ public class PoliticiansController : ControllerBase
         GetPoliticianAssetsQuery getAssetsQuery,
         GetPoliticianSourcesQuery getSourcesQuery,
         GetPoliticianScoreQuery getScoreQuery,
-        GetPoliticianScoreHistoryQuery getScoreHistoryQuery)
+        GetPoliticianScoreHistoryQuery getScoreHistoryQuery,
+        ApplicationDbContext db)
     {
         _searchQuery = searchQuery;
         _getByIdQuery = getByIdQuery;
@@ -41,6 +45,7 @@ public class PoliticiansController : ControllerBase
         _getSourcesQuery = getSourcesQuery;
         _getScoreQuery = getScoreQuery;
         _getScoreHistoryQuery = getScoreHistoryQuery;
+        _db = db;
     }
 
     [HttpGet]
@@ -127,5 +132,43 @@ public class PoliticiansController : ControllerBase
 
         var history = await _getScoreHistoryQuery.ExecuteAsync(id, ct);
         return Ok(history);
+    }
+
+    // ── Mandates ─────────────────────────────────────────────────────────────────
+
+    public record MandateResponse(
+        Guid Id,
+        string House,
+        int Legislature,
+        string? Title,
+        string? State,
+        string? PartyAcronym,
+        DateTime? StartDate,
+        DateTime? EndDate,
+        string? ExternalId,
+        string? ExternalUrl
+    );
+
+    [HttpGet("{id:guid}/mandates")]
+    [ProducesResponseType(typeof(IReadOnlyList<MandateResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMandates(Guid id, CancellationToken ct)
+    {
+        var politician = await _getByIdQuery.ExecuteAsync(id, ct);
+        if (politician is null)
+            return NotFound();
+
+        var mandates = await _db.Mandates
+            .AsNoTracking()
+            .Where(m => m.PoliticianId == id)
+            .OrderByDescending(m => m.Legislature)
+            .Select(m => new MandateResponse(
+                m.Id, m.House, m.Legislature, m.Title,
+                m.State, m.PartyAcronym, m.StartDate, m.EndDate,
+                m.ExternalId, m.ExternalUrl
+            ))
+            .ToListAsync(ct);
+
+        return Ok(mandates);
     }
 }
