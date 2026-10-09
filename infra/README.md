@@ -19,6 +19,10 @@ cp .env.example .env
 docker compose up -d
 ```
 
+O PostgreSQL usa a imagem `postgis/postgis:16-3.4` (mesma versão maior do PostgreSQL 16): a
+migration `AddElectoralIntelligence` cria o schema `electoral` com PostGIS. Um volume criado com
+`postgres:16` continua compatível — só passa a ter a extensão disponível.
+
 ## Verificar status
 
 ```bash

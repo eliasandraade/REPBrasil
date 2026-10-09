@@ -72,3 +72,20 @@
 - [ ] Dashboard de transparência financeira
 - [ ] API pública com documentação
 - [ ] Rate limiting e Cloudflare
+
+## Inteligência eleitoral
+
+Arquitetura em [ELECTORAL_ARCHITECTURE.md](ELECTORAL_ARCHITECTURE.md).
+
+- [x] Schema `electoral` (PostGIS) com território, cadastro, Boletim de Urna e proveniência
+- [x] Disputa, candidatura e vínculo determinístico Person ↔ candidatura ↔ perfil (CPF em HMAC + histórico oficial do TSE)
+- [x] ETL eleitoral portado e auditado (sync estadual com escopos intercalados)
+- [x] Ceará 2026, 1º turno: 184 municípios, 205 zonas, 23.765 urnas, 2.751.489 linhas de votos
+- [x] API .NET de catálogo, seção e candidaturas; explorador `/eleicoes`; aba "Desempenho eleitoral" no perfil
+- [ ] Identidade de votável por UF (pré-requisito para carregar a 2ª UF)
+- [ ] Demais UFs de 2026 e 2º turno
+- [ ] Eleições anteriores (2022, 2024) por seção
+- [ ] Comparação entre eleições, desempenho partidário, correlações (sempre como métricas derivadas)
+- [ ] Busca universal (políticos, candidatos, municípios, eleições)
+- [ ] Revisão humana de sugestões de identidade (nunca automática)
+
