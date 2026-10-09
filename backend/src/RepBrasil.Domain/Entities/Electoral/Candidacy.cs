@@ -49,6 +49,10 @@ public class Candidacy
     public string? IdentityMethod { get; init; }
     public Guid SourceFileId { get; init; }
     public Guid IngestionRunId { get; init; }
+
+    /// <summary>CSV dentro do ZIP oficial; <see cref="SourceLine"/> é a linha física nele.</summary>
+    public string SourceMember { get; init; } = string.Empty;
+
     public long SourceLine { get; init; }
     public string SourceRowHash { get; init; } = string.Empty;
     public string? SourceGeneratedAt { get; init; }

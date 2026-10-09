@@ -27,16 +27,25 @@ INSERT INTO office(code, name, sort_order) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- Nova fonte versionada: "Candidatos - <ano>" (consulta_cand_<ano>.zip).
+-- Novas fontes versionadas do dataset "Candidatos - <ano>":
+--   "Candidatos" (consulta_cand_<ano>.zip) e
+--   "Histórico de candidaturas" (historico_candidatura_<ano>.zip).
 ALTER TABLE open_data_source_file DROP CONSTRAINT IF EXISTS open_data_source_file_kind_known;
 ALTER TABLE open_data_source_file ADD CONSTRAINT open_data_source_file_kind_known
   CHECK (kind IN ('tse-open-data-bu', 'tse-open-data-polling-places', 'tse-open-data-municipality-codes',
-                  'tse-open-data-candidates'));
+                  'tse-open-data-candidates', 'tse-open-data-candidacy-history'));
 
--- No máximo um lote bem-sucedido por arquivo de candidatos + recorte (UE).
+-- No máximo um lote bem-sucedido por arquivo de candidatos + recorte (UEs) +
+-- versão do histórico usada na resolução de identidade.
 CREATE UNIQUE INDEX IF NOT EXISTS ingestion_run_candidates_scope_uidx
-  ON ingestion_run (source_file_id, (scope->>'units'))
+  ON ingestion_run (source_file_id, (scope->>'units'), (scope->>'history_zip_sha256'))
   WHERE status = 'succeeded' AND source = 'tse-open-data-candidates';
+
+-- Vínculo votável → candidatura: no máximo um lote bem-sucedido por pleito/turno/UF
+-- e versão do arquivo de candidatos.
+CREATE UNIQUE INDEX IF NOT EXISTS ingestion_run_identity_link_scope_uidx
+  ON ingestion_run (election_id, (scope->>'uf'), (scope->>'candidates_run'))
+  WHERE status = 'succeeded' AND source = 'electoral-identity-link';
 
 -- ---------------------------------------------------------------------------
 -- Disputa. Identidade = pleito/turno + CD_ELEICAO + cargo + unidade eleitoral.
@@ -90,7 +99,8 @@ CREATE TABLE IF NOT EXISTS candidacy (
   identity_method text,                        -- 'cpf_hmac_sha256' quando resolvido
   source_file_id uuid NOT NULL REFERENCES open_data_source_file(id),
   ingestion_run_id uuid NOT NULL REFERENCES ingestion_run(id),
-  source_line bigint NOT NULL,
+  source_member text NOT NULL,                 -- CSV dentro do ZIP (ex.: consulta_cand_2026_CE.csv)
+  source_line bigint NOT NULL,                 -- linha física dentro de source_member
   source_row_hash char(64) NOT NULL,
   source_generated_at text,                    -- DT_GERACAO + HH_GERACAO
   created_at timestamptz NOT NULL DEFAULT now(),

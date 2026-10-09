@@ -509,6 +509,11 @@ namespace RepBrasil.Infrastructure.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("source_line");
 
+                    b.Property<string>("SourceMember")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_member");
+
                     b.Property<string>("SourceRowHash")
                         .IsRequired()
                         .HasColumnType("text")

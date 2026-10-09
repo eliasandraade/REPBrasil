@@ -79,6 +79,7 @@ public static class ElectoralModel
             b.Property(e => e.IdentityMethod).HasColumnName("identity_method");
             b.Property(e => e.SourceFileId).HasColumnName("source_file_id");
             b.Property(e => e.IngestionRunId).HasColumnName("ingestion_run_id");
+            b.Property(e => e.SourceMember).HasColumnName("source_member");
             b.Property(e => e.SourceLine).HasColumnName("source_line");
             b.Property(e => e.SourceRowHash).HasColumnName("source_row_hash");
             b.Property(e => e.SourceGeneratedAt).HasColumnName("source_generated_at");
