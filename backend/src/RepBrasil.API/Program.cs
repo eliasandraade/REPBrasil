@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RepBrasil.Application.Assets.Queries;
+using RepBrasil.Application.Electoral;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
 using RepBrasil.Application.Politicians.Queries;
@@ -23,6 +24,12 @@ builder.Services.AddScoped<GetPoliticianSourcesQuery>();
 builder.Services.AddScoped<IScoreRepository, ScoreRepository>();
 builder.Services.AddScoped<GetPoliticianScoreQuery>();
 builder.Services.AddScoped<GetPoliticianScoreHistoryQuery>();
+
+// Inteligência eleitoral (schema electoral, somente leitura)
+builder.Services.AddScoped<IElectoralReadRepository, ElectoralReadRepository>();
+builder.Services.AddScoped<ElectoralCatalogService>();
+builder.Services.AddScoped<SectionResultsService>();
+builder.Services.AddScoped<CandidacyService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
