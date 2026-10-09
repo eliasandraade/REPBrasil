@@ -1,0 +1,16 @@
+{
+  "source": "IBGE — API de malhas territoriais v3 e API de localidades v1",
+  "retrieved_at": "2026-10-07T06:52:36.463Z",
+  "quality": "minima",
+  "projection": "WGS84 (EPSG:4326); renderizado em Web Mercator pelo MapLibre",
+  "urls": {
+    "ufs": "https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo%2Bjson&qualidade=minima&intrarregiao=UF",
+    "ceMunicipios": "https://servicodados.ibge.gov.br/api/v3/malhas/estados/23?formato=application/vnd.geo%2Bjson&qualidade=minima&intrarregiao=municipio",
+    "ufNames": "https://servicodados.ibge.gov.br/api/v1/localidades/estados",
+    "ceNames": "https://servicodados.ibge.gov.br/api/v1/localidades/estados/23/municipios"
+  },
+  "counts": {
+    "ufs": 27,
+    "ceMunicipios": 184
+  }
+}
