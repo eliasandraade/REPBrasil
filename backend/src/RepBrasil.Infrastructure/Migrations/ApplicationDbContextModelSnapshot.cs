@@ -388,6 +388,260 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.ToTable("ElectionResults");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Electoral.Candidacy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AgremiationType")
+                        .HasColumnType("text")
+                        .HasColumnName("agremiation_type");
+
+                    b.Property<string>("BallotName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ballot_name");
+
+                    b.Property<string>("CandidacyStatus")
+                        .HasColumnType("text")
+                        .HasColumnName("candidacy_status");
+
+                    b.Property<int?>("CandidacyStatusCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("candidacy_status_code");
+
+                    b.Property<int>("CandidateNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("candidate_number");
+
+                    b.Property<string>("CoalitionName")
+                        .HasColumnType("text")
+                        .HasColumnName("coalition_name");
+
+                    b.Property<Guid>("ContestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("contest_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool?>("Elected")
+                        .HasColumnType("boolean")
+                        .HasColumnName("elected");
+
+                    b.Property<string>("FederationAcronym")
+                        .HasColumnType("text")
+                        .HasColumnName("federation_acronym");
+
+                    b.Property<string>("FederationName")
+                        .HasColumnType("text")
+                        .HasColumnName("federation_name");
+
+                    b.Property<int?>("FederationNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("federation_number");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("full_name");
+
+                    b.Property<string>("IdentityMethod")
+                        .HasColumnType("text")
+                        .HasColumnName("identity_method");
+
+                    b.Property<string>("IdentityStatus")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("identity_status");
+
+                    b.Property<Guid>("IngestionRunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ingestion_run_id");
+
+                    b.Property<string>("PartyAcronym")
+                        .HasColumnType("text")
+                        .HasColumnName("party_acronym");
+
+                    b.Property<string>("PartyName")
+                        .HasColumnType("text")
+                        .HasColumnName("party_name");
+
+                    b.Property<int?>("PartyNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("party_number");
+
+                    b.Property<Guid?>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<Guid?>("PoliticianId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("politician_id");
+
+                    b.Property<string>("RoundOutcome")
+                        .HasColumnType("text")
+                        .HasColumnName("round_outcome");
+
+                    b.Property<int?>("RoundOutcomeCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("round_outcome_code");
+
+                    b.Property<string>("SocialName")
+                        .HasColumnType("text")
+                        .HasColumnName("social_name");
+
+                    b.Property<Guid>("SourceFileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_file_id");
+
+                    b.Property<string>("SourceGeneratedAt")
+                        .HasColumnType("text")
+                        .HasColumnName("source_generated_at");
+
+                    b.Property<long>("SourceLine")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_line");
+
+                    b.Property<string>("SourceRowHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_row_hash");
+
+                    b.Property<long>("TseCandidateId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tse_candidate_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContestId");
+
+                    b.HasIndex("PersonId");
+
+                    b.HasIndex("PoliticianId");
+
+                    b.ToTable("candidacy", "electoral", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Electoral.Contest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("ElectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("election_id");
+
+                    b.Property<string>("ElectoralUnit")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("electoral_unit");
+
+                    b.Property<int>("OfficeCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("office_code");
+
+                    b.Property<string>("OfficeName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("office_name");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("scope");
+
+                    b.Property<int>("TseElectionCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("tse_election_code");
+
+                    b.Property<string>("TseElectionDescription")
+                        .HasColumnType("text")
+                        .HasColumnName("tse_election_description");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ElectionId");
+
+                    b.ToTable("contest", "electoral", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Electoral.ElectionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<DateOnly>("ElectionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("election_date");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("environment");
+
+                    b.Property<int?>("FederalElectionCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("federal_election_code");
+
+                    b.Property<int?>("PleitoCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("pleito_code");
+
+                    b.Property<short>("Round")
+                        .HasColumnType("smallint")
+                        .HasColumnName("round");
+
+                    b.Property<int?>("StateElectionCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("state_election_code");
+
+                    b.Property<string>("TseCycle")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("tse_cycle");
+
+                    b.Property<short>("Year")
+                        .HasColumnType("smallint")
+                        .HasColumnName("year");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("election", "electoral", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.Evidence", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1111,6 +1365,40 @@ namespace RepBrasil.Infrastructure.Migrations
                     b.Navigation("Election");
                 });
 
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Electoral.Candidacy", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.Electoral.Contest", "Contest")
+                        .WithMany("Candidacies")
+                        .HasForeignKey("ContestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RepBrasil.Domain.Entities.Person", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId");
+
+                    b.HasOne("RepBrasil.Domain.Entities.Politician", "Politician")
+                        .WithMany()
+                        .HasForeignKey("PoliticianId");
+
+                    b.Navigation("Contest");
+
+                    b.Navigation("Person");
+
+                    b.Navigation("Politician");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Electoral.Contest", b =>
+                {
+                    b.HasOne("RepBrasil.Domain.Entities.Electoral.ElectionEvent", "Election")
+                        .WithMany("Contests")
+                        .HasForeignKey("ElectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Election");
+                });
+
             modelBuilder.Entity("RepBrasil.Domain.Entities.Evidence", b =>
                 {
                     b.HasOne("RepBrasil.Domain.Entities.Source", "Source")
@@ -1180,6 +1468,16 @@ namespace RepBrasil.Infrastructure.Migrations
             modelBuilder.Entity("RepBrasil.Domain.Entities.AssetDeclaration", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Electoral.Contest", b =>
+                {
+                    b.Navigation("Candidacies");
+                });
+
+            modelBuilder.Entity("RepBrasil.Domain.Entities.Electoral.ElectionEvent", b =>
+                {
+                    b.Navigation("Contests");
                 });
 
             modelBuilder.Entity("RepBrasil.Domain.Entities.Person", b =>

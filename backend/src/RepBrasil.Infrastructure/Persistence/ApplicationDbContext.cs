@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RepBrasil.Domain.Entities;
+using RepBrasil.Domain.Entities.Electoral;
+using RepBrasil.Infrastructure.Persistence.Electoral;
 
 namespace RepBrasil.Infrastructure.Persistence;
 
@@ -31,6 +33,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<TransformationChain> TransformationChains => Set<TransformationChain>();
     public DbSet<TransformationStep> TransformationSteps => Set<TransformationStep>();
     public DbSet<Mandate> Mandates => Set<Mandate>();
+
+    // Inteligência eleitoral (schema electoral, SQL versionado — ver ElectoralModel).
+    public DbSet<ElectionEvent> ElectionEvents => Set<ElectionEvent>();
+    public DbSet<Contest> Contests => Set<Contest>();
+    public DbSet<Candidacy> Candidacies => Set<Candidacy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -150,6 +157,8 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(m => m.SourceId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        ElectoralModel.Configure(modelBuilder);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
