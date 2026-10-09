@@ -979,6 +979,11 @@ namespace RepBrasil.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DocumentType", "NormalizedDocumentHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Persons_DocumentType_NormalizedDocumentHash")
+                        .HasFilter("\"NormalizedDocumentHash\" IS NOT NULL AND \"DeletedAt\" IS NULL");
+
                     b.ToTable("Persons");
                 });
 

@@ -48,6 +48,11 @@ public class ApplicationDbContext : DbContext
             entity.HasQueryFilter(e => e.DeletedAt == null);
             entity.Property(e => e.Aliases).HasColumnType("text[]");
             entity.Property(e => e.Metadata).HasColumnType("jsonb");
+            // Uma pessoa ativa por documento (HMAC do CPF — ver docs/TSE_IDENTITY.md).
+            entity.HasIndex(e => new { e.DocumentType, e.NormalizedDocumentHash })
+                  .IsUnique()
+                  .HasFilter("\"NormalizedDocumentHash\" IS NOT NULL AND \"DeletedAt\" IS NULL")
+                  .HasDatabaseName("IX_Persons_DocumentType_NormalizedDocumentHash");
         });
 
         modelBuilder.Entity<Politician>(entity =>
