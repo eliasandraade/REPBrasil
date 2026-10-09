@@ -12,12 +12,18 @@ from __future__ import annotations
 
 import csv
 import hashlib
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
-from .layout import COLUMNS, NULL_NUMERIC_TOKENS, NULL_TEXT_TOKENS, NUMERIC_COLUMNS, DetectedLayout, LayoutError
+from .layout import (
+    COLUMNS,
+    NULL_NUMERIC_TOKENS,
+    NULL_TEXT_TOKENS,
+    DetectedLayout,
+    LayoutError,
+)
 
 _IDX = {name: i for i, name in enumerate(COLUMNS)}
 

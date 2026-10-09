@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
 Phase = Literal["s", "o"]
 
 
@@ -140,7 +139,7 @@ class EA16Section(TSEModel):
         return None if value == "" else value
 
     @model_validator(mode="after")
-    def validate_role(self) -> "EA16Section":
+    def validate_role(self) -> EA16Section:
         if self.nsp is not None and self.nsa:
             raise ValueError("aggregated section cannot also aggregate other sections")
         if (self.da is None) != (self.ha is None):

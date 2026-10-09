@@ -1,6 +1,6 @@
 import pytest
 
-from urnai_ingest.bu_normalizer import BUNormalizationError, normalize_bu
+from src.electoral.bu_normalizer import BUNormalizationError, normalize_bu
 
 
 def decoded_bu():

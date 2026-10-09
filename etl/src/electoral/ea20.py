@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 EA20Scope = Literal["br", "uf", "mu", "zona"]
 EA20Progress = Literal["n", "p", "f"]
 EA20YesNo = Literal["s", "n"]
@@ -40,7 +39,7 @@ class EA20Sections(EA20Model):
     sna: int = Field(ge=0)
 
     @model_validator(mode="after")
-    def validate_hierarchy(self) -> "EA20Sections":
+    def validate_hierarchy(self) -> EA20Sections:
         if self.ts != self.st + self.snt:
             raise ValueError("EA20 sections invariant failed: ts must equal st + snt")
         if self.st != self.si + self.sni:
@@ -62,7 +61,7 @@ class EA20Electorate(EA20Model):
     a: int = Field(ge=0)
 
     @model_validator(mode="after")
-    def validate_hierarchy(self) -> "EA20Electorate":
+    def validate_hierarchy(self) -> EA20Electorate:
         if self.te != self.est + self.esnt:
             raise ValueError("EA20 electorate invariant failed: te must equal est + esnt")
         if self.est != self.esi + self.esni:
@@ -92,7 +91,7 @@ class EA20Votes(EA20Model):
     vsan: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
-    def validate_hierarchy(self) -> "EA20Votes":
+    def validate_hierarchy(self) -> EA20Votes:
         # Estrutura oficial: tv = vvc + vb + tvn + vscv.
         if self.tv != self.vvc + self.vb + self.tvn + self.vscv:
             raise ValueError("EA20 votes invariant failed: tv must equal vvc + vb + tvn + vscv")
@@ -156,7 +155,7 @@ class EA20Result(EA20Model):
     v: EA20Votes
 
     @model_validator(mode="after")
-    def validate_scope_code(self) -> "EA20Result":
+    def validate_scope_code(self) -> EA20Result:
         code = self.cdabr.lower()
         if self.tpabr == "br" and code != "br":
             raise ValueError("EA20 cdabr must be 'br' for national scope")

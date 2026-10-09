@@ -14,17 +14,28 @@ from pathlib import Path
 
 import pytest
 
-from urnai_ingest.ea20 import EA20Result
-from urnai_ingest.open_data.acquire import AcquisitionError, acquire_bu_resource, parse_checksum_file
-from urnai_ingest.open_data.ckan import DiscoveryError, select_bu_resource
-from urnai_ingest.open_data.ea20_check import validate_against_ea20
-from urnai_ingest.open_data.layout import COLUMNS, LayoutError, detect_layout
-from urnai_ingest.open_data.parser import RowError, ScanStats, aggregated_sections, number, parse_row, row_hash, scan
-from urnai_ingest.open_data.pipeline import prepare_import
-from urnai_ingest.open_data.reconcile import reconcile_with_cadastro
-from urnai_ingest.open_data.results import ConsistencyError, normalize_zone
+from src.electoral.ea20 import EA20Result
+from src.electoral.open_data.acquire import (
+    AcquisitionError,
+    acquire_bu_resource,
+    parse_checksum_file,
+)
+from src.electoral.open_data.ckan import DiscoveryError, select_bu_resource
+from src.electoral.open_data.ea20_check import validate_against_ea20
+from src.electoral.open_data.layout import COLUMNS, LayoutError, detect_layout
+from src.electoral.open_data.parser import (
+    RowError,
+    ScanStats,
+    aggregated_sections,
+    number,
+    parse_row,
+    row_hash,
+    scan,
+)
+from src.electoral.open_data.pipeline import prepare_import
+from src.electoral.open_data.results import ConsistencyError
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "open-data"
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "open-data"
 CSV_BYTES = (FIXTURES / "bweb_1t_XX_fixture.csv").read_bytes()
 CADASTRO = FIXTURES / "cadastro-ficticio.json"
 ZIP_NAME = "bweb_1t_XX_010120990000.zip"

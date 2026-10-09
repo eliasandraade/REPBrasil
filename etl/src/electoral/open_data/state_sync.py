@@ -28,9 +28,10 @@ from __future__ import annotations
 import csv
 import json
 import tempfile
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any
 
 import psycopg
 
@@ -108,7 +109,7 @@ def _reader(path: Path, layout: DetectedLayout):
         header = next(reader)
     except StopIteration:
         fh.close()
-        raise LayoutError("empty CSV")
+        raise LayoutError("empty CSV") from None
     if tuple(header) != layout.columns:
         fh.close()
         raise LayoutError("header changed between detection and parsing")
@@ -185,7 +186,7 @@ def iter_zone_groups(
     if buffer_rows < 1:
         raise ValueError("buffer_rows must be >= 1")
     uf = uf.upper()
-    with tempfile.TemporaryDirectory(prefix="urnai-bu-spill-", dir=workdir) as tmp:
+    with tempfile.TemporaryDirectory(prefix="repbrasil-bu-spill-", dir=workdir) as tmp:
         spill_dir = Path(tmp)
         order: list[ZoneScope] = []
         files: dict[ZoneScope, Path] = {}

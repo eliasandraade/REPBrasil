@@ -1,45 +1,47 @@
 """Cadastro eleitoral em PostgreSQL — opcional, pulado sem banco de teste.
 
-    URNAI_TEST_DATABASE_URL=postgresql://user:pass@localhost:5434/urnai_test pytest
+    REPBRASIL_ELECTORAL_TEST_DATABASE_URL=postgresql://user:pass@localhost:5435/repbrasil_test pytest
 
-O nome do banco precisa terminar em `_test`: o teste recria o schema `public` e
-aplica infra/db/001 + 002 + 003.
+O nome do banco precisa terminar em `_test`: o teste recria o schema `electoral` com os scripts da migration AddElectoralIntelligence.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from urllib.parse import urlparse
 
 import pytest
 
 psycopg = pytest.importorskip("psycopg")
 
-from urnai_ingest.cadaster.errors import CadasterConflict, CadasterMissing, TerritoryMissing  # noqa: E402
-from urnai_ingest.cadaster.polling_places import detect_layout, parse_cadaster  # noqa: E402
-from urnai_ingest.cadaster.store import import_cadaster, import_territories, load_zone_snapshot, municipality_zones  # noqa: E402
-from urnai_ingest.cadaster.territories import COLUMNS, PROFILE_ID, parse_territories  # noqa: E402
-from urnai_ingest.open_data.layout import detect_csv_layout  # noqa: E402
-from urnai_ingest.open_data.pipeline import prepare_import  # noqa: E402
-from urnai_ingest.open_data.store import import_prepared  # noqa: E402
-
+from conftest import TEST_DATABASE_URL, reset_electoral_schema  # noqa: E402
 from test_cadaster import POLLING, POLLING_TEXT, TERRITORIES, write  # noqa: E402
 from test_open_data_pipeline import acquired  # noqa: E402
 
-URL = os.environ.get("URNAI_TEST_DATABASE_URL")
-pytestmark = pytest.mark.skipif(not URL, reason="URNAI_TEST_DATABASE_URL not set")
-SQL_DIR = Path(__file__).resolve().parents[3] / "infra" / "db"
+from src.electoral.cadaster.errors import (  # noqa: E402
+    CadasterConflict,
+    CadasterMissing,
+    TerritoryMissing,
+)
+from src.electoral.cadaster.polling_places import detect_layout, parse_cadaster  # noqa: E402
+from src.electoral.cadaster.store import (  # noqa: E402
+    import_cadaster,
+    import_territories,
+    load_zone_snapshot,
+    municipality_zones,
+)
+from src.electoral.cadaster.territories import COLUMNS, PROFILE_ID, parse_territories  # noqa: E402
+from src.electoral.open_data.layout import detect_csv_layout  # noqa: E402
+from src.electoral.open_data.pipeline import prepare_import  # noqa: E402
+from src.electoral.open_data.store import import_prepared  # noqa: E402
+
+URL = TEST_DATABASE_URL
+pytestmark = pytest.mark.skipif(not URL, reason="REPBRASIL_ELECTORAL_TEST_DATABASE_URL not set")
 
 
 @pytest.fixture
 def conn():
     assert URL
-    if not urlparse(URL).path.rstrip("/").endswith("_test"):
-        pytest.fail("refusing to reset a database whose name does not end with _test")
-    with psycopg.connect(URL, autocommit=True) as c:
-        c.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-        for name in ("001_init.sql", "002_open_data_results.sql", "003_electoral_cadaster.sql"):
-            c.execute((SQL_DIR / name).read_text(encoding="utf-8"))
+    with psycopg.connect(URL, autocommit=True, options="-c search_path=electoral,public") as c:
+        reset_electoral_schema(c)
         c.autocommit = False
         yield c
 
@@ -125,7 +127,7 @@ def test_new_file_that_diverges_needs_supersede_and_never_deletes(conn, tmp_path
     assert conn.execute("SELECT eligible_federal FROM electoral_section WHERE section_number=4").fetchone()[0] == 41
 
     lines = POLLING_TEXT.split("\r\n")
-    removed = write(tmp_path, "\r\n".join(l for l in lines if ';"31";' not in l), "r.csv")
+    removed = write(tmp_path, "\r\n".join(line for line in lines if ';"31";' not in line), "r.csv")
     with pytest.raises(CadasterConflict, match="disappeared"):
         load_cadaster(conn, removed, sha="e", supersede=True)
 
@@ -139,7 +141,7 @@ def test_cli_import_is_persisted_for_every_zone(conn, tmp_path, capsys):
     """Regressão: a importação pela CLI precisa ser confirmada, não só reportada."""
     import json
 
-    from urnai_ingest.cli import main
+    from src.electoral.cli import main
 
     load_territories(conn)
     load_cadaster(conn)
@@ -148,7 +150,7 @@ def test_cli_import_is_persisted_for_every_zone(conn, tmp_path, capsys):
     assert main(["import-open-data-bu", str(bu.directory), "--municipality", "99999", "--database-url", URL]) == 0
     reports = json.loads(capsys.readouterr().out)
     assert [r["status"] for r in reports] == ["succeeded"]
-    with psycopg.connect(URL) as other:  # outra conexão: só vê o que foi confirmado
+    with psycopg.connect(URL, options="-c search_path=electoral,public") as other:  # outra conexão: só vê o que foi confirmado
         assert other.execute("SELECT count(*) FROM ingestion_run WHERE source='tse-open-data-bu' AND status='succeeded'").fetchone()[0] == 1
         assert other.execute("SELECT count(*) FROM section_office_result").fetchone()[0] > 0
     assert main(["import-open-data-bu", str(bu.directory), "--municipality", "99999", "--database-url", URL]) == 0

@@ -7,7 +7,6 @@ from .http_client import TSEHttpClient
 from .models import EA11Config, EA11Election, EA11Pleito
 from .tse_urls import TSEConfig, election_config_url, municipalities_config_url
 
-
 FEDERAL_ELECTION_TYPE = "8"
 STATE_ELECTION_TYPE = "1"
 MUNICIPAL_ELECTION_TYPE = "3"

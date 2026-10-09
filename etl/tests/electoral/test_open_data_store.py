@@ -1,39 +1,31 @@
 """Persistência real em PostgreSQL — opcional, pulado sem banco de teste.
 
-    URNAI_TEST_DATABASE_URL=postgresql://user:pass@localhost:5434/urnai_test pytest
+    REPBRASIL_ELECTORAL_TEST_DATABASE_URL=postgresql://user:pass@localhost:5435/repbrasil_test pytest
 
 Por segurança, o nome do banco precisa terminar em `_test`: o teste recria o
-schema `public` e aplica infra/db/001 + 002.
+schema `electoral` com os scripts da migration AddElectoralIntelligence.
 """
 from __future__ import annotations
-
-import os
-from pathlib import Path
-from urllib.parse import urlparse
 
 import pytest
 
 psycopg = pytest.importorskip("psycopg")
 
-from urnai_ingest.open_data.results import ConsistencyError  # noqa: E402
-from urnai_ingest.open_data.store import import_prepared  # noqa: E402
-
+from conftest import TEST_DATABASE_URL, reset_electoral_schema  # noqa: E402
 from test_open_data_pipeline import mutate, prepared  # noqa: E402
 
-URL = os.environ.get("URNAI_TEST_DATABASE_URL")
-pytestmark = pytest.mark.skipif(not URL, reason="URNAI_TEST_DATABASE_URL not set")
-SQL_DIR = Path(__file__).resolve().parents[3] / "infra" / "db"
+from src.electoral.open_data.results import ConsistencyError  # noqa: E402
+from src.electoral.open_data.store import import_prepared  # noqa: E402
+
+URL = TEST_DATABASE_URL
+pytestmark = pytest.mark.skipif(not URL, reason="REPBRASIL_ELECTORAL_TEST_DATABASE_URL not set")
 
 
 @pytest.fixture
 def conn():
     assert URL
-    if not urlparse(URL).path.rstrip("/").endswith("_test"):
-        pytest.fail("refusing to reset a database whose name does not end with _test")
-    with psycopg.connect(URL, autocommit=True) as c:
-        c.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-        for name in ("001_init.sql", "002_open_data_results.sql", "003_electoral_cadaster.sql"):
-            c.execute((SQL_DIR / name).read_text(encoding="utf-8"))
+    with psycopg.connect(URL, autocommit=True, options="-c search_path=electoral,public") as c:
+        reset_electoral_schema(c)
         c.autocommit = False
         yield c
 

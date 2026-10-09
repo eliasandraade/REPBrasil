@@ -17,9 +17,9 @@ Regras que esta camada garante (qualquer violação falha a importação):
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Iterable
 
 from .parser import BURow
 

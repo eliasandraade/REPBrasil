@@ -6,7 +6,7 @@ Três fontes, três autoridades — nunca misturadas:
   municípios segundo o TSE e o IBGE" (`territories.py`);
 - cadastro eleitoral (zona → local → seção, agregações, aptos por urna):
   "Eleitorado por local de votação - <ano>" (`polling_places.py`);
-- votos: Boletim de Urna (`urnai_ingest.open_data`), reconciliado contra o
+- votos: Boletim de Urna (`src.electoral.open_data`), reconciliado contra o
   cadastro canônico.
 
 Nenhum módulo daqui conhece um município pelo nome: tudo é identificado por

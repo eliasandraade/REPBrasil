@@ -4,12 +4,17 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from urnai_ingest.models import EA16Config, EA16Section, SectionAux
-from urnai_ingest.planner import plan_aux_requests, plan_urna_artifacts
-from urnai_ingest.tse_urls import TSEConfig, election_config_url, section_aux_url, sections_config_url, urna_file_url
+from src.electoral.models import EA16Config, EA16Section, SectionAux
+from src.electoral.planner import plan_aux_requests, plan_urna_artifacts
+from src.electoral.tse_urls import (
+    TSEConfig,
+    election_config_url,
+    section_aux_url,
+    sections_config_url,
+    urna_file_url,
+)
 
-
-FIXTURES = Path(__file__).parents[1] / "fixtures"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def load(name: str):

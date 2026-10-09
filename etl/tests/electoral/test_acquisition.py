@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from urnai_ingest.acquisition import (
+from src.electoral.acquisition import (
     AcquisitionError,
     AcquisitionNotReady,
     download_planned_artifact,
     persist_acquired_artifact,
     plan_section_artifact,
 )
-from urnai_ingest.tse_urls import (
+from src.electoral.tse_urls import (
     TSEConfig,
     election_config_url,
     municipalities_config_url,
@@ -19,8 +19,7 @@ from urnai_ingest.tse_urls import (
     sections_config_url,
 )
 
-
-FIXTURES = Path(__file__).parents[1] / "fixtures"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def load(name: str):

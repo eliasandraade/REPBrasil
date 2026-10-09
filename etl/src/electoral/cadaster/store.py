@@ -21,7 +21,15 @@ from psycopg.types.json import Jsonb
 
 from ..open_data.layout import DetectedLayout
 from .errors import CadasterConflict, CadasterError, CadasterMissing, TerritoryMissing
-from .polling_places import COORDINATES_SOURCE, Cadaster, MunicipalityCadaster, snapshot_dict, ZoneCadaster, PlaceRecord, SectionRecord
+from .polling_places import (
+    COORDINATES_SOURCE,
+    Cadaster,
+    MunicipalityCadaster,
+    PlaceRecord,
+    SectionRecord,
+    ZoneCadaster,
+    snapshot_dict,
+)
 from .territories import Territories
 
 SOURCE_TERRITORIES = "tse-open-data-territories"
@@ -31,11 +39,11 @@ REQUIRED_COLUMNS = {("electoral_section", "eligible_federal"), ("polling_place",
 
 def _check_schema(cur: psycopg.Cursor) -> None:
     cur.execute(
-        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND (table_name, column_name) IN "
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = current_schema() AND (table_name, column_name) IN "
         "(('electoral_section','eligible_federal'),('polling_place','coordinates_source'),('municipality','tse_name'))"
     )
     if {tuple(r) for r in cur.fetchall()} != REQUIRED_COLUMNS:
-        raise CadasterError("database schema missing; apply infra/db/001_init.sql, 002_open_data_results.sql and 003_electoral_cadaster.sql")
+        raise CadasterError("electoral schema missing; apply the EF migration AddElectoralIntelligence (dotnet ef database update)")
 
 
 def _source_file_id(cur: psycopg.Cursor, manifest: dict[str, Any], *, year: int | None, layout: DetectedLayout | None) -> str:
@@ -210,7 +218,7 @@ def _diff(old: dict[Any, tuple[Any, ...]], new: dict[Any, tuple[Any, ...]], fiel
     changed = []
     for key in sorted(set(old) & set(new)):
         if old[key] != new[key]:
-            changed.append({"key": list(key), "changes": {f: [a, b] for f, a, b in zip(fields, old[key], new[key]) if a != b}})
+            changed.append({"key": list(key), "changes": {f: [a, b] for f, a, b in zip(fields, old[key], new[key], strict=False) if a != b}})
     return {"added": [list(k) for k in added], "removed": [list(k) for k in removed], "changed": changed}
 
 

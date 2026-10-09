@@ -6,9 +6,8 @@ import shutil
 import stat
 import zipfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-
 
 OFFICIAL_2026_SCHEMA_URL = (
     "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/"
@@ -150,7 +149,7 @@ def persist_schema_bundle(
         "kind": "tse-2026-bu-rdv-schema-bundle",
         "source_url": source_url,
         "acquisition": "manual-official-download",
-        "ingested_at": datetime.now(timezone.utc).isoformat(),
+        "ingested_at": datetime.now(UTC).isoformat(),
         "zip_sha256": bundle_sha256,
         "zip_size": saved_zip.stat().st_size,
         "member_count": len(members),

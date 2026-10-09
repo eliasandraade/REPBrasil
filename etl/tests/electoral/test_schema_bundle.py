@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from urnai_ingest.schema_bundle import (
+from src.electoral.schema_bundle import (
     OFFICIAL_2026_SCHEMA_URL,
     SchemaBundleError,
     inspect_schema_bundle,

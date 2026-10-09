@@ -16,10 +16,11 @@ import os
 import re
 import tempfile
 import zipfile
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Iterator, Protocol
+from typing import Any, Protocol
 from urllib.parse import urlparse
 
 import httpx

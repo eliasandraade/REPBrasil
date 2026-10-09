@@ -7,11 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from urnai_ingest.open_data.layout import COLUMNS, detect_layout
-from urnai_ingest.open_data.results import ConsistencyError
-from urnai_ingest.open_data.state_sync import ZoneScope, iter_zone_groups, preflight_state, sync_state_results
+from src.electoral.open_data.layout import COLUMNS, detect_layout
+from src.electoral.open_data.results import ConsistencyError
+from src.electoral.open_data.state_sync import (
+    ZoneScope,
+    iter_zone_groups,
+    preflight_state,
+    sync_state_results,
+)
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "open-data"
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "open-data"
 SOURCE = FIXTURES / "bweb_1t_XX_fixture.csv"
 CADASTRO = json.loads((FIXTURES / "cadastro-ficticio.json").read_text(encoding="utf-8"))
 
@@ -118,8 +123,8 @@ def test_preflight_accepts_interleaved_scopes_like_the_official_file(tmp_path):
 def test_interleaved_groups_equal_contiguous_groups(tmp_path, buffer_rows):
     """Mesmas linhas, mesmos números de linha de origem, mesmo resultado normalizado — com o
     buffer em disco esvaziado várias vezes (memória limitada)."""
-    from urnai_ingest.open_data.pipeline import fingerprint
-    from urnai_ingest.open_data.results import normalize_zone
+    from src.electoral.open_data.pipeline import fingerprint
+    from src.electoral.open_data.results import normalize_zone
 
     _, original = _rows()
     other = _other_scope(original)
@@ -131,10 +136,9 @@ def test_interleaved_groups_equal_contiguous_groups(tmp_path, buffer_rows):
         layout = detect_layout(path)
         plan = preflight_state(path, layout, year=2099, turn=1, uf="XX")
         expected = {p.scope: p.rows for p in plan.scopes}
-        return {
-            scope: rows
-            for scope, rows in iter_zone_groups(path, layout, year=2099, turn=1, uf="XX", expected_rows=expected, buffer_rows=buffer_rows)
-        }
+        return dict(
+            iter_zone_groups(path, layout, year=2099, turn=1, uf="XX", expected_rows=expected, buffer_rows=buffer_rows)
+        )
 
     a, b = collect(contiguous), collect(interleaved)
     assert list(a) == list(b) == [ZoneScope(99999, 9), ZoneScope(88888, 10)]
@@ -172,7 +176,7 @@ def test_state_sync_reuses_normalization_reconciliation_and_idempotent_store(tmp
     manifest = _manifest(tmp_path / "artifact", SOURCE)
     scope = ZoneScope(99999, 9)
 
-    import urnai_ingest.open_data.state_sync as module
+    import src.electoral.open_data.state_sync as module
 
     monkeypatch.setattr(module, "_expected_scopes", lambda *args, **kwargs: {scope})
     monkeypatch.setattr(module, "load_zone_snapshot", lambda *args, **kwargs: CADASTRO)
@@ -196,7 +200,7 @@ def test_state_sync_reuses_normalization_reconciliation_and_idempotent_store(tmp
 
 def test_state_sync_refuses_bu_cadaster_scope_drift_before_writes(tmp_path, monkeypatch):
     manifest = _manifest(tmp_path / "artifact", SOURCE)
-    import urnai_ingest.open_data.state_sync as module
+    import src.electoral.open_data.state_sync as module
 
     monkeypatch.setattr(module, "_expected_scopes", lambda *args, **kwargs: {ZoneScope(99999, 9), ZoneScope(99999, 10)})
     called = False

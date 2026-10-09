@@ -6,14 +6,13 @@ import os
 import sys
 from pathlib import Path
 
-import psycopg
-
+from .. import db as electoral_db
 from .state_sync import ZoneScope, sync_state_results
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="urnai-sync-results",
+        prog="repbrasil-electoral-sync",
         description="Import every municipality/zone from one official TSE BU UF resource through the canonical cadaster.",
     )
     parser.add_argument("manifest", type=Path, help="open-data BU manifest.json or content-addressed directory")
@@ -47,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     if not database_url:
         raise SystemExit("DATABASE_URL (or --database-url) is required; the canonical cadaster lives in PostgreSQL")
     municipalities = [int(m) for m in args.municipality] or None
-    with psycopg.connect(database_url, autocommit=True) as conn:
+    with electoral_db.connect(database_url, autocommit=True) as conn:
         report = sync_state_results(
             conn,
             args.manifest,

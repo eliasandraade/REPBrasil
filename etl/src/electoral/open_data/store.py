@@ -1,4 +1,4 @@
-"""Persistência em PostgreSQL (schema `infra/db/002_open_data_results.sql`).
+"""Persistência em PostgreSQL (schema `electoral`, script 002_open_data_results.sql).
 
 Garantias:
 - Uma transação por importação: ou entra tudo, ou nada.
@@ -29,11 +29,11 @@ class StoreError(RuntimeError):
 
 
 def _check_schema(cur: psycopg.Cursor) -> None:
-    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()")
     present = {r[0] for r in cur.fetchall()}
     missing = [t for t in REQUIRED_TABLES if t not in present]
     if missing:
-        raise StoreError(f"database schema missing {missing}; apply infra/db/001_init.sql and 002_open_data_results.sql")
+        raise StoreError(f"electoral schema missing {missing}; apply the EF migration AddElectoralIntelligence (dotnet ef database update)")
 
 
 def _source_file_id(cur: psycopg.Cursor, prepared: PreparedImport) -> str:

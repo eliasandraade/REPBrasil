@@ -106,7 +106,7 @@ def parse_territories(csv_path: Path) -> Territories:
         for line, fields in enumerate(reader, start=2):
             if len(fields) != len(COLUMNS):
                 raise CadasterError(f"line {line}: expected {len(COLUMNS)} fields, got {len(fields)} (truncated?)")
-            row = dict(zip(COLUMNS, (f.strip() for f in fields)))
+            row = dict(zip(COLUMNS, (f.strip() for f in fields), strict=False))
             generated.add(f"{row['DT_GERACAO']} {row['HH_GERACAO']}")
             uf = row["SG_UF"].upper()
             if not re.fullmatch(r"[A-Z]{2}", uf):

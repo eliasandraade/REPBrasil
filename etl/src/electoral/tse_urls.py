@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from urllib.parse import quote
-
 
 _UF = re.compile(r"^[a-z]{2}$")
 _HASH = re.compile(r"^[A-Za-z0-9._~-]+$")

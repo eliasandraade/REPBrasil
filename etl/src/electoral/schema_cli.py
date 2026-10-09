@@ -9,7 +9,7 @@ from .schema_bundle import OFFICIAL_2026_SCHEMA_URL, persist_schema_bundle
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="urnai-schema",
+        prog="repbrasil-electoral-schema",
         description="Audit and persist the official TSE BU/RDV ASN.1 package obtained manually from the TSE portal.",
     )
     parser.add_argument("zip", type=Path, help="path to the ZIP downloaded from the official TSE Eleições 2026 page")

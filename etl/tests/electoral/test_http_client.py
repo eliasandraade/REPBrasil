@@ -1,7 +1,13 @@
 import httpx
 import pytest
 
-from urnai_ingest.http_client import CachedArtifact, MemoryArtifactCache, TSEFetchError, TSEHttpClient, TSENotFound
+from src.electoral.http_client import (
+    CachedArtifact,
+    MemoryArtifactCache,
+    TSEFetchError,
+    TSEHttpClient,
+    TSENotFound,
+)
 
 
 class NoopLimiter:

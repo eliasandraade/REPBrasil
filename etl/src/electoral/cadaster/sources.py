@@ -18,10 +18,11 @@ import re
 import tempfile
 import unicodedata
 import zipfile
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlparse
 
 from ..open_data.acquire import AcquisitionError, StreamSource
@@ -45,11 +46,11 @@ class CadasterResourceSpec:
     resource_name: str
 
     @classmethod
-    def polling_places(cls, year: int) -> "CadasterResourceSpec":
+    def polling_places(cls, year: int) -> CadasterResourceSpec:
         return cls(KIND_POLLING_PLACES, f"eleitorado-{year}", f"Eleitorado por local de votação - {year}")
 
     @classmethod
-    def municipality_codes(cls) -> "CadasterResourceSpec":
+    def municipality_codes(cls) -> CadasterResourceSpec:
         return cls(
             KIND_MUNICIPALITY_CODES,
             "codigos-oficiais-de-uf-e-municipios-segundo-o-tse-e-o-ibge",

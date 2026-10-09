@@ -3,12 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from urnai_ingest.discovery import DiscoveryError, discover_general_elections, fetch_election_context
-from urnai_ingest.models import EA11Config, EA12Config
-from urnai_ingest.tse_urls import TSEConfig, municipalities_config_url
+from src.electoral.discovery import (
+    DiscoveryError,
+    discover_general_elections,
+    fetch_election_context,
+)
+from src.electoral.models import EA11Config, EA12Config
+from src.electoral.tse_urls import TSEConfig, municipalities_config_url
 
-
-FIXTURES = Path(__file__).parents[1] / "fixtures"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def load(name: str):

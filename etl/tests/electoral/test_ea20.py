@@ -6,16 +6,15 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from urnai_ingest.ea20 import (
+from src.electoral.ea20 import (
+    EA20_OFFICE_CODES,
     EA20Result,
     EA20ZoneExpectation,
-    EA20_OFFICE_CODES,
     ea20_zone_filename,
     validate_zone_result,
 )
 
-
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "ea20-sample.json"
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ea20-sample.json"
 
 
 def load_fixture() -> dict:

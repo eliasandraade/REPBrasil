@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from urnai_ingest.bu_parser import (
+from src.electoral.bu_parser import (
     BU_CONTENT_ROOT_TYPE,
     BU_ENVELOPE_ROOT_TYPE,
     BUEncryptedError,

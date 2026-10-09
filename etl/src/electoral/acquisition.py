@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from hashlib import sha256
 import json
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -271,7 +271,7 @@ def download_planned_artifact(client: TSEHttpClient, plan: SectionArtifactPlan) 
         body=body,
         sha256=digest,
         size=len(body),
-        fetched_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        fetched_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     )
 
 

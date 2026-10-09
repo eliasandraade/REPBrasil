@@ -21,10 +21,11 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from test_open_data_pipeline import CADASTRO, acquired
 
-from urnai_ingest.cadaster.errors import CadasterError, CadasterMissing
-from urnai_ingest.cadaster.polling_places import COORDINATES_SOURCE, parse_cadaster, zone_snapshot
-from urnai_ingest.cadaster.sources import (
+from src.electoral.cadaster.errors import CadasterError, CadasterMissing
+from src.electoral.cadaster.polling_places import COORDINATES_SOURCE, parse_cadaster, zone_snapshot
+from src.electoral.cadaster.sources import (
     KIND_POLLING_PLACES,
     CadasterResourceSpec,
     acquire_resource,
@@ -33,15 +34,13 @@ from urnai_ingest.cadaster.sources import (
     load_manifest,
     select_resource,
 )
-from urnai_ingest.cadaster.territories import assign_slugs, parse_territories, slugify
-from urnai_ingest.cli import main
-from urnai_ingest.open_data.ckan import DiscoveryError
-from urnai_ingest.open_data.layout import LayoutError
-from urnai_ingest.open_data.pipeline import prepare_import
+from src.electoral.cadaster.territories import assign_slugs, parse_territories, slugify
+from src.electoral.cli import main
+from src.electoral.open_data.ckan import DiscoveryError
+from src.electoral.open_data.layout import LayoutError
+from src.electoral.open_data.pipeline import prepare_import
 
-from test_open_data_pipeline import CADASTRO, acquired
-
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "cadaster"
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "cadaster"
 TERRITORIES = FIXTURES / "municipio_tse_ibge_XX_fixture.csv"
 POLLING = FIXTURES / "eleitorado_local_votacao_2099_XX.csv"
 POLLING_TEXT = POLLING.read_bytes().decode("latin-1")

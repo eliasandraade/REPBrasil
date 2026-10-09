@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from . import db as electoral_db
 from .acquisition import download_planned_artifact, persist_acquired_artifact, plan_section_artifact
 from .bu_normalizer import normalize_bu
 from .bu_parser import BUParser
@@ -42,7 +43,7 @@ def _add_live_section_args(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="urnai-ingest")
+    parser = argparse.ArgumentParser(prog="repbrasil-electoral")
     parser.add_argument("--base-url", default="https://resultados.tse.jus.br")
     parser.add_argument("--environment", default="oficial")
     parser.add_argument("--cycle", default="ele2026")
@@ -302,12 +303,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _open_data(args: argparse.Namespace) -> int:
-    import os
 
     from .open_data.acquire import HttpStreamSource, acquire_bu_resource
     from .open_data.ckan import discover_bu_resource
-    from .open_data.pipeline import prepare_import
-    from .open_data.store import dumps
 
     if args.command in {"discover-open-data-bu", "acquire-open-data-bu"}:
         client = TSEHttpClient()
@@ -361,14 +359,12 @@ def _import_open_data_bu(args: argparse.Namespace) -> int:
             zones = [args.zone] if args.zone is not None else list(fixture["municipality"]["zone_numbers"])
             snapshot = lambda zone: fixture  # noqa: E731
         elif database_url:
-            import psycopg
-
             from .cadaster.store import load_zone_snapshot, municipality_zones
 
             # autocommit: cada importação é a sua própria transação (import_prepared abre e
             # confirma). Sem isso, as leituras do cadastro abririam uma transação implícita,
             # a importação viraria um savepoint e nada seria persistido ao fechar.
-            conn = psycopg.connect(database_url, autocommit=True)
+            conn = electoral_db.connect(database_url, autocommit=True)
             zones = [args.zone] if args.zone is not None else municipality_zones(conn, year=year, turn=turn, uf=uf, municipality=args.municipality)
             snapshot = lambda zone: load_zone_snapshot(conn, year=year, turn=turn, uf=uf, municipality=args.municipality, zone=zone)  # noqa: E731
         else:
@@ -438,7 +434,7 @@ def _cadaster(args: argparse.Namespace) -> int:
         return 0
 
     if args.command == "import-territories":
-        from .cadaster.territories import PROFILE_ID, COLUMNS, parse_territories
+        from .cadaster.territories import COLUMNS, PROFILE_ID, parse_territories
         from .open_data.layout import detect_csv_layout
 
         manifest = load_manifest(args.directory or find_acquired(args.cadaster_dir, kind=KIND_MUNICIPALITY_CODES), kind=KIND_MUNICIPALITY_CODES)
@@ -453,11 +449,9 @@ def _cadaster(args: argparse.Namespace) -> int:
         database_url = _database_url(args)
         if not database_url:
             raise SystemExit("DATABASE_URL (or --database-url) is required unless --dry-run")
-        import psycopg
-
         from .cadaster.store import import_territories
 
-        with psycopg.connect(database_url, autocommit=True) as conn:
+        with electoral_db.connect(database_url, autocommit=True) as conn:
             print(dumps(import_territories(conn, territories, manifest, member, layout)))
         return 0
 
@@ -476,13 +470,11 @@ def _cadaster(args: argparse.Namespace) -> int:
     database_url = _database_url(args)
     if not database_url:
         raise SystemExit("DATABASE_URL (or --database-url) is required unless --dry-run")
-    import psycopg
-
     from .cadaster.errors import CadasterConflict
     from .cadaster.store import import_cadaster
 
     try:
-        with psycopg.connect(database_url, autocommit=True) as conn:
+        with electoral_db.connect(database_url, autocommit=True) as conn:
             print(dumps(import_cadaster(conn, cadaster, manifest, member, layout, municipalities=municipalities, supersede=args.supersede)))
     except (CadasterMissing, TerritoryMissing) as exc:
         return _missing(exc)
