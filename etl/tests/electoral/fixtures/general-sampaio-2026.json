@@ -1,0 +1,567 @@
+{
+  "source": {
+    "name": "Consulta Seções por Município - Eleições 2026",
+    "updated_at": "2026-10-03T07:31:53-03:00",
+    "round": 1
+  },
+  "municipality": {
+    "name": "General Sampaio",
+    "state": "CE",
+    "tse_code": "13935",
+    "zone_numbers": [
+      50
+    ]
+  },
+  "summary": {
+    "principal_sections": 30,
+    "aggregated_sections": 5,
+    "section_numbers_total": 35,
+    "polling_places": 11,
+    "eligible_state_principal": 7776,
+    "eligible_federal_principal": 7778,
+    "eligible_state_aggregated": 496,
+    "eligible_federal_aggregated": 496,
+    "eligible_state_total": 8272,
+    "eligible_federal_total": 8274
+  },
+  "polling_places": [
+    {
+      "tse_location_code": "1066",
+      "name": "EMEF Mª Arinda Lobo de Mesquita",
+      "address": "Rua José Severino Filho, 209",
+      "neighborhood": "Centro",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1090",
+      "name": "Creche Proinfância Diana de Nazur Monteiro Marinho Moreira",
+      "address": "Rua José Costa Nascimento",
+      "neighborhood": "Conjunto São José",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1112",
+      "name": "EMEF José Bezerra Filho",
+      "address": "Rua Filomeno Barbosa de Oliveira, S/N",
+      "neighborhood": "Conjunto São José",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1058",
+      "name": "EEMTI Edite Alcântara Mota",
+      "address": "Rua do Campo, S/N",
+      "neighborhood": "Conjunto São José",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1139",
+      "name": "EMEF Messias Delfino Alves",
+      "address": "Vila São João",
+      "neighborhood": "Zona Rural",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1120",
+      "name": "EMEF Manoel Justino Monteiro",
+      "address": "Lagoa do Meio",
+      "neighborhood": "Zona Rural",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1163",
+      "name": "EMEIF Pascoal Almeida de Sousa",
+      "address": "Cangati",
+      "neighborhood": "Zona Rural",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1031",
+      "name": "EMEIF Santa Lucia",
+      "address": "Pinda II",
+      "neighborhood": "Zona Rural",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1171",
+      "name": "Creche Escola Raimundo Pires",
+      "address": "Caraúbas",
+      "neighborhood": "Zona Rural",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1104",
+      "name": "EMEF Manoel Justino - Anexo (Lagoa do Meio)",
+      "address": "Pedra D'Água",
+      "neighborhood": "Zona Rural",
+      "postal_code": "62738000",
+      "geom": null
+    },
+    {
+      "tse_location_code": "1023",
+      "name": "EEMF Raimundo Lessa",
+      "address": "Guerra",
+      "neighborhood": "Zona Rural",
+      "postal_code": "62738000",
+      "geom": null
+    }
+  ],
+  "sections": [
+    {
+      "number": 27,
+      "principal_number": 27,
+      "polling_place_code": "1066",
+      "is_aggregated": false,
+      "eligible_state": 263,
+      "eligible_federal": 265,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 263,
+      "total_eligible_federal": 265
+    },
+    {
+      "number": 28,
+      "principal_number": 29,
+      "polling_place_code": "1090",
+      "is_aggregated": true,
+      "eligible_state": null,
+      "eligible_federal": null,
+      "aggregated_sections": [],
+      "note": "Aptos individuais da seção agregada não são separáveis a partir do PDF municipal; o BU/resultados pertencem à seção principal."
+    },
+    {
+      "number": 29,
+      "principal_number": 29,
+      "polling_place_code": "1090",
+      "is_aggregated": false,
+      "eligible_state": 119,
+      "eligible_federal": 119,
+      "aggregated_sections": [
+        28,
+        40
+      ],
+      "aggregated_eligible_state_total": 225,
+      "aggregated_eligible_federal_total": 225,
+      "total_eligible_state": 344,
+      "total_eligible_federal": 344
+    },
+    {
+      "number": 30,
+      "principal_number": 30,
+      "polling_place_code": "1090",
+      "is_aggregated": false,
+      "eligible_state": 117,
+      "eligible_federal": 117,
+      "aggregated_sections": [
+        31,
+        110
+      ],
+      "aggregated_eligible_state_total": 230,
+      "aggregated_eligible_federal_total": 230,
+      "total_eligible_state": 347,
+      "total_eligible_federal": 347
+    },
+    {
+      "number": 31,
+      "principal_number": 30,
+      "polling_place_code": "1090",
+      "is_aggregated": true,
+      "eligible_state": null,
+      "eligible_federal": null,
+      "aggregated_sections": [],
+      "note": "Aptos individuais da seção agregada não são separáveis a partir do PDF municipal; o BU/resultados pertencem à seção principal."
+    },
+    {
+      "number": 32,
+      "principal_number": 32,
+      "polling_place_code": "1112",
+      "is_aggregated": false,
+      "eligible_state": 262,
+      "eligible_federal": 262,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 262,
+      "total_eligible_federal": 262
+    },
+    {
+      "number": 33,
+      "principal_number": 33,
+      "polling_place_code": "1112",
+      "is_aggregated": false,
+      "eligible_state": 255,
+      "eligible_federal": 255,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 255,
+      "total_eligible_federal": 255
+    },
+    {
+      "number": 34,
+      "principal_number": 34,
+      "polling_place_code": "1058",
+      "is_aggregated": false,
+      "eligible_state": 304,
+      "eligible_federal": 304,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 304,
+      "total_eligible_federal": 304
+    },
+    {
+      "number": 35,
+      "principal_number": 35,
+      "polling_place_code": "1058",
+      "is_aggregated": false,
+      "eligible_state": 304,
+      "eligible_federal": 304,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 304,
+      "total_eligible_federal": 304
+    },
+    {
+      "number": 36,
+      "principal_number": 36,
+      "polling_place_code": "1058",
+      "is_aggregated": false,
+      "eligible_state": 306,
+      "eligible_federal": 306,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 306,
+      "total_eligible_federal": 306
+    },
+    {
+      "number": 37,
+      "principal_number": 37,
+      "polling_place_code": "1058",
+      "is_aggregated": false,
+      "eligible_state": 302,
+      "eligible_federal": 302,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 302,
+      "total_eligible_federal": 302
+    },
+    {
+      "number": 38,
+      "principal_number": 38,
+      "polling_place_code": "1066",
+      "is_aggregated": false,
+      "eligible_state": 277,
+      "eligible_federal": 277,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 277,
+      "total_eligible_federal": 277
+    },
+    {
+      "number": 39,
+      "principal_number": 39,
+      "polling_place_code": "1066",
+      "is_aggregated": false,
+      "eligible_state": 275,
+      "eligible_federal": 275,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 275,
+      "total_eligible_federal": 275
+    },
+    {
+      "number": 40,
+      "principal_number": 29,
+      "polling_place_code": "1090",
+      "is_aggregated": true,
+      "eligible_state": null,
+      "eligible_federal": null,
+      "aggregated_sections": [],
+      "note": "Aptos individuais da seção agregada não são separáveis a partir do PDF municipal; o BU/resultados pertencem à seção principal."
+    },
+    {
+      "number": 41,
+      "principal_number": 41,
+      "polling_place_code": "1112",
+      "is_aggregated": false,
+      "eligible_state": 258,
+      "eligible_federal": 258,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 258,
+      "total_eligible_federal": 258
+    },
+    {
+      "number": 42,
+      "principal_number": 42,
+      "polling_place_code": "1066",
+      "is_aggregated": false,
+      "eligible_state": 275,
+      "eligible_federal": 275,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 275,
+      "total_eligible_federal": 275
+    },
+    {
+      "number": 43,
+      "principal_number": 43,
+      "polling_place_code": "1066",
+      "is_aggregated": false,
+      "eligible_state": 276,
+      "eligible_federal": 276,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 276,
+      "total_eligible_federal": 276
+    },
+    {
+      "number": 107,
+      "principal_number": 107,
+      "polling_place_code": "1066",
+      "is_aggregated": false,
+      "eligible_state": 278,
+      "eligible_federal": 278,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 278,
+      "total_eligible_federal": 278
+    },
+    {
+      "number": 110,
+      "principal_number": 30,
+      "polling_place_code": "1090",
+      "is_aggregated": true,
+      "eligible_state": null,
+      "eligible_federal": null,
+      "aggregated_sections": [],
+      "note": "Aptos individuais da seção agregada não são separáveis a partir do PDF municipal; o BU/resultados pertencem à seção principal."
+    },
+    {
+      "number": 123,
+      "principal_number": 123,
+      "polling_place_code": "1058",
+      "is_aggregated": false,
+      "eligible_state": 307,
+      "eligible_federal": 307,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 307,
+      "total_eligible_federal": 307
+    },
+    {
+      "number": 158,
+      "principal_number": 158,
+      "polling_place_code": "1066",
+      "is_aggregated": false,
+      "eligible_state": 273,
+      "eligible_federal": 273,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 273,
+      "total_eligible_federal": 273
+    },
+    {
+      "number": 173,
+      "principal_number": 173,
+      "polling_place_code": "1112",
+      "is_aggregated": false,
+      "eligible_state": 263,
+      "eligible_federal": 263,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 263,
+      "total_eligible_federal": 263
+    },
+    {
+      "number": 176,
+      "principal_number": 176,
+      "polling_place_code": "1139",
+      "is_aggregated": false,
+      "eligible_state": 327,
+      "eligible_federal": 327,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 327,
+      "total_eligible_federal": 327
+    },
+    {
+      "number": 177,
+      "principal_number": 177,
+      "polling_place_code": "1120",
+      "is_aggregated": false,
+      "eligible_state": 173,
+      "eligible_federal": 173,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 173,
+      "total_eligible_federal": 173
+    },
+    {
+      "number": 186,
+      "principal_number": 186,
+      "polling_place_code": "1139",
+      "is_aggregated": false,
+      "eligible_state": 325,
+      "eligible_federal": 325,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 325,
+      "total_eligible_federal": 325
+    },
+    {
+      "number": 192,
+      "principal_number": 192,
+      "polling_place_code": "1112",
+      "is_aggregated": false,
+      "eligible_state": 260,
+      "eligible_federal": 260,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 260,
+      "total_eligible_federal": 260
+    },
+    {
+      "number": 198,
+      "principal_number": 198,
+      "polling_place_code": "1163",
+      "is_aggregated": false,
+      "eligible_state": 320,
+      "eligible_federal": 320,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 320,
+      "total_eligible_federal": 320
+    },
+    {
+      "number": 199,
+      "principal_number": 199,
+      "polling_place_code": "1031",
+      "is_aggregated": false,
+      "eligible_state": 269,
+      "eligible_federal": 269,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 269,
+      "total_eligible_federal": 269
+    },
+    {
+      "number": 200,
+      "principal_number": 200,
+      "polling_place_code": "1171",
+      "is_aggregated": false,
+      "eligible_state": 146,
+      "eligible_federal": 146,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 146,
+      "total_eligible_federal": 146
+    },
+    {
+      "number": 203,
+      "principal_number": 203,
+      "polling_place_code": "1104",
+      "is_aggregated": false,
+      "eligible_state": 129,
+      "eligible_federal": 129,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 129,
+      "total_eligible_federal": 129
+    },
+    {
+      "number": 204,
+      "principal_number": 204,
+      "polling_place_code": "1023",
+      "is_aggregated": false,
+      "eligible_state": 319,
+      "eligible_federal": 319,
+      "aggregated_sections": [
+        232
+      ],
+      "aggregated_eligible_state_total": 41,
+      "aggregated_eligible_federal_total": 41,
+      "total_eligible_state": 360,
+      "total_eligible_federal": 360
+    },
+    {
+      "number": 206,
+      "principal_number": 206,
+      "polling_place_code": "1058",
+      "is_aggregated": false,
+      "eligible_state": 304,
+      "eligible_federal": 304,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 304,
+      "total_eligible_federal": 304
+    },
+    {
+      "number": 226,
+      "principal_number": 226,
+      "polling_place_code": "1163",
+      "is_aggregated": false,
+      "eligible_state": 317,
+      "eligible_federal": 317,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 317,
+      "total_eligible_federal": 317
+    },
+    {
+      "number": 227,
+      "principal_number": 227,
+      "polling_place_code": "1031",
+      "is_aggregated": false,
+      "eligible_state": 173,
+      "eligible_federal": 173,
+      "aggregated_sections": [],
+      "aggregated_eligible_state_total": 0,
+      "aggregated_eligible_federal_total": 0,
+      "total_eligible_state": 173,
+      "total_eligible_federal": 173
+    },
+    {
+      "number": 232,
+      "principal_number": 204,
+      "polling_place_code": "1023",
+      "is_aggregated": true,
+      "eligible_state": null,
+      "eligible_federal": null,
+      "aggregated_sections": [],
+      "note": "Aptos individuais da seção agregada não são separáveis a partir do PDF municipal; o BU/resultados pertencem à seção principal."
+    }
+  ]
+}

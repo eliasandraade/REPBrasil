@@ -1,0 +1,25 @@
+{
+  "dg": "01/01/2099",
+  "hg": "00:00:00",
+  "f": "o",
+  "idg": "1",
+  "arq": [
+    {"tp": "cm", "dir": "<base>/<ambiente>/<ciclo>/<cd_eleicao>/config"},
+    {"tp": "cs", "dir": "<base>/<ambiente>/<ciclo>/arquivo-urna/<cd_pleito>/config/<uf>"},
+    {"tp": "aux", "dir": "<base>/<ambiente>/<ciclo>/arquivo-urna/<cd_pleito>/dados/<uf>/<municipio>/<zona>/<secao>"}
+  ],
+  "pl": [
+    {
+      "cd": "9001",
+      "cdpr": "8001",
+      "c": "ele2099",
+      "dt": "01/01/2099",
+      "dtlim": "01/01/2107",
+      "e": [
+        {"cd": "7001", "cdt2": "7004", "nm": "Federal synthetic", "t": "1", "tp": "8", "abr": [{"cd": "br", "cp": [{"cd": "1", "ds": "Presidente", "tp": "1"}]}]},
+        {"cd": "7002", "cdt2": "7005", "nm": "State synthetic", "t": "1", "tp": "1", "abr": [{"cd": "br", "cp": [{"cd": "3", "ds": "Governador", "tp": "1"}, {"cd": "6", "ds": "Deputado Federal", "tp": "2"}]}]},
+        {"cd": "7003", "cdt2": "", "nm": "Municipal synthetic", "t": "1", "tp": "3", "abr": [{"cd": "br", "cp": [{"cd": "25", "ds": "Conselheiro Distrital", "tp": "1"}]}]}
+      ]
+    }
+  ]
+}

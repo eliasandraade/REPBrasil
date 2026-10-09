@@ -1,0 +1,80 @@
+{
+  "source": {
+    "name": "Cadastro FICTÍCIO para testes",
+    "updated_at": "2099-01-01T00:00:00-03:00",
+    "round": 1
+  },
+  "municipality": {
+    "name": "Município Fictício",
+    "state": "XX",
+    "tse_code": "99999",
+    "zone_numbers": [
+      9
+    ]
+  },
+  "polling_places": [
+    {
+      "tse_location_code": "9001",
+      "name": "Escola Fictícia Um"
+    },
+    {
+      "tse_location_code": "9002",
+      "name": "Escola Fictícia Dois"
+    }
+  ],
+  "sections": [
+    {
+      "number": 1,
+      "principal_number": 1,
+      "polling_place_code": "9001",
+      "is_aggregated": false,
+      "aggregated_sections": [
+        2,
+        3
+      ],
+      "total_eligible_federal": 70,
+      "total_eligible_state": 70
+    },
+    {
+      "number": 2,
+      "principal_number": 1,
+      "polling_place_code": "9001",
+      "is_aggregated": true,
+      "aggregated_sections": []
+    },
+    {
+      "number": 3,
+      "principal_number": 1,
+      "polling_place_code": "9001",
+      "is_aggregated": true,
+      "aggregated_sections": []
+    },
+    {
+      "number": 4,
+      "principal_number": 4,
+      "polling_place_code": "9001",
+      "is_aggregated": false,
+      "aggregated_sections": [],
+      "total_eligible_federal": 40,
+      "total_eligible_state": 39
+    },
+    {
+      "number": 5,
+      "principal_number": 5,
+      "polling_place_code": "9002",
+      "is_aggregated": false,
+      "aggregated_sections": [
+        6
+      ],
+      "total_eligible_federal": 50,
+      "total_eligible_state": 50
+    },
+    {
+      "number": 6,
+      "principal_number": 5,
+      "polling_place_code": "9002",
+      "is_aggregated": true,
+      "aggregated_sections": []
+    }
+  ]
+}

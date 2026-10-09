@@ -1,0 +1,17 @@
+{
+  "source": "TSE — Formato dos arquivos de BU, RDV e assinatura digital",
+  "reviewed_at": "2026-10-07",
+  "bundle_sha256": "b5ac413e81121d53de2bb1657af611f84a45fdc84388e9d9821872994bbfbafd",
+  "readme_pdf_sha256": "1d364fea171129add8276bccbf74be138c14585028137018a1261402a38609d4",
+  "bu_schema_path": "spec/bu.asn1",
+  "bu_schema_sha256": "ef64bf723f774403b423ed0b617f5a83a3f50c0023d0003e18cd29170404ab81",
+  "outer_root_type": "EntidadeEnvelopeGenerico",
+  "content_field": "conteudo",
+  "inner_root_type": "EntidadeBoletimUrna",
+  "codec": "BER",
+  "evidence": [
+    "README.pdf — Especificação do BU / Impressão do BU",
+    "python/bu_dump.py"
+  ],
+  "note": "A configuração é travada no hash do spec/bu.asn1 revisado. Uma republicação do TSE exige nova revisão explícita antes de decodificar em produção."
+}
