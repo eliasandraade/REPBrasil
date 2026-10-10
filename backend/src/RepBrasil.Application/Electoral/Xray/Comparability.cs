@@ -154,6 +154,18 @@ public static class Fmt
         }));
     }
 
+    /// <summary>Resultado oficial do TSE em caixa de frase, mantendo a sigla: "ELEITO POR QP" → "Eleito por QP".</summary>
+    public static string Outcome(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        if (value != value.ToUpper(PtBr)) return value;
+        var words = value.ToLower(PtBr).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w == "qp" ? "QP" : w)
+            .ToArray();
+        words[0] = char.ToUpper(words[0][0], PtBr) + words[0][1..];
+        return string.Join(' ', words);
+    }
+
     private static string TitleWord(string lower)
     {
         var chars = lower.ToCharArray();

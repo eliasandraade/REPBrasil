@@ -61,7 +61,7 @@ public class SearchRepository(ApplicationDbContext db, IMemoryCache cache) : ISe
         // 1) nomes que casam (índice), ranking barato e corte; 2) a candidatura (mais recente ou a do filtro) só para esses
         var sql = $"""
             WITH m AS (
-              SELECT p."Id", p."Name", p."BallotName", p."State",
+              SELECT p."Id", p."Name", p."BallotName", p."State", p."Slug",
                      public.search_fold(p."BallotName") AS fb, public.search_fold(p."Name") AS fn
                 FROM public."Politicians" p
                WHERE p."DeletedAt" IS NULL{match}
@@ -69,7 +69,7 @@ public class SearchRepository(ApplicationDbContext db, IMemoryCache cache) : ISe
             ), ranked AS (
               SELECT m.*, LEAST({Rank("m.fb")}, {Rank("m.fn")}) AS rank FROM m ORDER BY rank, m.fb, m."Id" LIMIT 200
             )
-            SELECT r."Id" AS "Id", r."Name" AS "Name", r."BallotName" AS "BallotName", r.rank AS "Rank",
+            SELECT r."Id" AS "Id", r."Name" AS "Name", r."BallotName" AS "BallotName", r."Slug" AS "Slug", r.rank AS "Rank",
                    lc.year AS "Year", lc.round AS "Round", lc.office_code AS "OfficeCode", lc.office_name AS "OfficeName",
                    lc.unit_name AS "UnitName", COALESCE(lc.uf, r."State") AS "Uf", lc.party_acronym AS "PartyAcronym",
                    lc.elected AS "Elected"

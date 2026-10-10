@@ -103,6 +103,27 @@ public class HttpPipelineTests
     }
 
     [Fact]
+    public async Task The_site_server_with_the_internal_token_is_not_limited_but_a_wrong_token_is()
+    {
+        using var factory = Factory(settings: [("RateLimit:PerMinute", "2"), ("RateLimit:InternalToken", "token-interno-de-teste")]);
+        var client = factory.CreateClient();
+        for (var i = 0; i < 6; i++)
+        {
+            var internalRequest = Get("/api/v1/status");
+            internalRequest.Headers.Add("X-Internal-Token", "token-interno-de-teste");
+            Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(internalRequest)).StatusCode);
+        }
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 3; i++)
+        {
+            var wrong = Get("/api/v1/status");
+            wrong.Headers.Add("X-Internal-Token", "chute");
+            statuses.Add((await client.SendAsync(wrong)).StatusCode);
+        }
+        Assert.Equal([HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests], statuses);
+    }
+
+    [Fact]
     public async Task Swagger_is_off_in_production_unless_explicitly_enabled()
     {
         using var production = Factory();

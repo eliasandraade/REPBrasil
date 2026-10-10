@@ -7,6 +7,7 @@ public sealed class SearchPoliticianRow
     public Guid Id { get; init; }
     public string Name { get; init; } = string.Empty;
     public string? BallotName { get; init; }
+    public string? Slug { get; init; }
     public int Rank { get; init; }
     public short? Year { get; init; }
     public short? Round { get; init; }
@@ -140,7 +141,7 @@ public static class SearchGroups
 public record SearchCandidacyRef(int Year, int Round, int? OfficeCode, string? OfficeName, string? UnitName, string? Uf, string? Party, bool? Elected);
 
 /// <summary><c>Rank</c>: 0 nome exato, 1 começa com a consulta, 2 a consulta começa uma palavra, 3 todos os termos (em qualquer ordem).</summary>
-public record SearchPoliticianDto(Guid Id, string Name, string? BallotName, int Rank, SearchCandidacyRef? Candidacy);
+public record SearchPoliticianDto(Guid Id, string Name, string? BallotName, string? Slug, int Rank, SearchCandidacyRef? Candidacy);
 
 public record SearchTerritoryDto(string Kind, string Uf, string? TseCode, string Name, string? Slug, string? StateName, int Rank,
     IReadOnlyList<ElectionKey> Elections);

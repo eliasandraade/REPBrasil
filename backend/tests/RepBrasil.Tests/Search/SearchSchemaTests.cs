@@ -121,6 +121,21 @@ public class SearchSchemaTests
     }
 
     [ElectoralSchemaFact]
+    public async Task Profile_carries_the_latest_official_candidacy_by_id_and_by_slug()
+    {
+        var (byId, bySlug, legacy) = await WithSeedAsync(async db =>
+        {
+            var query = new RepBrasil.Application.Politicians.Queries.GetPoliticianByIdQuery(new PoliticianRepository(db));
+            var zefa = await query.ExecuteAsync(Zefa, Ct);
+            return (zefa, await query.BySlugAsync(zefa!.Slug!, Ct), (await query.ExecuteAsync(Sept, Ct))!.LatestCandidacy);
+        });
+        Assert.Equal(new RepBrasil.Application.Politicians.DTOs.LatestCandidacyDto(2099, 1, 7, "Deputado Estadual", "UF Fictícia", "XX", "PT", "ELEITO POR QP", true),
+            byId!.LatestCandidacy);
+        Assert.Equal(byId, bySlug);
+        Assert.Equal("PC do B", legacy!.Party);
+    }
+
+    [ElectoralSchemaFact]
     public async Task Catalog_lists_places_and_parties_and_merges_acronym_spellings()
     {
         var catalog = await WithSeedAsync(db => Repo(db).CatalogAsync(Ct));

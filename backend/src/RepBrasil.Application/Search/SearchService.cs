@@ -178,7 +178,7 @@ public sealed partial class SearchService(ISearchRepository repo)
         return response with { Order = GroupOrder(response, parsed.Filter) };
     }
 
-    private static SearchPoliticianDto ToDto(SearchPoliticianRow p) => new(p.Id, p.Name, p.BallotName, p.Rank,
+    private static SearchPoliticianDto ToDto(SearchPoliticianRow p) => new(p.Id, p.Name, p.BallotName, p.Slug, p.Rank,
         p.Year is null
             ? null
             : new SearchCandidacyRef(p.Year.Value, p.Round ?? 1, p.OfficeCode,

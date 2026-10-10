@@ -13,6 +13,9 @@ public class Politician : AuditableEntity
     public string? Office { get; set; }
     public string? CandidacyStatus { get; set; }
 
+    /// <summary>Endereço público permanente (/politicos/&lt;slug&gt;). Escolhido pelo banco no INSERT; nunca muda.</summary>
+    public string? Slug { get; set; }
+
     /// <summary>Vínculo opcional com a entidade Person. Nullable — não afeta registros existentes.</summary>
     public Guid? PersonId { get; set; }
     public Person? Person { get; set; }

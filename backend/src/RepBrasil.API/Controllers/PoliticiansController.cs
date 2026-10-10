@@ -72,6 +72,25 @@ public class PoliticiansController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Perfil pelo endereço público (/politicos/&lt;slug&gt;).</summary>
+    [HttpGet("slug/{slug}")]
+    [ProducesResponseType(typeof(PoliticianDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct = default)
+    {
+        var result = await _getByIdQuery.BySlugAsync(slug, ct);
+        if (result is null)
+            return NotFound(new { message = "Político não encontrado." });
+        return Ok(result);
+    }
+
+    /// <summary>Endereços públicos de todos os perfis, para o sitemap (o frontend só publica se a indexação estiver ligada).</summary>
+    [HttpGet("sitemap")]
+    [OutputCache(PolicyName = CachePolicies.PublicData)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Sitemap(CancellationToken ct = default) =>
+        Ok((await _getByIdQuery.SlugsAsync(ct)).Select(p => new { slug = p.Slug, updatedAt = p.UpdatedAt }));
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(PoliticianDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

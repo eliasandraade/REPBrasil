@@ -9,23 +9,31 @@ namespace RepBrasil.API.Infrastructure;
 /// Limite técnico contra abuso (robôs, laços acidentais), por endereço IP de origem — NUNCA identidade comercial,
 /// cota ou plano. Generoso: várias pessoas atrás do mesmo IP (NAT, operadora) não devem ser barradas por uso normal.
 /// Configurável: RateLimit:PerMinute (geral) e RateLimit:HeavyPerMinute (consultas pesadas: mapa, comparação).
+/// O servidor do próprio site (metadados e sitemap renderizados no servidor) pode se identificar com
+/// RateLimit:InternalToken no cabeçalho X-Internal-Token: um robô de busca não esgota o limite do site inteiro.
 /// </summary>
 public static class ApiRateLimits
 {
     public const string Heavy = "heavy";
+    public const string InternalTokenHeader = "X-Internal-Token";
 
     public static IServiceCollection AddApiRateLimits(this IServiceCollection services, IConfiguration config)
     {
         var perMinute = Math.Max(1, config.GetValue("RateLimit:PerMinute", 300));
         var heavyPerMinute = Math.Max(1, config.GetValue("RateLimit:HeavyPerMinute", 60));
+        var internalToken = config["RateLimit:InternalToken"];
+        bool Internal(HttpContext http) =>
+            !string.IsNullOrEmpty(internalToken) && HttpPipeline.SecretEquals(http.Request.Headers[InternalTokenHeader], internalToken);
         return services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
-                http.Request.Path.StartsWithSegments("/health")
-                    ? RateLimitPartition.GetNoLimiter("health")
+                http.Request.Path.StartsWithSegments("/health") || Internal(http)
+                    ? RateLimitPartition.GetNoLimiter("exempt")
                     : RateLimitPartition.GetTokenBucketLimiter(ClientKey(http), _ => Bucket(perMinute)));
-            o.AddPolicy(Heavy, http => RateLimitPartition.GetTokenBucketLimiter(ClientKey(http), _ => Bucket(heavyPerMinute)));
+            o.AddPolicy(Heavy, http => Internal(http)
+                ? RateLimitPartition.GetNoLimiter("exempt")
+                : RateLimitPartition.GetTokenBucketLimiter(ClientKey(http), _ => Bucket(heavyPerMinute)));
             o.OnRejected = async (context, ct) =>
             {
                 var http = context.HttpContext;
