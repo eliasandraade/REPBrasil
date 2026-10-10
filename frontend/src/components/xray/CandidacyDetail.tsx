@@ -112,7 +112,7 @@ function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
       {q.isError && <p className="text-xs text-slate-400">Não foi possível carregar a distribuição territorial.</p>}
       {q.data && (
         <>
-          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="mb-3 grid grid-cols-2 gap-2">
             <Stat label="Votos no recorte" value={formatCount(q.data.summary.votes)} />
             <Stat label={`${LEVEL_PLURAL[level]} com votos`} value={`${formatCount(q.data.summary.territoriesWithVotes)} / ${formatCount(q.data.summary.territoriesCovered)}`} />
             <Stat label="Concentração top 5" value={formatPercent(q.data.summary.topFiveConcentration)} />
