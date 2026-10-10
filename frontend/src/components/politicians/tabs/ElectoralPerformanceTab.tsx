@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
+import { TransitionLink as Link } from "@/motion/navigation";
 import { electionsApi } from "@/lib/elections/api";
 import { displayName, formatCount, formatPercent } from "@/lib/elections/format";
 import { buildElectionsPath } from "@/lib/elections/route";
@@ -75,7 +75,7 @@ function CandidacyCard({ c }: { c: CandidacyItem }) {
                     {m.municipalitySlug ? (
                       <Link
                         href={buildElectionsPath({ year: c.contest.year, round: c.contest.round, state: m.uf.toLowerCase(), municipality: m.municipalitySlug })}
-                        className="truncate text-slate-300 hover:text-brand"
+                        className="mi-underline focus-ring truncate rounded text-slate-300 hover:text-brand"
                       >
                         {m.municipalityName}/{m.uf}
                       </Link>
@@ -121,7 +121,26 @@ export function ElectoralPerformanceTab({ politicianId }: { politicianId: string
     staleTime: 60_000,
   });
 
-  if (isLoading) return <div className="h-32 animate-pulse rounded-lg bg-card-elevated" />;
+  if (isLoading)
+    return (
+      <div aria-busy="true" className="space-y-3">
+        <div className="skeleton h-3 w-3/4" aria-hidden="true" />
+        <div className="rounded-lg border border-white/8 bg-card-elevated/40 p-4" aria-hidden="true">
+          <div className="skeleton mb-1.5 h-2.5 w-28" />
+          <div className="skeleton mb-1 h-5 w-36" />
+          <div className="skeleton mb-4 h-3 w-64 max-w-full" />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded-lg border border-white/8 bg-card p-3">
+                <div className="skeleton mb-1.5 h-2.5 w-20" />
+                <div className="skeleton h-5 w-16" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="sr-only" role="status">Carregando desempenho eleitoral</p>
+      </div>
+    );
   if (isError)
     return (
       <p className="text-sm text-slate-400">
@@ -143,7 +162,7 @@ export function ElectoralPerformanceTab({ politicianId }: { politicianId: string
       ) : (
         candidacies.map((c) => <CandidacyCard key={c.id} c={c} />)
       )}
-      <Link href="/eleicoes" className="inline-block text-xs text-brand hover:underline">
+      <Link href="/eleicoes" className="mi-underline focus-ring inline-block rounded text-xs text-brand">
         Abrir o explorador eleitoral →
       </Link>
     </div>

@@ -18,8 +18,20 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="text-sm text-zinc-400 py-8 text-center">
-        Carregando dados da Câmara...
+      <div aria-busy="true" className="space-y-3">
+        <div className="rounded-lg border border-white/8 bg-card-elevated/40 p-4" aria-hidden="true">
+          <div className="skeleton mb-2 h-5 w-40" />
+          <div className="skeleton mb-4 h-3 w-56" />
+          <div className="grid grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i}>
+                <div className="skeleton mb-1 h-2.5 w-16" />
+                <div className="skeleton h-4 w-24" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="sr-only" role="status">Carregando dados da Câmara</p>
       </div>
     );
   }
