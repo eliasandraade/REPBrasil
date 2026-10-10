@@ -4,7 +4,7 @@ import { PoliticianPage } from "@/components/politicians/PoliticianPage";
 import { lookupPolitician, politicianMetadata } from "@/lib/seo";
 
 /** /politicos/<slug> — endereço público e permanente do perfil (também aceita o id, de links antigos). */
-type Props = { params: Promise<{ slug: string }> };
+type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;

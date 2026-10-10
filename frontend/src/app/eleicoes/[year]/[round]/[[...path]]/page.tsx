@@ -4,7 +4,7 @@ import { ElectionsExplorer } from "@/components/elections/ElectionsExplorer";
 import { electionMetadata } from "@/lib/seo";
 
 /** /eleicoes/:ano/:turno[/:uf[/:municipio[/zona/:n[/secao/:n]]]] — o território vive na URL. */
-type Props = { params: Promise<{ year: string; round: string; path?: string[] }> };
+type Props = Readonly<{ params: Promise<{ year: string; round: string; path?: string[] }> }>;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { year, round, path } = await params;

@@ -5,7 +5,14 @@
  */
 export const SITE_NAME = "REPBrasil";
 
-export const SITE_URL: string | null = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "") || null;
+/** "https://x.org///" → "https://x.org" (sem regex: nada de retrocesso). */
+export function withoutTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") end--;
+  return value.slice(0, end);
+}
+
+export const SITE_URL: string | null = withoutTrailingSlashes(process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "") || null;
 
 export const INDEXING: boolean = process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true" && SITE_URL !== null;
 

@@ -166,7 +166,7 @@ export function placesWithoutData(r: SearchResponse | undefined): SearchTerritor
 export function electionYears(elections: SearchElectionKey[]): string {
   const years = [...new Set(elections.map((e) => e.year))];
   if (years.length <= 1) return years.join("");
-  return `${years.slice(0, -1).join(", ")} e ${years[years.length - 1]}`;
+  return `${years.slice(0, -1).join(", ")} e ${years.at(-1)}`;
 }
 
 /** Exemplos neutros (lugares e cargos): a página inicial não destaca pessoa nem partido. */

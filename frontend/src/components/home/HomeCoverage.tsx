@@ -163,7 +163,7 @@ export function HomeCoverage() {
               </button>
             </p>
           )}
-          {data && data.elections.length === 0 && (
+          {data?.elections.length === 0 && (
             <p className="rounded-lg border border-white/8 bg-card px-4 py-4 text-sm text-slate-400">Nenhuma eleição importada ainda.</p>
           )}
           {data && data.elections.length > 0 && <Coverage data={data} />}

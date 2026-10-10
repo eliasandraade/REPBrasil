@@ -72,7 +72,7 @@ export async function politicianMetadata(idOrSlug: string): Promise<Metadata> {
   return pageMetadata({
     title: role ? `${ballot} — ${role}` : ballot,
     description:
-      `${ballot}${civil !== ballot ? ` (${civil})` : ""}: histórico eleitoral, votos por município, zona e seção, ` +
+      `${civil === ballot ? ballot : ballot + " (" + civil + ")"}: histórico eleitoral, votos por município, zona e seção, ` +
       "patrimônio declarado e contas de campanha, com a fonte oficial do TSE em cada número.",
     path: politicianPath(politician),
     // perfil acessado pelo id é o mesmo documento do slug: indexa só o canônico

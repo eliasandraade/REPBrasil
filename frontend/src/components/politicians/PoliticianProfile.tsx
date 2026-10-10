@@ -54,6 +54,11 @@ function writeUrl(tab: TabId, candidacy: string | null) {
   if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
 }
 
+function loadState(q: { isError: boolean; isPending: boolean }): LoadState {
+  if (q.isError) return "error";
+  return q.isPending ? "pending" : "ready";
+}
+
 function Unavailable({ children }: Readonly<{ children: string }>) {
   return <p className="py-8 text-center text-sm text-slate-500">{children}</p>;
 }
@@ -75,7 +80,7 @@ export function PoliticianProfile({
   const [{ tab, candidacy: requested }, setView] = useState(() => fromUrl(hasCamara));
   const xrayQ = useXray(politician.id);
   const xray = xrayQ.data;
-  const xrayState: LoadState = xrayQ.isError ? "error" : xrayQ.isPending ? "pending" : "ready";
+  const xrayState = loadState(xrayQ);
   const candidacies = useMemo(() => (xray ? byRecency(xray.candidacies) : []), [xray]);
   const electoral = candidacies.length > 0;
   const selected = candidacies.find((c) => c.candidacyId === requested) ?? latestCandidacy(xray);

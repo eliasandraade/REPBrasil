@@ -21,6 +21,8 @@ DEFAULT_CADASTER_DIR = Path("artifacts/tse/cadaster")
 EXIT_CADASTER_MISSING = 3
 
 
+DATABASE_URL_REQUIRED = "DATABASE_URL (or --database-url) is required"
+
 def _load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -313,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
 
         database_url = _database_url(args)
         if not database_url:
-            raise SystemExit("DATABASE_URL (or --database-url) is required")
+            raise SystemExit(DATABASE_URL_REQUIRED)
         with electoral_db.connect(database_url, autocommit=True) as conn:
             print(json.dumps(refresh_derived(conn), ensure_ascii=False, indent=2, default=str))
         return 0
@@ -352,7 +354,7 @@ def _sync_official_names(args: argparse.Namespace) -> int:
 
     database_url = _database_url(args)
     if not database_url:
-        raise SystemExit("DATABASE_URL (or --database-url) is required")
+        raise SystemExit(DATABASE_URL_REQUIRED)
     ufs = {unit_code(u) for u in args.uf} or None
     municipalities = [OfficialName(m.code, m.name) for m in fetch_all_municipalities()]
     states = [OfficialName(s.code, s.name) for s in fetch_states()]
@@ -424,7 +426,7 @@ def _audit(args: argparse.Namespace) -> int:
         other_elections = sum(other.values())
     database_url = _database_url(args)
     if not database_url:
-        raise SystemExit("DATABASE_URL (or --database-url) is required")
+        raise SystemExit(DATABASE_URL_REQUIRED)
     with electoral_db.connect(database_url, autocommit=True) as conn:
         report = audit_election(conn, year=year, turn=turn, uf=uf, bu_csv=bu_csv,
                                 candidate_counts=counts, other_election_rows=other_elections)

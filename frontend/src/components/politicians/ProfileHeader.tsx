@@ -78,8 +78,9 @@ function votesFact(c: XrayCandidacy | undefined): { value: string | null; sub?: 
   if (c.ticket) return { value: c.ticket.headVotes === null ? null : formatCount(c.ticket.headVotes), sub: `votos da chapa · ${when}` };
   const t = c.totals;
   if (t.votes === null) return { value: CELL_STATE_LABEL[t.state], sub: when };
-  const rank = t.rank !== null ? `${t.rank}º${t.candidatesWithVotes !== null ? ` de ${formatCount(t.candidatesWithVotes)}` : ""} · ` : "";
-  return { value: formatCount(t.votes), sub: `${rank}${when}` };
+  if (t.rank === null) return { value: formatCount(t.votes), sub: when };
+  const of = t.candidatesWithVotes === null ? "" : ` de ${formatCount(t.candidatesWithVotes)}`;
+  return { value: formatCount(t.votes), sub: `${t.rank}º${of} · ${when}` };
 }
 
 /**
@@ -154,7 +155,7 @@ export function ProfileHeader({
           {years.length > 0 && (
             <p className="mt-1.5 text-xs text-slate-500">
               {candidacies.length} {candidacies.length === 1 ? "candidatura" : "candidaturas"} na base ·{" "}
-              {years.length === 1 ? years[0] : `${years[0]}–${years[years.length - 1]}`}
+              {years.length === 1 ? years[0] : `${years[0]}–${years.at(-1)}`}
             </p>
           )}
         </div>

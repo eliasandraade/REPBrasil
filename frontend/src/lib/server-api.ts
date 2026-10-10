@@ -8,8 +8,9 @@
  * Falha ou demora (3 s) → `null`: a página continua, com metadados genéricos.
  */
 import { API_URL } from "./api";
+import { withoutTrailingSlashes } from "./site";
 
-const BASE = (process.env.API_INTERNAL_URL || API_URL).replace(/\/+$/, "");
+const BASE = withoutTrailingSlashes(process.env.API_INTERNAL_URL || API_URL);
 
 /** Resposta com o status: 404 (não existe) é diferente de 0 (rede/tempo) e de 5xx (falha da API). */
 export async function serverFetch<T>(path: string, revalidateSeconds = 3600): Promise<{ status: number; data: T | null }> {

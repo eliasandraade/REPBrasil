@@ -49,7 +49,7 @@ export function compactCount(n: number): string {
 /** "Presidente, Governador e Senador". */
 export function listJoin(items: string[]): string {
   if (items.length <= 1) return items.join("");
-  return `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+  return `${items.slice(0, -1).join(", ")} e ${items.at(-1)}`;
 }
 
 /** Data ISO → "10/10/2026" no fuso de Brasília; inválida → null. */

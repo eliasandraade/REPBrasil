@@ -18,7 +18,7 @@ function HomeIcon({ className }: { className?: string }) {
   );
 }
 
-function UserIcon({ className }: { className?: string }) {
+function UserIcon({ className }: Readonly<{ className?: string }>) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
@@ -163,7 +163,7 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
-function ShellLayout({ children }: { children: ReactNode }) {
+function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const toggleRef = useRef<HTMLButtonElement>(null);

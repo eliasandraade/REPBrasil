@@ -105,6 +105,29 @@ def _record_failure(conn: psycopg.Connection, source: str, scope: dict[str, Any]
 # Território
 
 
+def _upsert_state(cur: psycopg.Cursor, s: Any, source_id: Any) -> bool:
+    """Grava a UF (True se nova). Código ou nome diferente do oficial é conflito; mesmo nome a menos da caixa mantém
+    a grafia gravada (pode ser a oficial do IBGE, sync-official-names)."""
+    cur.execute("SELECT name, ibge_code, tse_code FROM state WHERE code=%s", (s.uf,))
+    current = cur.fetchone()
+    if current is None:
+        cur.execute(
+            "INSERT INTO state (code, name, ibge_code, tse_code, source_file_id) VALUES (%s, %s, %s, %s, %s)",
+            (s.uf, s.name, s.ibge_code, s.tse_code, source_id),
+        )
+        return True
+    if current[0] is not None and not same_name(current[0], s.name):
+        raise CadasterConflict(f"state {s.uf}: stored name {current[0]!r} differs from the official {s.name!r}", {"state": s.uf, "name": [current[0], s.name]})
+    for label, have, want in (("ibge_code", current[1], s.ibge_code), ("tse_code", current[2], s.tse_code)):
+        if have is not None and have != want:
+            raise CadasterConflict(f"state {s.uf}: stored {label} {have!r} differs from the official {want!r}", {"state": s.uf, label: [have, want]})
+    cur.execute(
+        "UPDATE state SET name=COALESCE(name, %s), ibge_code=%s, tse_code=%s, source_file_id=COALESCE(source_file_id, %s) WHERE code=%s",
+        (s.name, s.ibge_code, s.tse_code, source_id, s.uf),
+    )
+    return False
+
+
 def import_territories(conn: psycopg.Connection, territories: Territories, manifest: dict[str, Any], member: dict[str, Any], layout: DetectedLayout) -> dict[str, Any]:
     scope = {"member": member["name"], "csv_sha256": member["sha256"]}
     try:
@@ -119,27 +142,7 @@ def import_territories(conn: psycopg.Connection, territories: Territories, manif
             if done:
                 return {"status": "already_imported", "import_batch_id": str(done[0]), "states": len(territories.states), "municipalities": len(territories.municipalities)}
 
-            states_new = municipalities_new = 0
-            for s in sorted(territories.states.values(), key=lambda x: x.uf):
-                cur.execute("SELECT name, ibge_code, tse_code FROM state WHERE code=%s", (s.uf,))
-                current = cur.fetchone()
-                if current is None:
-                    cur.execute(
-                        "INSERT INTO state (code, name, ibge_code, tse_code, source_file_id) VALUES (%s, %s, %s, %s, %s)",
-                        (s.uf, s.name, s.ibge_code, s.tse_code, source_id),
-                    )
-                    states_new += 1
-                    continue
-                if current[0] is not None and not same_name(current[0], s.name):
-                    raise CadasterConflict(f"state {s.uf}: stored name {current[0]!r} differs from the official {s.name!r}", {"state": s.uf, "name": [current[0], s.name]})
-                for label, have, want in (("ibge_code", current[1], s.ibge_code), ("tse_code", current[2], s.tse_code)):
-                    if have is not None and have != want:
-                        raise CadasterConflict(f"state {s.uf}: stored {label} {have!r} differs from the official {want!r}", {"state": s.uf, label: [have, want]})
-                # mesmo nome a menos da caixa: fica a grafia gravada (pode ser a oficial do IBGE, sync-official-names)
-                cur.execute(
-                    "UPDATE state SET name=COALESCE(name, %s), ibge_code=%s, tse_code=%s, source_file_id=COALESCE(source_file_id, %s) WHERE code=%s",
-                    (s.name, s.ibge_code, s.tse_code, source_id, s.uf),
-                )
+            states_new = sum(_upsert_state(cur, s, source_id) for s in sorted(territories.states.values(), key=lambda x: x.uf))
 
             cur.execute("SELECT state_code, tse_code, ibge_code, name, slug FROM municipality")
             existing = {(r[0], r[1]): r[2:] for r in cur.fetchall()}

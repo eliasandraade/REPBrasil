@@ -15,14 +15,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = STATIC.map((path) => ({ url: `${site}${path}`, changeFrequency: "weekly" }));
 
   const overview = await serverJson<OverviewResponse>("/api/v1/overview");
-  for (const e of overview?.elections ?? []) {
+  const elections = overview?.elections ?? [];
+  const lists = await Promise.all(
+    elections.map((e) => serverJson<MunicipalitiesResponse>(`/api/v1/elections/${e.year}/${e.round}/states/${e.uf}/municipalities`)),
+  );
+  elections.forEach((e, i) => {
     const base = `${site}/eleicoes/${e.year}/${e.round}/${e.uf.toLowerCase()}`;
     entries.push({ url: base, changeFrequency: "monthly" });
-    const list = await serverJson<MunicipalitiesResponse>(`/api/v1/elections/${e.year}/${e.round}/states/${e.uf}/municipalities`);
-    for (const m of list?.municipalities ?? []) {
+    for (const m of lists[i]?.municipalities ?? []) {
       if (m.resultsAvailable) entries.push({ url: `${base}/${m.slug}`, changeFrequency: "monthly" });
     }
-  }
+  });
 
   const politicians = await serverJson<{ slug: string; updatedAt: string }[]>("/api/v1/politicians/sitemap");
   for (const p of politicians ?? []) {
