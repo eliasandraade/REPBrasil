@@ -5,7 +5,7 @@ using RepBrasil.Application.Electoral;
 namespace RepBrasil.API.Controllers;
 
 /// <summary>
-/// Inteligência eleitoral: catálogo territorial, cadastro e resultado oficial por seção (TSE).
+/// Inteligência eleitoral: catálogo territorial, cadastro, resultado oficial por seção e comparações descritivas (TSE).
 ///
 ///   GET /api/v1/elections
 ///   GET /api/v1/elections/{year}/{round}/states
@@ -15,6 +15,7 @@ namespace RepBrasil.API.Controllers;
 ///   GET /api/v1/elections/{year}/{round}/states/{uf}/municipalities/{municipality}/zones/{zone}/sections/{section}/results
 ///       ?office=&amp;candidate=&amp;party=&amp;voteType=nominal|legenda|branco|nulo
 ///   GET /api/v1/elections/candidacies/{candidacyId}
+///   GET /api/v1/elections/compare?candidacy=&amp;candidacy=&amp;uf=CE&amp;level=municipality|zone|section&amp;municipality=&amp;zone=
 ///
 /// <c>{municipality}</c> aceita slug, código TSE (5 dígitos) ou IBGE (7 dígitos).
 /// Território sem cadastro responde <c>status: "cadaster_missing"</c> (200), não 404.
@@ -25,7 +26,8 @@ namespace RepBrasil.API.Controllers;
 public class ElectionsController(
     ElectoralCatalogService catalog,
     SectionResultsService results,
-    CandidacyService candidacies) : ControllerBase
+    CandidacyService candidacies,
+    ElectoralComparisonService comparison) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(ElectionsResponse), StatusCodes.Status200OK)]
@@ -62,6 +64,17 @@ public class ElectionsController(
     [HttpGet("candidacies/{candidacyId:guid}")]
     [ProducesResponseType(typeof(CandidacyDto), StatusCodes.Status200OK)]
     public Task<CandidacyDto> Candidacy(Guid candidacyId, CancellationToken ct) => candidacies.PerformanceAsync(candidacyId, ct);
+
+    [HttpGet("compare")]
+    [ProducesResponseType(typeof(ElectoralComparisonResponse), StatusCodes.Status200OK)]
+    public Task<ElectoralComparisonResponse> Compare(
+        [FromQuery(Name = "candidacy")] Guid[] candidacyIds,
+        [FromQuery] string uf,
+        [FromQuery] string? level,
+        [FromQuery] string? municipality,
+        [FromQuery] int? zone,
+        CancellationToken ct) =>
+        comparison.ExecuteAsync(candidacyIds, uf, municipality, zone, ElectoralComparisonService.ParseLevel(level), ct);
 }
 
 /// <summary>Erros eleitorais → HTTP. Integridade nunca vira resposta "vazia": 500 explícito.</summary>
