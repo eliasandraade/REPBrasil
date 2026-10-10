@@ -321,7 +321,7 @@ cd frontend && npm run lint && npm run typecheck && npm test
 
 Estado em 10/10/2026: backend 56 testes unitários + 60 de banco (PostgreSQL 18 + PostGIS, mesma
 sequência do CI: migrations do zero → rollback até `AddMandate` → de novo); ETL 210 sem banco + 161 de
-banco (`tests/electoral`); frontend 69 (vitest) + lint + typecheck.
+banco (`tests/electoral`); frontend 71 (vitest) + lint + typecheck.
 
 Cenários sintéticos cobertos: seção 100 (2022 A=10, B=20; 2026 A=20, B=15 ⇒ A +10/+100%, B −5/−25%,
 A passou à frente de B), seção com agregada só numa eleição, seção sem cobertura, candidatura
