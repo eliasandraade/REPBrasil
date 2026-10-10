@@ -172,10 +172,10 @@ def test_official_file_with_both_rounds_imports_only_the_requested_turn(tmp_path
     beta_1 = BETA
     beta_2 = BETA | RUNOFF
     rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, [ALFA, beta_1, beta_2]))
-    selected, other = select_candidacies(rows, year=2099, turn=1, units={"BR"})
+    selected, other, _ = select_candidacies(rows, year=2099, turn=1, units={"BR"})
     assert [(r.tse_candidate_id, r.turn) for r in selected] == [(9001, 1), (9002, 1)]
     assert other == {2: 1}
-    selected_2, other_2 = select_candidacies(rows, year=2099, turn=2, units={"BR"})
+    selected_2, other_2, _ = select_candidacies(rows, year=2099, turn=2, units={"BR"})
     assert [(r.tse_candidate_id, r.turn, r.election_code) for r in selected_2] == [(9002, 2, 999003)]
     assert other_2 == {1: 2}
     other_year, _ = parse_file(write_csv(tmp_path / "x.csv", CANDIDATES_COLUMNS, [ALFA | {"ANO_ELEICAO": "2098"}]))

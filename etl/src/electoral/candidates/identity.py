@@ -21,6 +21,9 @@ IDENTITY_METHOD = "cpf_hmac_sha256"
 RESOLVED = "resolved"
 UNAVAILABLE = "unresolved_document_unavailable"
 INVALID = "unresolved_document_invalid"
+# Sem CPF utilizável: pessoa provada por relação OFICIAL entre SQ_CANDIDATO (histórico de
+# candidaturas do TSE ou perfil cujo TseId é o próprio SQ e já pertence a uma pessoa).
+TSE_LINK = "resolved_tse_link"
 
 
 class IdentityKeyMissing(RuntimeError):
