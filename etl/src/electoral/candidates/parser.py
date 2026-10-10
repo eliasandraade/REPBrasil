@@ -33,17 +33,16 @@ def candidate_row_hash(fields: list[str], columns: tuple[str, ...]) -> str:
 
 SENTINEL_TEXT = frozenset({"#NULO", "#NE", "NÃO DIVULGÁVEL", "NAO DIVULGAVEL", ""})
 
-# CD_SIT_TOT_TURNO → eleito? (tabela fixa; documentada em docs/TSE_IDENTITY.md)
 ELECTED_BY_OUTCOME: dict[int, bool | None] = {
-    1: True,   # ELEITO
-    2: True,   # ELEITO POR QP
-    3: True,   # ELEITO POR MÉDIA
-    4: False,  # NÃO ELEITO
-    5: False,  # SUPLENTE
-    6: None,   # 2º TURNO — indefinido no 1º turno
+    1: True,
+    2: True,
+    3: True,
+    4: False,
+    5: False,
+    6: None,
 }
 
-SCOPE_BY_ABRANGENCIA = {"FEDERAL": "federal", "ESTADUAL": "state"}
+SCOPE_BY_ABRANGENCIA = {"FEDERAL": "federal", "ESTADUAL": "state", "MUNICIPAL": "municipal"}
 
 
 class CandidateRowError(ValueError):
@@ -77,7 +76,7 @@ def required_int(raw: str, column: str, line: int) -> int:
 
 @dataclass(frozen=True)
 class CandidateRow:
-    source_member: str  # CSV dentro do ZIP oficial (a linha só é única dentro dele)
+    source_member: str
     line: int
     source_row_hash: str
     generated_at: str
@@ -108,7 +107,6 @@ class CandidateRow:
     round_outcome_code: int | None
     round_outcome: str | None
     elected: bool | None
-    # Documento publicado: usado só em memória para o HMAC. Nunca persistido nem impresso.
     cpf_raw: str = field(repr=False, compare=False)
 
 
@@ -119,12 +117,19 @@ def parse_candidate(fields: list[str], line: int, columns: tuple[str, ...], memb
     abrangencia = f["TP_ABRANGENCIA"].strip().upper()
     if abrangencia not in SCOPE_BY_ABRANGENCIA:
         raise CandidateRowError(line, f"unknown TP_ABRANGENCIA {abrangencia!r}")
+    scope = SCOPE_BY_ABRANGENCIA[abrangencia]
     unit = f["SG_UE"].strip().upper()
     uf = f["SG_UF"].strip().upper()
-    if len(unit) != 2 or len(uf) != 2:
-        raise CandidateRowError(line, f"SG_UE/SG_UF must be 2-letter codes, found {unit!r}/{uf!r}")
-    if SCOPE_BY_ABRANGENCIA[abrangencia] == "federal" and unit != "BR":
+    if len(uf) != 2:
+        raise CandidateRowError(line, f"SG_UF must be a 2-letter code, found {uf!r}")
+    if not unit:
+        raise CandidateRowError(line, "SG_UE is required")
+    if scope == "federal" and unit != "BR":
         raise CandidateRowError(line, f"federal contest with electoral unit {unit!r}")
+    if scope == "state" and len(unit) != 2:
+        raise CandidateRowError(line, f"state contest with electoral unit {unit!r}")
+    if scope == "municipal" and unit == "BR":
+        raise CandidateRowError(line, "municipal contest cannot use BR as electoral unit")
     full_name, ballot_name = text(f["NM_CANDIDATO"]), text(f["NM_URNA_CANDIDATO"])
     office_name = text(f["DS_CARGO"])
     if not full_name or not ballot_name or not office_name:
@@ -139,7 +144,7 @@ def parse_candidate(fields: list[str], line: int, columns: tuple[str, ...], memb
         turn=required_int(f["NR_TURNO"], "NR_TURNO", line),
         election_code=required_int(f["CD_ELEICAO"], "CD_ELEICAO", line),
         election_description=text(f["DS_ELEICAO"]),
-        scope=SCOPE_BY_ABRANGENCIA[abrangencia],
+        scope=scope,
         uf=uf,
         electoral_unit=unit,
         office_code=required_int(f["CD_CARGO"], "CD_CARGO", line),
