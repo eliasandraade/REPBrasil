@@ -3,6 +3,7 @@ using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.Electoral;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
+using RepBrasil.Application.Overview;
 using RepBrasil.Application.Politicians.Queries;
 using RepBrasil.Application.Score.Queries;
 using RepBrasil.Application.Search;
@@ -40,6 +41,8 @@ builder.Services.AddScoped<ComparisonService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ISearchRepository, SearchRepository>();
 builder.Services.AddScoped<SearchService>();
+builder.Services.AddScoped<IOverviewRepository, OverviewRepository>();
+builder.Services.AddScoped<OverviewService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

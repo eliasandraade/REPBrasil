@@ -111,27 +111,16 @@ Scroll é sempre nativo. Não há animação ligada ao scroll frame a frame: nen
 
 ### Home
 
-Três camadas da mesma linguagem:
+A página explica o produto com o que está importado, não com promessa:
 
-1. **Entrada: registro documental.**
-   - Uma régua se traça e os selos de procedência são "carimbados" em sequência (`clip-path`).
-   - Um traço de anotação sublinha "agentes políticos". É uma anotação de documento, não texto colorido.
-   - Quatro marcas de enquadramento convergem para a busca, que vira o instrumento central.
-   - O `<h1>` é renderizado completo no servidor: nada de texto digitando, o que preserva LCP e leitores de tela.
-2. **Leitura: cada seção tem uma função.**
-   - **Consolidar:** números institucionais já prontos, sobre réguas.
-   - **Desdobrar:** capacidades que se abrem.
-   - **Enquadrar:** o manifesto entre réguas.
-   - **Conectar:** a cadeia de fontes oficiais.
-   - **Limitações:** ficam imóveis de propósito. São um compromisso, não um efeito.
-3. **Microinteração.**
-   - As superfícies marcam o canto ao receber hover ou foco.
-   - A seta aponta o destino.
-   - Pressionar escurece o tom.
-   - No foco, as marcas do visor se fecham sobre a busca.
+1. **Busca como instrumento central.** O `<h1>` é renderizado completo no servidor (nada de texto digitando, o que preserva LCP e leitores de tela) e a busca global fica logo abaixo, com exemplos neutros (lugares e cargos).
+2. **Cobertura real** (`GET /api/v1/overview`): eleições com Boletim de Urna importado, o caminho estado → municípios → zonas → seções com os números do pleito mais recente e as bases oficiais com a data do download. Enquanto carrega, esqueletos com a geometria final; os números aparecem prontos, nunca contam. Sem a cobertura, a página diz o que houve e oferece tentar de novo — o resto continua.
+3. **Raio X e limitações:** texto estático e imóvel. As limitações são um compromisso, não um efeito.
+4. **Microinteração:** a seta aponta o destino e pressionar escurece o tom. Nada muda de tamanho ou de lugar.
 
 ### Busca
 
+- **Busca global** (barra lateral, ícone no celular, atalhos `/` e Ctrl/⌘+K): diálogo nativo (`<dialog>`, foco preso, Esc fecha) com combobox WAI-ARIA. A primeira opção já vem ativa, as setas percorrem os grupos e Enter abre. Enquanto a consulta pendente não chega, um traço percorre a base do campo e esqueletos ocupam o lugar das linhas — o resultado anterior some na hora.
 - **Intenção:** enquanto a consulta está de fato pendente (debounce), um traço percorre a base do campo, e leitores de tela recebem o mesmo estado.
 - **Consulta:** esqueletos com a geometria exata do cartão (sem CLS) e uma linha de status que diz o que acontece ("Consultando a base por …"). Nunca um spinner genérico, e nunca resultados antigos sob uma consulta nova.
 - **Resultados:** os oito primeiros chegam em sequência curta.

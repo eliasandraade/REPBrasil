@@ -273,20 +273,50 @@ describe("transições de rota", () => {
 // ─── Home ───────────────────────────────────────────────────────────────────
 
 describe("home", () => {
-  it("o título nasce completo (sem texto digitando) e os números já estão prontos (sem contagem)", () => {
-    render(<HomePage />);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Inteligência pública sobre agentes políticos brasileiros.");
-    for (const value of ["1.000+", "3", "2024", "Em dev."]) expect(screen.getByText(value)).toBeTruthy();
-    expect(screen.queryByText("2.007")).toBeNull();
+  const OVERVIEW = {
+    elections: [
+      { year: 2026, round: 1, uf: "CE", stateName: "Ceará", municipalities: 184, zones: 109, sections: 23765, eligible: 6996545, offices: [{ code: 3, name: "Governador" }, { code: 5, name: "Senador" }] },
+      { year: 2024, round: 2, uf: "CE", stateName: "Ceará", municipalities: 2, zones: 20, sections: 6034, eligible: 2015233, offices: [{ code: 11, name: "Prefeito" }] },
+    ],
+    candidacies: 15011,
+    politicians: 14432,
+    sources: [{ kind: "tse-open-data-bu", publisher: "TSE", label: "Boletins de Urna (votos por seção)", files: 5, latestDownload: "2026-10-10T07:05:48Z" }],
+    updatedAt: "2026-10-10T20:55:41Z",
+  };
+
+  function renderHome(response: () => Promise<Response>) {
+    vi.stubGlobal("fetch", vi.fn(response));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <HomePage />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("o título nasce completo (sem texto digitando) e a busca é o instrumento central", () => {
+    renderHome(() => new Promise<Response>(() => {}));
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Eleições brasileiras, da urna ao candidato.");
+    expect(screen.getByRole("combobox", { name: "Buscar políticos, lugares, partidos e eleições" })).toBeTruthy();
+    // enquanto a cobertura carrega: esqueleto, nunca números provisórios
+    expect(document.querySelector("[aria-labelledby='coverage-title']")?.getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByText(/eleitores aptos/)).toBeNull();
   });
 
-  it("a explicação de cada número é alcançável por teclado (botão real, cartão não focável)", () => {
-    render(<HomePage />);
-    const button = screen.getByRole("button", { name: "Sobre: Políticos indexados" });
-    const hint = document.getElementById(button.getAttribute("aria-describedby")!)!;
-    expect(hint.getAttribute("role")).toBe("tooltip");
-    expect(hint.textContent).toContain("1.000 políticos");
-    expect(document.querySelector("[aria-label='Números da plataforma'] div[tabindex]")).toBeNull();
+  it("os números de cobertura chegam prontos (sem contagem) e vêm do que está importado", async () => {
+    renderHome(() => Promise.resolve(new Response(JSON.stringify(OVERVIEW), { status: 200 })));
+    expect(await screen.findByText(/Governador e Senador · 184 municípios · 23\.765 seções · 7,0 milhões de eleitores aptos/)).toBeTruthy();
+    expect(screen.getByText(/Prefeito · 2 municípios/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Explorar Ceará 2026/ }).getAttribute("href")).toBe("/eleicoes/2026/1/ce");
+    expect(screen.getByText("23.765")).toBeTruthy(); // nível "Seções" do caminho estado → urna
+    expect(screen.getByText(/5 arquivos · baixado em 10\/10\/2026/)).toBeTruthy();
+  });
+
+  it("sem a cobertura, diz o que houve e oferece tentar de novo (o resto da página continua)", async () => {
+    renderHome(() => Promise.resolve(new Response("{}", { status: 500 })));
+    expect(await screen.findByText(/Não foi possível carregar a cobertura agora/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "O raio X de uma candidatura" })).toBeTruthy();
   });
 });
 

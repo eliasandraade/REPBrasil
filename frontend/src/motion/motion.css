@@ -135,59 +135,6 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
 .reveal-connector { transform-origin: left; }
 .reveal-connector-v { transform-origin: top; }
 
-/* ─── Entrada do hero (registro documental) ───────────────────────────────── */
-
-@media (prefers-reduced-motion: no-preference) {
-  .js .hero-rule { animation: hero-rule var(--motion-survey) var(--ease-enter) both 60ms; transform-origin: left; }
-  .js .hero-stamp {
-    animation: hero-stamp var(--motion-traverse) var(--ease-enter) both;
-    animation-delay: calc(140ms + var(--i, 0) * 70ms);
-  }
-  .js .hero-annotation::after { animation: hero-annotation var(--motion-reveal) var(--ease-enter) both 520ms; }
-  .js .hero-viewfinder > .vf-corner { animation: vf-converge var(--motion-reveal) var(--ease-enter) both 380ms; }
-}
-
-@keyframes hero-rule { from { transform: scaleX(0); } }
-@keyframes hero-stamp { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-@keyframes hero-annotation { from { transform: scaleX(0); } }
-@keyframes vf-converge { from { opacity: 0; translate: var(--vf-from, 0 0); } }
-
-/* Anotação de documento: traço sob o trecho em destaque (não é texto colorido). */
-.hero-annotation { position: relative; white-space: nowrap; }
-.hero-annotation::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.06em;
-  height: 0.09em;
-  background: var(--brand);
-  transform-origin: left;
-  border-radius: 1px;
-}
-
-/* Visor da busca: marcas de enquadramento que convergem para o campo. */
-.hero-viewfinder { position: relative; }
-.vf-corner {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-color: rgb(13 212 142 / 0.45);
-  pointer-events: none;
-  transition:
-    translate var(--motion-settle) var(--ease-precise),
-    border-color var(--motion-settle) var(--ease-precise);
-}
-.vf-corner[data-c="tl"] { top: -7px; left: -7px; border-top-width: 1.5px; border-left-width: 1.5px; --vf-from: -6px -6px; }
-.vf-corner[data-c="tr"] { top: -7px; right: -7px; border-top-width: 1.5px; border-right-width: 1.5px; --vf-from: 6px -6px; }
-.vf-corner[data-c="bl"] { bottom: -7px; left: -7px; border-bottom-width: 1.5px; border-left-width: 1.5px; --vf-from: -6px 6px; }
-.vf-corner[data-c="br"] { bottom: -7px; right: -7px; border-bottom-width: 1.5px; border-right-width: 1.5px; --vf-from: 6px 6px; }
-.hero-viewfinder:focus-within .vf-corner { border-color: rgb(13 212 142 / 0.9); }
-.hero-viewfinder:focus-within .vf-corner[data-c="tl"] { translate: 3px 3px; }
-.hero-viewfinder:focus-within .vf-corner[data-c="tr"] { translate: -3px 3px; }
-.hero-viewfinder:focus-within .vf-corner[data-c="bl"] { translate: 3px -3px; }
-.hero-viewfinder:focus-within .vf-corner[data-c="br"] { translate: -3px -3px; }
-
 /* ─── Microinterações ─────────────────────────────────────────────────────── */
 
 /* Superfície interativa: muda hierarquia (borda, fundo, marcador de canto), nunca a geometria. */
@@ -341,7 +288,6 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
   ::view-transition-new(*) { animation: none !important; }
   .mi-arrow,
   .mi-hint,
-  .vf-corner,
   .nav-marker,
   .drawer,
   .drawer[data-open="true"],
@@ -349,5 +295,4 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
   .tab-indicator { transition: none !important; }
   :is(a, button):hover > .mi-arrow,
   .group:hover .mi-arrow { transform: none; }
-  .hero-viewfinder:focus-within .vf-corner { translate: 0 0; }
 }
