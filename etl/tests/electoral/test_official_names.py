@@ -27,6 +27,17 @@ def test_plan_fixes_spelling_only_when_it_is_the_same_name():
     assert [m["name"] for m in p["not_in_ibge"]] == ["Sem Código"]
 
 
+def test_plan_fixes_particle_case_of_a_renamed_place_without_adopting_the_new_name():
+    official = [OfficialName(1708254, "Tabocão")]
+    stored = [(("TO", "73199"), 1708254, "Fortaleza Do Tabocão"), (("ZZ", "1"), None, "Cidade Do Exterior")]
+    p = plan(official, stored)
+    assert [d["ibge"] for d in p["differences"]] == ["Tabocão"]  # renomeação: só reporta
+    assert [(u["from"], u["to"]) for u in p["updates"]] == [
+        ("Fortaleza Do Tabocão", "Fortaleza do Tabocão"),  # grafia registrada, só a caixa da partícula
+        ("Cidade Do Exterior", "Cidade do Exterior"),
+    ]
+
+
 @pytest.fixture
 def conn():
     assert TEST_DATABASE_URL

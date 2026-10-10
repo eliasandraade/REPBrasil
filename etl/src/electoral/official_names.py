@@ -16,6 +16,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from ..sources.ibge.localidades import IBGE_API_BASE, fold
+from .names import official_case
 
 SOURCE = "ibge-official-names"
 
@@ -27,12 +28,23 @@ class OfficialName:
 
 
 def plan(official: list[OfficialName], stored: list[tuple[Any, int | None, str]]) -> dict[str, list[dict[str, Any]]]:
-    """(chave, código IBGE, nome gravado) → grafias a corrigir, nomes diferentes e códigos que o IBGE não tem."""
+    """(chave, código IBGE, nome gravado) → grafias a corrigir, nomes diferentes e códigos que o IBGE não tem.
+
+    Sem a grafia do IBGE para o MESMO nome (renomeado ou fora do IBGE), só a caixa das partículas é
+    corrigida ("Fortaleza Do Tabocão" → "Fortaleza do Tabocão"); o nome continua o registrado até a revisão.
+    """
     by_code = {o.code: o.name for o in official}
     updates, differences, not_in_ibge = [], [], []
+
+    def particles_only(key: Any, code: int | None, name: str) -> None:
+        cased = official_case(name)
+        if cased != name:
+            updates.append({"key": key, "ibge_code": code, "from": name, "to": cased})
+
     for key, code, name in stored:
         if code is None or code not in by_code:
             not_in_ibge.append({"key": key, "ibge_code": code, "name": name})
+            particles_only(key, code, name)
             continue
         want = by_code[code]
         if want == name:
@@ -41,6 +53,7 @@ def plan(official: list[OfficialName], stored: list[tuple[Any, int | None, str]]
             updates.append({"key": key, "ibge_code": code, "from": name, "to": want})
         else:
             differences.append({"key": key, "ibge_code": code, "registry": name, "ibge": want})
+            particles_only(key, code, name)
     return {"updates": updates, "differences": differences, "not_in_ibge": not_in_ibge}
 
 
