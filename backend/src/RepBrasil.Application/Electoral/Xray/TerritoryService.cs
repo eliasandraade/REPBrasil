@@ -453,10 +453,14 @@ public class TerritoryService(IElectoralXrayRepository repo)
                             ["comparability"] = state,
                         }, state, t.IbgeCode);
                     }).ToList();
-                    return Response(q, uf, mun, layer, level, to.OfficeCode, features, [], comparability,
-                        comparability == ContestComparability.Comparable
-                            ? "Variação de votos entre as duas candidaturas, só em territórios comparáveis."
-                            : "Disputas não comparáveis diretamente: valores lado a lado nos detalhes, sem delta.", freshness);
+                    var note = comparability switch
+                    {
+                        ContestComparability.Comparable => "Variação de votos entre as duas candidaturas, só em territórios comparáveis.",
+                        ContestComparability.Unavailable =>
+                            "Comparação direta indisponível: uma das candidaturas não tem vínculo auditado com o Boletim de Urna; sem delta.",
+                        _ => "Disputas não comparáveis diretamente (cargo ou unidade diferente): valores lado a lado nos detalhes, sem delta.",
+                    };
+                    return Response(q, uf, mun, layer, level, to.OfficeCode, features, [], comparability, note, freshness);
                 }
             case "ab":
                 {

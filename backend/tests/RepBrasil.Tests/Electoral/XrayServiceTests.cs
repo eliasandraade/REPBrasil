@@ -196,6 +196,10 @@ public class XrayServiceTests
         Assert.Equal(2300001, growth.Features.Single(f => f.MunicipalityTseCode == "11111").IbgeCode);
         var decline = await service.MapAsync(new MapQuery(2026, 1, "CE", "decline", null, A26, A22, null, null, null), Ct);
         Assert.Equal(-5, decline.Features.Single(f => f.MunicipalityTseCode == "22222").Value);
+        var otherOffice = await service.MapAsync(new MapQuery(2026, 1, "CE", "growth", null, Governor, A22, null, null, null), Ct);
+        Assert.Equal(ContestComparability.DifferentOffice, otherOffice.Comparability);
+        Assert.Contains("cargo ou unidade diferente", otherOffice.Note);
+        Assert.All(otherOffice.Features, f => Assert.Null(f.Value));
 
         var winner = await service.MapAsync(new MapQuery(2026, 1, "CE", "winner", 7, null, null, null, null, null), Ct);
         Assert.All(winner.Features, f => Assert.Equal(A26.ToString(), f.Category));
