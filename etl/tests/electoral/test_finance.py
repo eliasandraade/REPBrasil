@@ -132,3 +132,34 @@ def test_cli_reports_go_to_fixed_directories_with_validated_names(tmp_path):
     target = report_file(tmp_path / "audits", "audit", 2022, "CE", 2, suffix=".md")
     assert target == tmp_path / "audits" / "audit_2022_CE_t2.md"
     assert write_report(target, "# ok").read_text(encoding="utf-8") == "# ok\n"
+
+
+def test_remote_version_comes_from_the_ranged_read_not_from_head():
+    """Regressão (2026): o CDN do TSE respondeu HEAD com Content-Length 1 para um ZIP de 178 MB."""
+    import zipfile
+
+    import httpx
+
+    from src.electoral.finance.remote import PinnedRangeFile, head
+    from src.electoral.open_data.acquire import AcquisitionError
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("receitas_candidatos_2099_XX.csv", "conteudo")
+    data = buf.getvalue()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "HEAD":
+            return httpx.Response(200, headers={"content-length": "1", "etag": '"v1"'})
+        start, end = (int(x) for x in request.headers["range"].removeprefix("bytes=").split("-"))
+        return httpx.Response(206, content=data[start:end + 1],
+                              headers={"content-range": f"bytes {start}-{end}/{len(data)}", "etag": '"v1"'})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    version = head("https://cdn.tse.jus.br/x.zip", client)
+    assert (version.size, version.etag) == (len(data), '"v1"')
+    with zipfile.ZipFile(io.BufferedReader(PinnedRangeFile(version, client))) as zf:
+        assert zf.read("receitas_candidatos_2099_XX.csv") == b"conteudo"
+    without_ranges = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=data)))
+    with pytest.raises(AcquisitionError, match="ranged reads are required"):
+        head("https://cdn.tse.jus.br/x.zip", without_ranges)

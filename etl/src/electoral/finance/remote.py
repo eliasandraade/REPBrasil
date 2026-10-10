@@ -2,7 +2,7 @@
 
 O ZIP de prestação de contas do TSE tem centenas de MB a mais de 1 GB e traz todas as UFs; só
 os membros da UF interessam. A proveniência continua integral:
-1. HEAD fixa a versão publicada (ETag/Last-Modified + tamanho);
+1. um `Range: bytes=0-0` fixa a versão publicada (ETag/Last-Modified + tamanho total do Content-Range);
 2. o ZIP inteiro é lido em streaming só para calcular SHA-256/SHA-512 (nada vai para o disco),
    com `If-Match` na mesma ETag;
 3. os membros da UF são lidos por HTTP Range com `If-Range` na mesma versão — se o TSE regenerar o
@@ -45,13 +45,21 @@ def _client() -> httpx.Client:
 
 
 def head(url: str, client: httpx.Client | None = None) -> RemoteVersion:
+    """Versão publicada (tamanho, ETag, Last-Modified) lida de um `Range: bytes=0-0`.
+
+    O tamanho vem do total do Content-Range, não do Content-Length de um HEAD: o CDN do TSE já
+    respondeu HEAD com Content-Length 1 para um ZIP de 178 MB recém-regenerado.
+    """
     own = client is None
     client = client or _client()
     try:
-        r = client.head(url)
-        if r.status_code != 200 or "content-length" not in r.headers:
-            raise AcquisitionError(f"HEAD {url}: HTTP {r.status_code} without content-length")
-        return RemoteVersion(url, int(r.headers["content-length"]), r.headers.get("etag"), r.headers.get("last-modified"))
+        r = client.get(url, headers={"Range": "bytes=0-0"})
+        if r.status_code != 206:
+            raise AcquisitionError(f"GET {url} (Range bytes=0-0): HTTP {r.status_code}; ranged reads are required")
+        total = (r.headers.get("content-range") or "").rpartition("/")[2]
+        if not total.isdigit():
+            raise AcquisitionError(f"GET {url}: Content-Range without the total size: {r.headers.get('content-range')!r}")
+        return RemoteVersion(url, int(total), r.headers.get("etag"), r.headers.get("last-modified"))
     finally:
         if own:
             client.close()
