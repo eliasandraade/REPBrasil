@@ -285,6 +285,19 @@ describe("camadas do mapa", () => {
     expect(missing.municipalities["1"].text).toBe("sem cobertura ou seção inexistente");
   });
 
+  it("muitos vencedores distintos (prefeitos no estado): cor pela % do vencedor, sem repetir cores", () => {
+    const legend = Array.from({ length: 9 }, (_, i) => ({ category: ID(i + 1), label: `PREFEITO ${i + 1}`, rank: i + 1 }));
+    const view = buildLayerView({
+      ...base, layer: "winner", min: 40, max: 80, legend,
+      features: [feature(1, 80, ID(1), "PREFEITO 1"), feature(2, 40, ID(9), "PREFEITO 9")],
+    });
+    expect(view.legend).toEqual([]);
+    expect(view.gradient).toEqual({ from: "#1b3a3a", to: "#0dd48e", min: "40,00%", max: "80,00%" });
+    expect(view.municipalities["1"].color).toBe("#0dd48e");
+    expect(view.municipalities["2"].text).toBe("PREFEITO 9 · 40,00%");
+    expect(view.note).toContain("9 vencedores diferentes");
+  });
+
   it("variações sempre com sinal explícito", () => {
     expect([signed(10), signed(-5), signed(0), signedPercent(12.5), signedPercent(-25), signedPercent(0)]).toEqual([
       "+10", "−5", "0", "+12,5%", "−25%", "0%",

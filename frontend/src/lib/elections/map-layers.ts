@@ -147,8 +147,15 @@ function deltaColor(value: number, maxAbs: number): string {
   return mix(NEUTRAL, value > 0 ? HIGH : NEGATIVE, strength);
 }
 
+/**
+ * Mais vencedores do que cores distintas (ex.: Prefeito no estado — cada município tem a sua disputa):
+ * repetir cores sugeriria o mesmo vencedor em lugares diferentes. A cor passa a indicar só a % de quem
+ * venceu em cada território (escala sequencial); o nome aparece no tooltip.
+ */
+const manyWinners = (r: MapLayerResponse) => r.layer === "winner" && r.legend.length > CATEGORICAL.length;
+
 function colorOf(r: MapLayerResponse, f: MapFeature, scale: Scale): string | null {
-  if (r.layer === "winner") return winnerColor(f, scale.legendIndex);
+  if (r.layer === "winner" && !manyWinners(r)) return winnerColor(f, scale.legendIndex);
   if (f.value === null) return null;
   if (r.layer === "ab") return abColor(f, f.value, scale.maxAbs);
   if (r.layer === "growth" || r.layer === "decline") return deltaColor(f.value, scale.maxAbs);
@@ -156,7 +163,8 @@ function colorOf(r: MapLayerResponse, f: MapFeature, scale: Scale): string | nul
 }
 
 function legendOf(r: MapLayerResponse): LegendEntry[] {
-  if (r.layer === "winner") return r.legend.map((l, i) => ({ key: l.category, label: l.label, color: CATEGORICAL[i % CATEGORICAL.length] }));
+  if (manyWinners(r)) return [];
+  if (r.layer === "winner") return r.legend.map((l, i) => ({ key: l.category, label: l.label, color: CATEGORICAL[i] }));
   if (r.layer === "ab") {
     const name = (category: string) => r.legend.find((l) => l.category === category)?.label ?? category.toUpperCase();
     return [
@@ -174,8 +182,8 @@ function legendOf(r: MapLayerResponse): LegendEntry[] {
 }
 
 function gradientOf(r: MapLayerResponse): MapLayerView["gradient"] {
-  if (r.layer !== "intensity" && r.layer !== "share") return null;
-  const format = r.layer === "share" ? formatPercent : formatCount;
+  if (r.layer !== "intensity" && r.layer !== "share" && !manyWinners(r)) return null;
+  const format = r.layer === "intensity" ? formatCount : formatPercent;
   return { from: LOW, to: HIGH, min: format(r.min), max: format(r.max) };
 }
 
@@ -194,5 +202,8 @@ export function buildLayerView(r: MapLayerResponse): MapLayerView {
     if (r.level === "place" && f.latitude != null && f.longitude != null)
       places.push({ ...v, key: f.key, name: f.name, latitude: f.latitude, longitude: f.longitude });
   }
-  return { kind: r.layer, level: r.level, municipalities, places, legend: legendOf(r), gradient: gradientOf(r), note: r.note };
+  const note = manyWinners(r)
+    ? `${r.note} ${r.legend.length} vencedores diferentes: a cor indica a % de quem venceu em cada território; o nome aparece ao passar o mouse.`
+    : r.note;
+  return { kind: r.layer, level: r.level, municipalities, places, legend: legendOf(r), gradient: gradientOf(r), note };
 }
