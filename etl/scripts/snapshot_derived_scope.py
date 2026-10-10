@@ -82,7 +82,7 @@ def main() -> int:
     if not database_url:
         raise SystemExit("DATABASE_URL is required")
 
-    with electoral_db.connect(database_url) as conn:
+    with electoral_db.connect(database_url, autocommit=True) as conn:
         with conn.transaction(), conn.cursor() as cur:
             cur.execute(
                 "SELECT to_regclass('votable_zone_votes_current'), "
