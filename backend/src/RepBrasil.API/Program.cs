@@ -30,6 +30,10 @@ builder.Services.AddScoped<IElectoralReadRepository, ElectoralReadRepository>();
 builder.Services.AddScoped<ElectoralCatalogService>();
 builder.Services.AddScoped<SectionResultsService>();
 builder.Services.AddScoped<CandidacyService>();
+builder.Services.AddScoped<IElectoralXrayRepository, ElectoralXrayRepository>();
+builder.Services.AddScoped<XrayService>();
+builder.Services.AddScoped<TerritoryService>();
+builder.Services.AddScoped<ComparisonService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
