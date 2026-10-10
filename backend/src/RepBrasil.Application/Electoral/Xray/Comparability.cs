@@ -45,7 +45,11 @@ public static class Comparability
     /// <summary>Cargos votados na chapa do titular: vice → titular, suplentes → senador.</summary>
     public static readonly IReadOnlyDictionary<int, int> TicketHeads = new Dictionary<int, int>
     {
-        [2] = 1, [4] = 3, [9] = 5, [10] = 5, [12] = 11,
+        [2] = 1,
+        [4] = 3,
+        [9] = 5,
+        [10] = 5,
+        [12] = 11,
     };
 
     public static bool IsTicketMember(int officeCode) => TicketHeads.ContainsKey(officeCode);

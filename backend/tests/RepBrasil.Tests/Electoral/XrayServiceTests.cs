@@ -52,9 +52,18 @@ public class XrayServiceTests
         ]);
         repo.Priors.Add(new PriorRow
         {
-            CandidacyId = A26, PriorYear = 2024, PriorTurn = 1, PriorTseCandidateId = 60001, PriorOfficeCode = 13,
-            PriorOfficeName = "Vereador", PriorElectoralUnit = "11111", PriorUnitName = "MUNICÍPIO UM", PriorCandidateNumber = 12345,
-            PriorBallotName = "CANDIDATA", PriorPartyAcronym = "PF", PriorRoundOutcome = "SUPLENTE",
+            CandidacyId = A26,
+            PriorYear = 2024,
+            PriorTurn = 1,
+            PriorTseCandidateId = 60001,
+            PriorOfficeCode = 13,
+            PriorOfficeName = "Vereador",
+            PriorElectoralUnit = "11111",
+            PriorUnitName = "MUNICÍPIO UM",
+            PriorCandidateNumber = 12345,
+            PriorBallotName = "CANDIDATA",
+            PriorPartyAcronym = "PF",
+            PriorRoundOutcome = "SUPLENTE",
         });
         return repo;
     }

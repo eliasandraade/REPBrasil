@@ -102,37 +102,82 @@ public static class Xray
         Guid id, int year, int office, string scope, string unit, int number, string ballot, Guid? person = null,
         Guid? politician = null, bool hasLink = true, int round = 1, string? insertedInUrn = null, string? outcome = null,
         bool? elected = null, string officeName = "Deputado Estadual", string uf = "CE", int electionCode = 0) => new()
-    {
-        Id = id, TseCandidateId = Math.Abs(id.GetHashCode()), CandidateNumber = number, BallotName = ballot, PartyAcronym = "PF",
-        PartyNumber = number / 100 > 0 ? number / 1000 : number, IdentityStatus = person is null ? "unresolved_document_unavailable" : "resolved",
-        PersonId = person, PoliticianId = politician, PoliticianName = ballot, Year = (short)year, Round = (short)round,
-        TseElectionCode = electionCode == 0 ? year * 10 + round : electionCode, OfficeCode = office, OfficeName = officeName, Scope = scope,
-        ElectoralUnit = unit, ContestUf = scope == "federal" ? null : uf,
-        UnitName = scope == "municipal" ? "Município Fictício" : scope == "state" ? "Estado Fictício" : "Brasil",
-        SourceUrl = "https://cdn.tse.jus.br/fixture.zip", SourceZipSha256 = new string('a', 64), SourceMember = "fixture.csv",
-        SourceLine = 2, HasLink = hasLink, InsertedInUrn = insertedInUrn, RoundOutcome = outcome, Elected = elected,
-    };
+        {
+            Id = id,
+            TseCandidateId = Math.Abs(id.GetHashCode()),
+            CandidateNumber = number,
+            BallotName = ballot,
+            PartyAcronym = "PF",
+            PartyNumber = number / 100 > 0 ? number / 1000 : number,
+            IdentityStatus = person is null ? "unresolved_document_unavailable" : "resolved",
+            PersonId = person,
+            PoliticianId = politician,
+            PoliticianName = ballot,
+            Year = (short)year,
+            Round = (short)round,
+            TseElectionCode = electionCode == 0 ? year * 10 + round : electionCode,
+            OfficeCode = office,
+            OfficeName = officeName,
+            Scope = scope,
+            ElectoralUnit = unit,
+            ContestUf = scope == "federal" ? null : uf,
+            UnitName = scope == "municipal" ? "Município Fictício" : scope == "state" ? "Estado Fictício" : "Brasil",
+            SourceUrl = "https://cdn.tse.jus.br/fixture.zip",
+            SourceZipSha256 = new string('a', 64),
+            SourceMember = "fixture.csv",
+            SourceLine = 2,
+            HasLink = hasLink,
+            InsertedInUrn = insertedInUrn,
+            RoundOutcome = outcome,
+            Elected = elected,
+        };
 
     public static SectionResultRow Section(long id, int year, int office, int section, int[] members, string place = "1001",
         long valid = 100, int zone = 1, string municipality = "99999", int round = 1) => new()
-    {
-        ResultId = id, Year = (short)year, Round = (short)round, OfficeCode = office, Uf = "CE", MunicipalityTseCode = municipality,
-        MunicipalityName = "MUNICÍPIO FICTÍCIO", Zone = zone, Section = section, SectionMembers = members, PollingPlaceCode = place,
-        Eligible = 200, Turnout = 150, ValidVotes = valid,
-    };
+        {
+            ResultId = id,
+            Year = (short)year,
+            Round = (short)round,
+            OfficeCode = office,
+            Uf = "CE",
+            MunicipalityTseCode = municipality,
+            MunicipalityName = "MUNICÍPIO FICTÍCIO",
+            Zone = zone,
+            Section = section,
+            SectionMembers = members,
+            PollingPlaceCode = place,
+            Eligible = 200,
+            Turnout = 150,
+            ValidVotes = valid,
+        };
 
     public static SectionCandidacyVotesRow Votes(long resultId, Guid candidacy, long votes) =>
         new() { ResultId = resultId, CandidacyId = candidacy, Votes = votes };
 
     public static ZoneTotalsRow Totals(int year, int office, string municipality, int zone, long valid, int round = 1) => new()
     {
-        Year = (short)year, Round = (short)round, OfficeCode = office, Uf = "CE", MunicipalityTseCode = municipality,
-        MunicipalityName = municipality, Zone = zone, Urns = 10, Eligible = 1000, Turnout = 800, ValidVotes = valid, VotesTotal = valid + 50,
+        Year = (short)year,
+        Round = (short)round,
+        OfficeCode = office,
+        Uf = "CE",
+        MunicipalityTseCode = municipality,
+        MunicipalityName = municipality,
+        Zone = zone,
+        Urns = 10,
+        Eligible = 1000,
+        Turnout = 800,
+        ValidVotes = valid,
+        VotesTotal = valid + 50,
     };
 
     public static ExpectedZoneRow Zone(int year, string municipality, int zone, string name, int round = 1) => new()
     {
-        Year = (short)year, Round = (short)round, Uf = "CE", MunicipalityTseCode = municipality, MunicipalityName = name, Zone = zone,
+        Year = (short)year,
+        Round = (short)round,
+        Uf = "CE",
+        MunicipalityTseCode = municipality,
+        MunicipalityName = name,
+        Zone = zone,
     };
 
     public static CandidacyZoneVotesRow ZoneVotes(Guid candidacy, string municipality, int zone, long votes) =>

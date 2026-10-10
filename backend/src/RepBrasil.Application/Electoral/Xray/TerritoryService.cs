@@ -398,149 +398,157 @@ public class TerritoryService(IElectoralXrayRepository repo)
         switch (layer)
         {
             case "intensity" or "share":
-            {
-                var id = q.Candidacy ?? throw new ElectoralBadRequestException($"layer {layer} exige candidacy.");
-                var c = await CandidacyAsync(id, ct);
-                var values = await ValuesAsync(c, uf, mun, ct);
-                var features = values.Select(v => Feature(v.Territory, layer == "share" ? v.Territory.Share : v.Territory.Votes, null, null,
-                    new Dictionary<string, object?> { ["votes"] = v.Territory.Votes, ["share"] = v.Territory.Share, ["validVotes"] = v.Territory.ValidVotes },
-                    ibge: v.IbgeCode)).ToList();
-                return Response(q, uf, mun, layer, level, c.OfficeCode, features, [], null,
-                    layer == "share" ? "Participação da candidatura nos votos válidos do cargo." : "Votos da candidatura.", freshness);
-            }
+                {
+                    var id = q.Candidacy ?? throw new ElectoralBadRequestException($"layer {layer} exige candidacy.");
+                    var c = await CandidacyAsync(id, ct);
+                    var values = await ValuesAsync(c, uf, mun, ct);
+                    var features = values.Select(v => Feature(v.Territory, layer == "share" ? v.Territory.Share : v.Territory.Votes, null, null,
+                        new Dictionary<string, object?> { ["votes"] = v.Territory.Votes, ["share"] = v.Territory.Share, ["validVotes"] = v.Territory.ValidVotes },
+                        ibge: v.IbgeCode)).ToList();
+                    return Response(q, uf, mun, layer, level, c.OfficeCode, features, [], null,
+                        layer == "share" ? "Participação da candidatura nos votos válidos do cargo." : "Votos da candidatura.", freshness);
+                }
             case "growth" or "decline":
-            {
-                var id = q.Candidacy ?? throw new ElectoralBadRequestException($"layer {layer} exige candidacy e base.");
-                var baseId = q.Base ?? throw new ElectoralBadRequestException($"layer {layer} exige candidacy e base.");
-                var to = await CandidacyAsync(id, ct);
-                var from = await CandidacyAsync(baseId, ct);
-                var toValues = (await ValuesAsync(to, uf, mun, ct)).ToDictionary(v => v.Key);
-                var fromValues = (await ValuesAsync(from, uf, mun, ct)).ToDictionary(v => v.Key);
-                var comparability = Comparability.Contest(ContestInfo.From(from), ContestInfo.From(to), from.HasLink, to.HasLink);
-                var features = toValues.Values.Select(t =>
                 {
-                    fromValues.TryGetValue(t.Key, out var f);
-                    var complete = f is not null && Comparability.IsComplete(f.Territory.State) && Comparability.IsComplete(t.Territory.State)
-                        && (level == "municipality" || SameMembers(f.Territory, t.Territory));
-                    var (delta, pct) = complete && comparability == ContestComparability.Comparable
-                        ? Comparability.Delta(f!.Territory.Votes, t.Territory.Votes) : (null, null);
-                    var state = f is null ? TerritoryComparability.CoverageOrSectionMissing
-                        : !complete ? (level == "place" && f is not null && !SameMembers(f.Territory, t.Territory)
-                            ? TerritoryComparability.SectionCompositionChanged : TerritoryComparability.CoverageOrSectionMissing)
-                        : TerritoryComparability.Comparable;
-                    double? value = delta is { } d ? (layer == "growth" ? Math.Max(d, 0) : Math.Min(d, 0)) : null;
-                    return Feature(t.Territory, value, null, null, new Dictionary<string, object?>
+                    var id = q.Candidacy ?? throw new ElectoralBadRequestException($"layer {layer} exige candidacy e base.");
+                    var baseId = q.Base ?? throw new ElectoralBadRequestException($"layer {layer} exige candidacy e base.");
+                    var to = await CandidacyAsync(id, ct);
+                    var from = await CandidacyAsync(baseId, ct);
+                    var toValues = (await ValuesAsync(to, uf, mun, ct)).ToDictionary(v => v.Key);
+                    var fromValues = (await ValuesAsync(from, uf, mun, ct)).ToDictionary(v => v.Key);
+                    var comparability = Comparability.Contest(ContestInfo.From(from), ContestInfo.From(to), from.HasLink, to.HasLink);
+                    var features = toValues.Values.Select(t =>
                     {
-                        ["fromVotes"] = f?.Territory.Votes, ["toVotes"] = t.Territory.Votes, ["deltaVotes"] = delta,
-                        ["deltaPercent"] = pct, ["comparability"] = state,
-                    }, state, t.IbgeCode);
-                }).ToList();
-                return Response(q, uf, mun, layer, level, to.OfficeCode, features, [], comparability,
-                    comparability == ContestComparability.Comparable
-                        ? "Variação de votos entre as duas candidaturas, só em territórios comparáveis."
-                        : "Disputas não comparáveis diretamente: valores lado a lado nos detalhes, sem delta.", freshness);
-            }
+                        fromValues.TryGetValue(t.Key, out var f);
+                        var complete = f is not null && Comparability.IsComplete(f.Territory.State) && Comparability.IsComplete(t.Territory.State)
+                            && (level == "municipality" || SameMembers(f.Territory, t.Territory));
+                        var (delta, pct) = complete && comparability == ContestComparability.Comparable
+                            ? Comparability.Delta(f!.Territory.Votes, t.Territory.Votes) : (null, null);
+                        var state = f is null ? TerritoryComparability.CoverageOrSectionMissing
+                            : !complete ? (level == "place" && f is not null && !SameMembers(f.Territory, t.Territory)
+                                ? TerritoryComparability.SectionCompositionChanged : TerritoryComparability.CoverageOrSectionMissing)
+                            : TerritoryComparability.Comparable;
+                        double? value = delta is { } d ? (layer == "growth" ? Math.Max(d, 0) : Math.Min(d, 0)) : null;
+                        return Feature(t.Territory, value, null, null, new Dictionary<string, object?>
+                        {
+                            ["fromVotes"] = f?.Territory.Votes,
+                            ["toVotes"] = t.Territory.Votes,
+                            ["deltaVotes"] = delta,
+                            ["deltaPercent"] = pct,
+                            ["comparability"] = state,
+                        }, state, t.IbgeCode);
+                    }).ToList();
+                    return Response(q, uf, mun, layer, level, to.OfficeCode, features, [], comparability,
+                        comparability == ContestComparability.Comparable
+                            ? "Variação de votos entre as duas candidaturas, só em territórios comparáveis."
+                            : "Disputas não comparáveis diretamente: valores lado a lado nos detalhes, sem delta.", freshness);
+                }
             case "ab":
-            {
-                var aId = q.A ?? throw new ElectoralBadRequestException("layer ab exige a e b.");
-                var bId = q.B ?? throw new ElectoralBadRequestException("layer ab exige a e b.");
-                var a = await CandidacyAsync(aId, ct);
-                var b = await CandidacyAsync(bId, ct);
-                var aValues = (await ValuesAsync(a, uf, mun, ct)).ToDictionary(v => v.Key);
-                var bValues = (await ValuesAsync(b, uf, mun, ct)).ToDictionary(v => v.Key);
-                var comparability = Comparability.Contest(ContestInfo.From(a), ContestInfo.From(b), a.HasLink, b.HasLink);
-                var keys = aValues.Keys.Union(bValues.Keys);
-                var features = keys.Select(k =>
                 {
-                    aValues.TryGetValue(k, out var av);
-                    bValues.TryGetValue(k, out var bv);
-                    var keyed = (av ?? bv)!;
-                    var territory = keyed.Territory;
-                    var complete = av is not null && bv is not null && Comparability.IsComplete(av.Territory.State)
-                        && Comparability.IsComplete(bv.Territory.State);
-                    long? diff = complete ? av!.Territory.Votes - bv!.Territory.Votes : null;
-                    var category = diff is null ? null : diff > 0 ? "a" : diff < 0 ? "b" : "tie";
-                    return Feature(territory, diff, category, category switch { "a" => a.BallotName, "b" => b.BallotName, "tie" => "Empate", _ => null },
-                        new Dictionary<string, object?>
-                        {
-                            ["aVotes"] = av?.Territory.Votes, ["bVotes"] = bv?.Territory.Votes, ["aState"] = av?.Territory.State,
-                            ["bState"] = bv?.Territory.State, ["aShare"] = av?.Territory.Share, ["bShare"] = bv?.Territory.Share,
-                        }, complete ? TerritoryComparability.Comparable : TerritoryComparability.CoverageOrSectionMissing, keyed.IbgeCode);
-                }).ToList();
-                return Response(q, uf, mun, layer, level, a.OfficeCode, features,
-                    [new MapLegendItemDto("a", a.BallotName, 1), new MapLegendItemDto("b", b.BallotName, 2), new MapLegendItemDto("tie", "Empate", 3)],
-                    comparability, "Diferença de votos A − B por território (só onde as duas votações estão completas).", freshness);
-            }
+                    var aId = q.A ?? throw new ElectoralBadRequestException("layer ab exige a e b.");
+                    var bId = q.B ?? throw new ElectoralBadRequestException("layer ab exige a e b.");
+                    var a = await CandidacyAsync(aId, ct);
+                    var b = await CandidacyAsync(bId, ct);
+                    var aValues = (await ValuesAsync(a, uf, mun, ct)).ToDictionary(v => v.Key);
+                    var bValues = (await ValuesAsync(b, uf, mun, ct)).ToDictionary(v => v.Key);
+                    var comparability = Comparability.Contest(ContestInfo.From(a), ContestInfo.From(b), a.HasLink, b.HasLink);
+                    var keys = aValues.Keys.Union(bValues.Keys);
+                    var features = keys.Select(k =>
+                    {
+                        aValues.TryGetValue(k, out var av);
+                        bValues.TryGetValue(k, out var bv);
+                        var keyed = (av ?? bv)!;
+                        var territory = keyed.Territory;
+                        var complete = av is not null && bv is not null && Comparability.IsComplete(av.Territory.State)
+                            && Comparability.IsComplete(bv.Territory.State);
+                        long? diff = complete ? av!.Territory.Votes - bv!.Territory.Votes : null;
+                        var category = diff is null ? null : diff > 0 ? "a" : diff < 0 ? "b" : "tie";
+                        return Feature(territory, diff, category, category switch { "a" => a.BallotName, "b" => b.BallotName, "tie" => "Empate", _ => null },
+                            new Dictionary<string, object?>
+                            {
+                                ["aVotes"] = av?.Territory.Votes,
+                                ["bVotes"] = bv?.Territory.Votes,
+                                ["aState"] = av?.Territory.State,
+                                ["bState"] = bv?.Territory.State,
+                                ["aShare"] = av?.Territory.Share,
+                                ["bShare"] = bv?.Territory.Share,
+                            }, complete ? TerritoryComparability.Comparable : TerritoryComparability.CoverageOrSectionMissing, keyed.IbgeCode);
+                    }).ToList();
+                    return Response(q, uf, mun, layer, level, a.OfficeCode, features,
+                        [new MapLegendItemDto("a", a.BallotName, 1), new MapLegendItemDto("b", b.BallotName, 2), new MapLegendItemDto("tie", "Empate", 3)],
+                        comparability, "Diferença de votos A − B por território (só onde as duas votações estão completas).", freshness);
+                }
             default: // winner
-            {
-                var office = q.Office ?? throw new ElectoralBadRequestException("layer winner exige office.");
-                var rows = (await repo.ElectionCandidaciesAsync(q.Year, q.Round, uf, mun, ct))
-                    .Where(r => r.OfficeCode == office && r.HasLink).ToList();
-                if (rows.Count == 0)
-                    return Response(q, uf, mun, layer, level, office, [], [], null, "Sem candidaturas com vínculo ao BU para o cargo.", freshness);
-                var perCandidacy = new Dictionary<Guid, Dictionary<string, KeyedValue>>();
-                if (level == "municipality")
                 {
-                    var keys = rows.Select(r => ContestInfo.From(r).CoverageKey).Distinct().ToList();
-                    var index = new VoteIndex(
-                        await repo.ZoneVotesAsync(rows.Select(r => r.Id).ToList(), uf, null, ct),
-                        await repo.ZoneTotalsAsync(keys, uf, null, ct),
-                        await repo.ExpectedZonesAsync([(q.Year, q.Round)], uf, null, ct));
-                    var names = (await repo.MunicipalitiesAsync(uf, ct)).ToDictionary(m => m.TseCode);
-                    var munKeys = index.Expected(q.Year, q.Round).Select(e => e.MunicipalityTseCode)
-                        .Concat(keys.SelectMany(k => index.Totals(k)).Select(t => t.MunicipalityTseCode)).Distinct().ToList();
-                    foreach (var r in rows)
+                    var office = q.Office ?? throw new ElectoralBadRequestException("layer winner exige office.");
+                    var rows = (await repo.ElectionCandidaciesAsync(q.Year, q.Round, uf, mun, ct))
+                        .Where(r => r.OfficeCode == office && r.HasLink).ToList();
+                    if (rows.Count == 0)
+                        return Response(q, uf, mun, layer, level, office, [], [], null, "Sem candidaturas com vínculo ao BU para o cargo.", freshness);
+                    var perCandidacy = new Dictionary<Guid, Dictionary<string, KeyedValue>>();
+                    if (level == "municipality")
                     {
-                        var contest = ContestInfo.From(r);
-                        perCandidacy[r.Id] = munKeys.Where(m => contest.Contains(uf, m)).ToDictionary(m => m, m =>
+                        var keys = rows.Select(r => ContestInfo.From(r).CoverageKey).Distinct().ToList();
+                        var index = new VoteIndex(
+                            await repo.ZoneVotesAsync(rows.Select(r => r.Id).ToList(), uf, null, ct),
+                            await repo.ZoneTotalsAsync(keys, uf, null, ct),
+                            await repo.ExpectedZonesAsync([(q.Year, q.Round)], uf, null, ct));
+                        var names = (await repo.MunicipalitiesAsync(uf, ct)).ToDictionary(m => m.TseCode);
+                        var munKeys = index.Expected(q.Year, q.Round).Select(e => e.MunicipalityTseCode)
+                            .Concat(keys.SelectMany(k => index.Totals(k)).Select(t => t.MunicipalityTseCode)).Distinct().ToList();
+                        foreach (var r in rows)
                         {
-                            var agg = index.Aggregate(r, new TerritoryFilter(uf, m));
-                            names.TryGetValue(m, out var n);
-                            return new KeyedValue(m, new TerritoryValueDto(uf, m, n?.Name ?? m, null, null, null, null, null, null, null,
-                                agg.Votes, agg.ZonesCovered > 0 ? agg.ValidVotes : null, agg.Share, agg.Eligible, agg.Turnout, agg.Urns, agg.State), n?.IbgeCode);
-                        });
+                            var contest = ContestInfo.From(r);
+                            perCandidacy[r.Id] = munKeys.Where(m => contest.Contains(uf, m)).ToDictionary(m => m, m =>
+                            {
+                                var agg = index.Aggregate(r, new TerritoryFilter(uf, m));
+                                names.TryGetValue(m, out var n);
+                                return new KeyedValue(m, new TerritoryValueDto(uf, m, n?.Name ?? m, null, null, null, null, null, null, null,
+                                    agg.Votes, agg.ZonesCovered > 0 ? agg.ValidVotes : null, agg.Share, agg.Eligible, agg.Turnout, agg.Urns, agg.State), n?.IbgeCode);
+                            });
+                        }
                     }
-                }
-                else
-                {
-                    foreach (var r in rows)
-                        perCandidacy[r.Id] = (await ValuesAsync(r, uf, mun, ct)).ToDictionary(v => v.Key);
-                }
+                    else
+                    {
+                        foreach (var r in rows)
+                            perCandidacy[r.Id] = (await ValuesAsync(r, uf, mun, ct)).ToDictionary(v => v.Key);
+                    }
 
-                var byId = rows.ToDictionary(r => r.Id);
-                var territoryKeys = perCandidacy.Values.SelectMany(d => d.Keys).Distinct().ToList();
-                var wins = new Dictionary<Guid, int>();
-                var features = new List<MapFeatureDto>();
-                foreach (var key in territoryKeys)
-                {
-                    var entries = perCandidacy.Where(p => p.Value.ContainsKey(key)).Select(p => (Id: p.Key, Value: p.Value[key])).ToList();
-                    var counted = entries.Where(e => Comparability.IsComplete(e.Value.Territory.State)).OrderByDescending(e => e.Value.Territory.Votes).ToList();
-                    var territory = entries[0].Value;
-                    if (counted.Count == 0 || counted[0].Value.Territory.Votes is not > 0)
+                    var byId = rows.ToDictionary(r => r.Id);
+                    var territoryKeys = perCandidacy.Values.SelectMany(d => d.Keys).Distinct().ToList();
+                    var wins = new Dictionary<Guid, int>();
+                    var features = new List<MapFeatureDto>();
+                    foreach (var key in territoryKeys)
                     {
-                        features.Add(Feature(territory.Territory with { Votes = null, Share = null }, null, null, null,
-                            new Dictionary<string, object?>(), TerritoryComparability.CoverageOrSectionMissing, territory.IbgeCode));
-                        continue;
-                    }
-                    var leader = counted[0];
-                    var second = counted.Count > 1 ? counted[1] : default;
-                    var tie = counted.Count > 1 && second.Value.Territory.Votes == leader.Value.Territory.Votes;
-                    if (!tie) wins[leader.Id] = wins.GetValueOrDefault(leader.Id) + 1;
-                    features.Add(Feature(leader.Value.Territory, leader.Value.Territory.Share,
-                        tie ? "tie" : leader.Id.ToString(), tie ? "Empate" : byId[leader.Id].BallotName,
-                        new Dictionary<string, object?>
+                        var entries = perCandidacy.Where(p => p.Value.ContainsKey(key)).Select(p => (Id: p.Key, Value: p.Value[key])).ToList();
+                        var counted = entries.Where(e => Comparability.IsComplete(e.Value.Territory.State)).OrderByDescending(e => e.Value.Territory.Votes).ToList();
+                        var territory = entries[0].Value;
+                        if (counted.Count == 0 || counted[0].Value.Territory.Votes is not > 0)
                         {
-                            ["leaderCandidacyId"] = tie ? null : leader.Id, ["leaderVotes"] = leader.Value.Territory.Votes,
-                            ["secondCandidacyId"] = second.Id == Guid.Empty ? null : second.Id,
-                            ["secondVotes"] = second.Id == Guid.Empty ? null : second.Value.Territory.Votes,
-                            ["marginVotes"] = second.Id == Guid.Empty ? null : leader.Value.Territory.Votes - second.Value.Territory.Votes,
-                        }, TerritoryComparability.Comparable, territory.IbgeCode));
+                            features.Add(Feature(territory.Territory with { Votes = null, Share = null }, null, null, null,
+                                new Dictionary<string, object?>(), TerritoryComparability.CoverageOrSectionMissing, territory.IbgeCode));
+                            continue;
+                        }
+                        var leader = counted[0];
+                        var second = counted.Count > 1 ? counted[1] : default;
+                        var tie = counted.Count > 1 && second.Value.Territory.Votes == leader.Value.Territory.Votes;
+                        if (!tie) wins[leader.Id] = wins.GetValueOrDefault(leader.Id) + 1;
+                        features.Add(Feature(leader.Value.Territory, leader.Value.Territory.Share,
+                            tie ? "tie" : leader.Id.ToString(), tie ? "Empate" : byId[leader.Id].BallotName,
+                            new Dictionary<string, object?>
+                            {
+                                ["leaderCandidacyId"] = tie ? null : leader.Id,
+                                ["leaderVotes"] = leader.Value.Territory.Votes,
+                                ["secondCandidacyId"] = second.Id == Guid.Empty ? null : second.Id,
+                                ["secondVotes"] = second.Id == Guid.Empty ? null : second.Value.Territory.Votes,
+                                ["marginVotes"] = second.Id == Guid.Empty ? null : leader.Value.Territory.Votes - second.Value.Territory.Votes,
+                            }, TerritoryComparability.Comparable, territory.IbgeCode));
+                    }
+                    var legend = wins.OrderByDescending(w => w.Value).ThenBy(w => byId[w.Key].BallotName, StringComparer.Ordinal)
+                        .Select((w, i) => new MapLegendItemDto(w.Key.ToString(), byId[w.Key].BallotName, i + 1)).ToList();
+                    return Response(q, uf, mun, layer, level, office, features, legend, null,
+                        "Candidatura com mais votos em cada território (sem cor partidária; paleta neutra por ordem da legenda).", freshness);
                 }
-                var legend = wins.OrderByDescending(w => w.Value).ThenBy(w => byId[w.Key].BallotName, StringComparer.Ordinal)
-                    .Select((w, i) => new MapLegendItemDto(w.Key.ToString(), byId[w.Key].BallotName, i + 1)).ToList();
-                return Response(q, uf, mun, layer, level, office, features, legend, null,
-                    "Candidatura com mais votos em cada território (sem cor partidária; paleta neutra por ordem da legenda).", freshness);
-            }
         }
     }
 
