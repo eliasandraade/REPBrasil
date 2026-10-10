@@ -107,8 +107,8 @@ jobs:
           # Chave FICTÍCIA de teste (>= 32 bytes). Nunca usar fora do CI.
           REPBRASIL_PERSON_DOCUMENT_KEY: ci-only-fictitious-test-key-0123456789abcdef
         run: |
-          uv sync --extra dev --frozen --no-install-project
-          uv run --frozen --no-sync pytest -q tests/electoral
+          uv sync --extra dev --frozen --no-install-project --no-build
+          uv run --frozen --no-sync --no-build pytest -q tests/electoral
 
   frontend:
     name: Frontend (Node 22)
@@ -148,8 +148,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install (lockfile only; the project itself is imported from the checkout)
-        run: uv sync --extra dev --frozen --no-install-project
+        run: uv sync --extra dev --frozen --no-install-project --no-build
       - name: Lint (electoral layer)
-        run: uv run --frozen --no-sync ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py
+        run: uv run --frozen --no-sync --no-build ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py
       - name: Test (DB tests skip without database)
-        run: uv run --frozen --no-sync pytest -q
+        run: uv run --frozen --no-sync --no-build pytest -q
