@@ -4,6 +4,9 @@ import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecif
 import { useEffect, useRef, useState } from "react";
 import { bboxOf, boundsForLevel, loadTerritoryGeo, type GeoStatus, type TerritoryGeo } from "@/lib/elections/geo";
 import type { ExplorerLevel } from "@/lib/elections/route";
+import { duration, easingFn } from "@/motion/tokens";
+
+const SURVEY_EASING = easingFn("traverse");
 
 /**
  * Mapa territorial persistente do explorador (MapLibre). Uma única instância
@@ -145,14 +148,28 @@ export function TerritoryMap(props: Props) {
           type: "circle",
           source: "places",
           filter: ["has", "point_count"],
-          paint: { "circle-color": COLORS.point, "circle-radius": 16, "circle-stroke-color": COLORS.pointStroke, "circle-stroke-width": 1 },
+          paint: {
+            "circle-color": COLORS.point,
+            "circle-radius": 16,
+            "circle-stroke-color": COLORS.pointStroke,
+            "circle-stroke-width": 1,
+            "circle-opacity-transition": { duration: duration.traverse, delay: 0 },
+            "circle-stroke-opacity-transition": { duration: duration.traverse, delay: 0 },
+          },
         });
         map.addLayer({
           id: "place-points",
           type: "circle",
           source: "places",
           filter: ["!", ["has", "point_count"]],
-          paint: { "circle-color": COLORS.point, "circle-radius": 7, "circle-stroke-color": COLORS.pointStroke, "circle-stroke-width": 1.5 },
+          paint: {
+            "circle-color": COLORS.point,
+            "circle-radius": 7,
+            "circle-stroke-color": COLORS.pointStroke,
+            "circle-stroke-width": 1.5,
+            "circle-opacity-transition": { duration: duration.traverse, delay: 0 },
+            "circle-stroke-opacity-transition": { duration: duration.traverse, delay: 0 },
+          },
         });
 
         const interactive = (target: "state" | "municipality") =>
@@ -224,6 +241,25 @@ export function TerritoryMap(props: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (status !== "ready" || !map) return;
+    // Locais surgem depois que a câmera assenta sobre a zona (consequência da escolha, não explosão).
+    const layers = ["place-points", "place-clusters"];
+    if (!props.reduced && props.points.length > 0) {
+      for (const id of layers) {
+        map.setPaintProperty(id, "circle-opacity", 0);
+        map.setPaintProperty(id, "circle-stroke-opacity", 0);
+      }
+      map.once("idle", () => {
+        for (const id of layers) {
+          map.setPaintProperty(id, "circle-opacity", 1);
+          map.setPaintProperty(id, "circle-stroke-opacity", 1);
+        }
+      });
+    } else {
+      for (const id of layers) {
+        map.setPaintProperty(id, "circle-opacity", 1);
+        map.setPaintProperty(id, "circle-stroke-opacity", 1);
+      }
+    }
     (map.getSource("places") as GeoJSONSource | undefined)?.setData({
       type: "FeatureCollection",
       features: props.points.map((p) => ({
@@ -247,7 +283,7 @@ export function TerritoryMap(props: Props) {
         [w, s],
         [e, n],
       ],
-      { padding: 32, duration: props.reduced ? 0 : 650, maxZoom: props.level === "country" ? 5 : 13 },
+      { padding: 32, duration: props.reduced ? 0 : duration.survey, easing: SURVEY_EASING, maxZoom: props.level === "country" ? 5 : 13 },
     );
     // a rota define o enquadramento
     // eslint-disable-next-line react-hooks/exhaustive-deps

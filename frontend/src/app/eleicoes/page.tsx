@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
+import { TransitionLink as Link } from "@/motion/navigation";
 import { electionsApi } from "@/lib/elections/api";
 import { buildElectionsPath } from "@/lib/elections/route";
 
@@ -21,7 +21,12 @@ export default function ElectionsPage() {
         </p>
 
         <div className="mt-6 space-y-3" data-testid="election-list">
-          {isLoading && <div className="h-20 animate-pulse rounded-xl bg-card" />}
+          {isLoading && (
+            <div aria-busy="true" className="rounded-xl border border-white/8 bg-card px-5 py-4">
+              <div className="skeleton mb-1.5 h-6 w-56" aria-hidden="true" />
+              <div className="skeleton h-3 w-72 max-w-full" aria-hidden="true" />
+            </div>
+          )}
           {isError && (
             <div className="rounded-xl border border-white/8 bg-card px-5 py-6 text-sm text-slate-400">
               Não foi possível carregar as eleições.{" "}
@@ -40,7 +45,7 @@ export default function ElectionsPage() {
               key={`${e.year}-${e.round}`}
               href={buildElectionsPath({ year: e.year, round: e.round })}
               data-election={`${e.year}-${e.round}`}
-              className="flex items-center justify-between rounded-xl border border-white/8 bg-card px-5 py-4 transition-colors hover:border-brand/30"
+              className="group mi-surface focus-ring flex items-center justify-between rounded-xl border border-white/8 bg-card px-5 py-4 hover:border-brand/30 hover:bg-card-elevated/60"
             >
               <div>
                 <p className="text-lg font-bold text-slate-100">
@@ -52,7 +57,10 @@ export default function ElectionsPage() {
                   {e.resultsAvailable ? " · resultados por seção" : ""}
                 </p>
               </div>
-              <span className="text-sm font-semibold text-brand">Explorar →</span>
+              <span className="flex items-center gap-1 text-sm font-semibold text-brand">
+                <span>Explorar</span>
+                <span aria-hidden="true" className="mi-arrow inline-block">→</span>
+              </span>
             </Link>
           ))}
         </div>

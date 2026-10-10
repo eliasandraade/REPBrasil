@@ -1,0 +1,353 @@
+/*
+ * Linguagem de movimento do REPBrasil — ver docs/MOTION_SYSTEM.md.
+ * Os valores de --motion-* espelham src/motion/tokens.ts (teste de paridade).
+ * Regra: todo estado inicial escondido existe apenas sob
+ * `prefers-reduced-motion: no-preference` E com JS ativo (html.js). Sem JS, sem
+ * hidratação ou com Reduced Motion, o conteúdo está sempre visível.
+ */
+
+:root {
+  --brand: #0dd48e;
+  --motion-acknowledge: 90ms;
+  --motion-settle: 180ms;
+  --motion-traverse: 280ms;
+  --motion-survey: 560ms;
+  --motion-reveal: 420ms;
+  --motion-stagger: 28ms;
+
+  --ease-precise: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.12, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-traverse: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* ─── Transições de rota (View Transitions API) ───────────────────────────── */
+
+/* Navegação persistente: não participa da troca de conteúdo. */
+.vt-app-nav { view-transition-name: app-nav; }
+.vt-app-topbar { view-transition-name: app-topbar; }
+::view-transition-group(app-nav),
+::view-transition-group(app-topbar) { animation: none; }
+::view-transition-old(app-nav),
+::view-transition-new(app-nav),
+::view-transition-old(app-topbar),
+::view-transition-new(app-topbar) { animation: none; }
+
+::view-transition-group(*) {
+  animation-duration: var(--motion-traverse);
+  animation-timing-function: var(--ease-traverse);
+}
+
+/* Aprofundar: a camada atual fica para trás (passa por nós), a nova se aproxima. */
+html[data-nav-direction="deeper"]::view-transition-old(root) {
+  animation: var(--motion-traverse) var(--ease-exit) both vt-pass-through;
+}
+html[data-nav-direction="deeper"]::view-transition-new(root) {
+  animation: var(--motion-traverse) var(--ease-enter) both vt-approach;
+}
+/* Emergir: a camada específica recua, a mais geral volta ao foco. */
+html[data-nav-direction="shallower"]::view-transition-old(root) {
+  animation: var(--motion-traverse) var(--ease-exit) both vt-recede;
+}
+html[data-nav-direction="shallower"]::view-transition-new(root) {
+  animation: var(--motion-traverse) var(--ease-enter) both vt-return;
+}
+/* Lateral: mesmo nível, outro assunto. Troca curta, sem profundidade. */
+html[data-nav-direction="lateral"]::view-transition-old(root) {
+  animation: var(--motion-settle) var(--ease-exit) both vt-fade-out;
+}
+html[data-nav-direction="lateral"]::view-transition-new(root) {
+  animation: var(--motion-settle) var(--ease-enter) both vt-fade-in;
+}
+
+@keyframes vt-pass-through { to { opacity: 0; transform: scale(1.018); } }
+@keyframes vt-approach { from { opacity: 0; transform: scale(0.985); } }
+@keyframes vt-recede { to { opacity: 0; transform: scale(0.985); } }
+@keyframes vt-return { from { opacity: 0; transform: scale(1.012); } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+
+/* ─── Revelação na leitura (scroll) ───────────────────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Failsafe: se o observer nunca disparar (hidratação falhou), o conteúdo aparece mesmo assim. */
+  .js [data-reveal="pending"] :is(.reveal-unfold, .reveal-rule, .reveal-rule-out-left, .reveal-rule-out-right, .reveal-value, .reveal-connector, .reveal-connector-v, .reveal-node),
+  .js [data-reveal="pending"]:is(.reveal-unfold) { animation: reveal-failsafe 0s 2.5s forwards; }
+
+  /* Documento que se abre de cima para baixo. */
+  .js [data-reveal="pending"] .reveal-unfold,
+  .js [data-reveal="pending"].reveal-unfold { clip-path: inset(0 0 100% 0); }
+  [data-reveal="in"] .reveal-unfold,
+  [data-reveal="in"].reveal-unfold {
+    clip-path: inset(0 0 0 0);
+    transition: clip-path var(--motion-reveal) var(--ease-enter);
+    transition-delay: calc(var(--i, 0) * 50ms);
+  }
+
+  /* Régua que se traça da esquerda para a direita (medição, linha de base). */
+  .js [data-reveal="pending"] .reveal-rule { transform: scaleX(0); }
+  [data-reveal="in"] .reveal-rule {
+    transform: scaleX(1);
+    transition: transform var(--motion-reveal) var(--ease-enter);
+    transition-delay: calc(var(--i, 0) * 60ms);
+  }
+
+  /* Régua a partir do centro (para fora): enquadra uma afirmação. */
+  .js [data-reveal="pending"] .reveal-rule-out-left { transform: scaleX(0); transform-origin: right; }
+  .js [data-reveal="pending"] .reveal-rule-out-right { transform: scaleX(0); transform-origin: left; }
+  [data-reveal="in"] .reveal-rule-out-left,
+  [data-reveal="in"] .reveal-rule-out-right {
+    transform: scaleX(1);
+    transition: transform var(--motion-reveal) var(--ease-enter) 80ms;
+  }
+
+  /* Valor que se apresenta já pronto: sobe por trás de uma máscara, sem contagem. */
+  .js [data-reveal="pending"] .reveal-value { clip-path: inset(100% 0 0 0); transform: translateY(35%); }
+  [data-reveal="in"] .reveal-value {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+    transition:
+      clip-path var(--motion-reveal) var(--ease-enter),
+      transform var(--motion-reveal) var(--ease-enter);
+    transition-delay: calc(120ms + var(--i, 0) * 60ms);
+  }
+
+  /* Conexão entre fontes: a linha percorre e cada nó acende quando ela passa. */
+  .js [data-reveal="pending"] .reveal-connector { transform: scaleX(0); }
+  .js [data-reveal="pending"] .reveal-connector-v { transform: scaleY(0); }
+  [data-reveal="in"] .reveal-connector,
+  [data-reveal="in"] .reveal-connector-v {
+    transform: none;
+    transition: transform 720ms var(--ease-traverse);
+  }
+  .js [data-reveal="pending"] .reveal-node { opacity: 0.25; box-shadow: none; }
+  [data-reveal="in"] .reveal-node {
+    transition:
+      opacity var(--motion-settle) var(--ease-precise),
+      box-shadow var(--motion-reveal) var(--ease-precise);
+    transition-delay: calc(80ms + var(--i, 0) * 240ms);
+  }
+}
+
+@keyframes reveal-failsafe { to { clip-path: none; transform: none; opacity: 1; } }
+
+.reveal-rule,
+.reveal-connector { transform-origin: left; }
+.reveal-connector-v { transform-origin: top; }
+
+/* ─── Entrada do hero (registro documental) ───────────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .js .hero-rule { animation: hero-rule var(--motion-survey) var(--ease-enter) both 60ms; transform-origin: left; }
+  .js .hero-stamp {
+    animation: hero-stamp var(--motion-traverse) var(--ease-enter) both;
+    animation-delay: calc(140ms + var(--i, 0) * 70ms);
+  }
+  .js .hero-annotation::after { animation: hero-annotation var(--motion-reveal) var(--ease-enter) both 520ms; }
+  .js .hero-viewfinder > .vf-corner { animation: vf-converge var(--motion-reveal) var(--ease-enter) both 380ms; }
+}
+
+@keyframes hero-rule { from { transform: scaleX(0); } }
+@keyframes hero-stamp { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes hero-annotation { from { transform: scaleX(0); } }
+@keyframes vf-converge { from { opacity: 0; translate: var(--vf-from, 0 0); } }
+
+/* Anotação de documento: traço sob o trecho em destaque (não é texto colorido). */
+.hero-annotation { position: relative; white-space: nowrap; }
+.hero-annotation::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.06em;
+  height: 0.09em;
+  background: var(--brand);
+  transform-origin: left;
+  border-radius: 1px;
+}
+
+/* Visor da busca: marcas de enquadramento que convergem para o campo. */
+.hero-viewfinder { position: relative; }
+.vf-corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: rgb(13 212 142 / 0.45);
+  pointer-events: none;
+  transition:
+    translate var(--motion-settle) var(--ease-precise),
+    border-color var(--motion-settle) var(--ease-precise);
+}
+.vf-corner[data-c="tl"] { top: -7px; left: -7px; border-top-width: 1.5px; border-left-width: 1.5px; --vf-from: -6px -6px; }
+.vf-corner[data-c="tr"] { top: -7px; right: -7px; border-top-width: 1.5px; border-right-width: 1.5px; --vf-from: 6px -6px; }
+.vf-corner[data-c="bl"] { bottom: -7px; left: -7px; border-bottom-width: 1.5px; border-left-width: 1.5px; --vf-from: -6px 6px; }
+.vf-corner[data-c="br"] { bottom: -7px; right: -7px; border-bottom-width: 1.5px; border-right-width: 1.5px; --vf-from: 6px 6px; }
+.hero-viewfinder:focus-within .vf-corner { border-color: rgb(13 212 142 / 0.9); }
+.hero-viewfinder:focus-within .vf-corner[data-c="tl"] { translate: 3px 3px; }
+.hero-viewfinder:focus-within .vf-corner[data-c="tr"] { translate: -3px 3px; }
+.hero-viewfinder:focus-within .vf-corner[data-c="bl"] { translate: 3px -3px; }
+.hero-viewfinder:focus-within .vf-corner[data-c="br"] { translate: -3px -3px; }
+
+/* ─── Microinterações ─────────────────────────────────────────────────────── */
+
+/* Superfície interativa: muda hierarquia (borda, fundo, marcador de canto), nunca a geometria. */
+.mi-surface {
+  position: relative;
+  transition:
+    border-color var(--motion-acknowledge) var(--ease-precise),
+    background-color var(--motion-acknowledge) var(--ease-precise);
+}
+.mi-surface::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  width: 10px;
+  height: 10px;
+  border-top: 1.5px solid var(--brand);
+  border-left: 1.5px solid var(--brand);
+  border-top-left-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-acknowledge) var(--ease-precise);
+}
+.mi-surface:hover::before,
+.mi-surface:focus-visible::before,
+.mi-surface[aria-current]::before { opacity: 1; }
+
+/* Seta que aponta o destino: desloca só o ícone, nunca o texto ou a caixa. */
+.mi-arrow { transition: transform var(--motion-settle) var(--ease-precise); }
+:is(a, button):hover > .mi-arrow,
+:is(a, button):focus-visible > .mi-arrow,
+.group:hover .mi-arrow { transform: translateX(2px); }
+
+/* Pressionar: afunda o tom, não o tamanho. */
+.mi-press { transition: background-color var(--motion-acknowledge) var(--ease-precise), box-shadow var(--motion-acknowledge) var(--ease-precise), filter var(--motion-acknowledge) var(--ease-precise); }
+.mi-press:active { filter: brightness(0.9); box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35); }
+
+/* Link de leitura: o sublinhado se traça a partir da esquerda. */
+.mi-underline {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 1px;
+  transition: background-size var(--motion-settle) var(--ease-precise), color var(--motion-acknowledge) var(--ease-precise);
+}
+.mi-underline:hover,
+.mi-underline:focus-visible { background-size: 100% 1px; }
+
+/* Foco sempre visível e imediato (nunca animado). */
+.focus-ring:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Dica (tooltip) acessível por foco. */
+.mi-hint {
+  opacity: 0;
+  translate: 0 3px;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-settle) var(--ease-precise),
+    translate var(--motion-settle) var(--ease-precise),
+    visibility 0s linear var(--motion-settle);
+}
+.mi-hint-host:hover .mi-hint,
+.mi-hint-host:focus-within .mi-hint {
+  opacity: 1;
+  translate: 0 0;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+/* ─── Navegação do produto ────────────────────────────────────────────────── */
+
+/* Marcador da seção atual: estende-se quando a página passa a ser a atual. */
+.nav-marker { transform: scaleY(0); transition: transform var(--motion-settle) var(--ease-precise); }
+.nav-item[aria-current="page"] .nav-marker { transform: scaleY(1); }
+.nav-item { transition: background-color var(--motion-acknowledge) var(--ease-precise), color var(--motion-acknowledge) var(--ease-precise); }
+
+/* Drawer móvel: chega desacelerando, sai acelerando (gesto físico, sem quique). */
+.drawer {
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform var(--motion-traverse) var(--ease-exit),
+    visibility 0s linear var(--motion-traverse);
+}
+.drawer[data-open="true"] {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--motion-traverse) var(--ease-enter), visibility 0s;
+}
+.drawer-backdrop {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-traverse) var(--ease-precise);
+}
+.drawer-backdrop[data-open="true"] { opacity: 1; pointer-events: auto; }
+
+/* Indicador de aba: desliza até a aba escolhida (continuidade de posição). */
+.tab-indicator { transition: transform var(--motion-settle) var(--ease-precise); }
+
+/* ─── Estados de consulta (sem spinner genérico, sem "AI shimmer") ────────── */
+
+/* Esqueleto estrutural: mesma geometria do conteúdo; pulsação lenta e rasa. */
+.skeleton { background-color: rgb(17 29 46 / 0.9); border-radius: 0.375rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton { animation: skeleton-breathe 1.6s var(--ease-traverse) infinite alternate; }
+}
+@keyframes skeleton-breathe { from { opacity: 0.55; } to { opacity: 0.9; } }
+
+/* Consulta em andamento: um traço percorre a régua (indeterminado e honesto). */
+.query-trace { position: relative; overflow: hidden; height: 1px; }
+.query-trace::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 28%;
+  background: var(--brand);
+  opacity: 0.8;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .query-trace::after { animation: query-trace 1.1s var(--ease-traverse) infinite; }
+}
+@keyframes query-trace { from { transform: translateX(-100%); } to { transform: translateX(360%); } }
+
+/* Lista que chega: só os primeiros itens entram em sequência, o resto já está lá. */
+@media (prefers-reduced-motion: no-preference) {
+  .list-arrive > * { animation: list-arrive var(--motion-traverse) var(--ease-enter) both; }
+  .list-arrive > :nth-child(2) { animation-delay: calc(var(--motion-stagger) * 1); }
+  .list-arrive > :nth-child(3) { animation-delay: calc(var(--motion-stagger) * 2); }
+  .list-arrive > :nth-child(4) { animation-delay: calc(var(--motion-stagger) * 3); }
+  .list-arrive > :nth-child(5) { animation-delay: calc(var(--motion-stagger) * 4); }
+  .list-arrive > :nth-child(6) { animation-delay: calc(var(--motion-stagger) * 5); }
+  .list-arrive > :nth-child(7) { animation-delay: calc(var(--motion-stagger) * 6); }
+  .list-arrive > :nth-child(8) { animation-delay: calc(var(--motion-stagger) * 7); }
+  .list-arrive > :nth-child(n + 9) { animation: none; }
+
+  /* Valor oficial que passa a estar disponível: aparece pronto (opacidade), nunca conta. */
+  .value-arrive { animation: value-arrive var(--motion-settle) var(--ease-enter) both; }
+
+  /* Novo segmento da trilha territorial: o caminho se estende. */
+  .crumb-extend { animation: crumb-extend var(--motion-traverse) var(--ease-enter) both; }
+}
+@keyframes list-arrive { from { opacity: 0; clip-path: inset(0 0 40% 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
+@keyframes value-arrive { from { opacity: 0; } }
+@keyframes crumb-extend { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* ─── Reduced Motion: nada depende de movimento ──────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+  .mi-arrow,
+  .mi-hint,
+  .vf-corner,
+  .nav-marker,
+  .drawer,
+  .drawer[data-open="true"],
+  .drawer-backdrop,
+  .tab-indicator { transition: none !important; }
+  :is(a, button):hover > .mi-arrow,
+  .group:hover .mi-arrow { transform: none; }
+  .hero-viewfinder:focus-within .vf-corner { translate: 0 0; }
+}

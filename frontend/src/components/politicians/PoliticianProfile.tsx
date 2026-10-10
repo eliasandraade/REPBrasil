@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState, type CSSProperties } from "react";
 import type {
   AssetDeclarationItem,
   DataSourceItem,
@@ -9,7 +8,10 @@ import type {
   PoliticianDetail,
   ScoreStatusItem,
 } from "@/lib/types";
+import { initialsOf } from "@/motion/identity";
+import { TransitionLink } from "@/motion/navigation";
 import { formatCurrency, formatStatus } from "./utils";
+import { ProfileTabs, type TabDef } from "./ProfileTabs";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ElectionTab } from "./tabs/ElectionTab";
 import { AssetsTab } from "./tabs/AssetsTab";
@@ -20,47 +22,87 @@ import { ElectoralPerformanceTab } from "./tabs/ElectoralPerformanceTab";
 
 type TabId = "overview" | "elections" | "electoral" | "assets" | "metadata" | "score" | "camara";
 
+/** Estado de cada consulta complementar: "pending" e "error" nunca viram "não encontrado". */
+export type LoadState = "pending" | "error" | "ready";
+
 interface PoliticianProfileProps {
   politician: PoliticianDetail;
   elections: ElectionResultItem[];
   assets: AssetDeclarationItem[];
   sources: DataSourceItem[];
   score?: ScoreStatusItem;
+  status?: { elections: LoadState; assets: LoadState; sources: LoadState };
+}
+
+/** Nomes das peças de identidade compartilhadas com a busca e com o resultado eleitoral. */
+export const IDENTITY_VT = {
+  avatar: { viewTransitionName: "vt-avatar" } as CSSProperties,
+  name: { viewTransitionName: "vt-name" } as CSSProperties,
+};
+
+/** Corpo do cartão por estado: consultar, falhar e não encontrar são afirmações diferentes. */
+function SummaryValue({ state, value, sub }: Readonly<{ state: LoadState; value: string; sub?: string }>) {
+  if (state === "pending")
+    return (
+      <>
+        <div className="skeleton my-1 h-5 w-16" aria-hidden="true" />
+        <p className="mt-0.5 text-xs text-slate-600">consultando…</p>
+      </>
+    );
+  if (state === "error")
+    return (
+      <>
+        <p className="truncate text-lg font-bold text-slate-500">—</p>
+        <p className="mt-0.5 text-xs text-slate-600">indisponível no momento</p>
+      </>
+    );
+  return (
+    <>
+      <p className="value-arrive truncate text-lg font-bold text-slate-100">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}
+    </>
+  );
 }
 
 function SummaryCard({
   label,
+  state,
   value,
   sub,
-}: {
+}: Readonly<{
   label: string;
+  state: LoadState;
   value: string;
   sub?: string;
-}) {
+}>) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card p-4">
+    <div className="rounded-lg border border-white/8 bg-card p-4" aria-busy={state === "pending"}>
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
         {label}
       </p>
-      <p className="truncate text-lg font-bold text-slate-100">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}
+      <SummaryValue state={state} value={value} sub={sub} />
     </div>
   );
 }
 
-function InitialAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-
+export function InitialAvatar({ name }: Readonly<{ name: string }>) {
   return (
-    <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border border-brand/20 bg-brand/10 text-brand text-xl font-black">
-      {initials}
+    <div
+      style={IDENTITY_VT.avatar}
+      className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border border-brand/20 bg-brand/10 text-xl font-black text-brand"
+    >
+      {initialsOf(name)}
     </div>
   );
+}
+
+function initialTab(hasCamara: boolean): TabId {
+  if (typeof window === "undefined") return "overview";
+  // Deep link vindo do explorador eleitoral: abre direto no desempenho (sem passar pela visão geral).
+  const aba = new URLSearchParams(window.location.search).get("aba");
+  if (aba === "eleicoes") return "electoral";
+  if (aba === "camara" && hasCamara) return "camara";
+  return "overview";
 }
 
 export function PoliticianProfile({
@@ -69,15 +111,11 @@ export function PoliticianProfile({
   assets,
   sources,
   score,
-}: PoliticianProfileProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  status = { elections: "ready", assets: "ready", sources: "ready" },
+}: Readonly<PoliticianProfileProps>) {
+  const [activeTab, setActiveTab] = useState<TabId>(() => initialTab(!!politician.camaraId));
 
-  // Deep link ?aba=eleicoes (vindo do explorador eleitoral) abre o desempenho eleitoral.
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("aba") === "eleicoes") setActiveTab("electoral");
-  }, []);
-
-  const TABS: { id: TabId; label: string }[] = [
+  const TABS: TabDef<TabId>[] = [
     { id: "overview", label: "Visão Geral" },
     { id: "elections", label: "Eleições" },
     { id: "electoral", label: "Desempenho eleitoral" },
@@ -105,7 +143,7 @@ export function PoliticianProfile({
           <button
             type="button"
             onClick={() => setActiveTab("metadata")}
-            className="text-brand underline-offset-2 hover:underline"
+            className="mi-underline focus-ring rounded text-brand"
           >
             fonte oficial vinculada
           </button>
@@ -113,13 +151,13 @@ export function PoliticianProfile({
         </span>
       </div>
 
-      {/* ── Profile header ────────────────────────────────────────────────── */}
+      {/* ── Profile header (identidade: não se move entre abas) ───────────── */}
       <div className="rounded-xl border border-white/8 bg-card p-6">
         <div className="flex items-start gap-4">
           <InitialAvatar name={politician.ballotName} />
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex flex-wrap items-start gap-2">
-              <h1 className="text-2xl font-bold text-slate-100 leading-tight">
+              <h1 style={IDENTITY_VT.name} className="text-2xl font-bold leading-tight text-slate-100">
                 {politician.ballotName}
               </h1>
               <span className="inline-flex items-center gap-1 rounded border border-brand/25 bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
@@ -158,21 +196,25 @@ export function PoliticianProfile({
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryCard
             label="Candidaturas"
+            state={status.elections}
             value={elections.length > 0 ? String(elections.length) : "—"}
             sub="registros encontrados"
           />
           <SummaryCard
             label="Eleições"
+            state={status.elections}
             value={electedCount > 0 ? String(electedCount) : elections.length > 0 ? "0" : "—"}
             sub={electedCount > 0 ? "eleito(a)" : "na base atual"}
           />
           <SummaryCard
             label="Patrimônio declarado"
+            state={status.assets}
             value={latestAssets ? formatCurrency(latestAssets.totalValue) : "—"}
             sub={latestAssets ? `${latestAssets.items.length} itens` : "não encontrado"}
           />
           <SummaryCard
             label="Fontes vinculadas"
+            state={status.sources}
             value={sources.length > 0 ? String(sources.length) : "—"}
             sub="rastreabilidade"
           />
@@ -180,51 +222,28 @@ export function PoliticianProfile({
       </div>
 
       {/* ── Tabs ──────────────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-white/8 bg-card">
-        {/* Tab nav */}
-        <div className="border-b border-white/8">
-          <div className="flex overflow-x-auto">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative flex-shrink-0 border-b-2 px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-colors
-                  ${activeTab === tab.id
-                    ? "border-brand text-brand"
-                    : "border-transparent text-slate-500 hover:text-slate-300"
-                  }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tab content */}
-        <div className="p-5">
-          {activeTab === "overview" && (
-            <OverviewTab
-              politician={politician}
-              elections={elections}
-              assets={assets}
-            />
-          )}
-          {activeTab === "elections" && <ElectionTab elections={elections} />}
-          {activeTab === "electoral" && <ElectoralPerformanceTab politicianId={politician.id} />}
-          {activeTab === "assets" && <AssetsTab assets={assets} />}
-          {activeTab === "metadata" && (
-            <MetadataTab politician={politician} sources={sources} />
-          )}
-          {activeTab === "score" && <ScoreTab score={score} />}
-          {activeTab === "camara" && (
-            <CamaraTab
-              politicianId={politician.id}
-              camaraId={politician.camaraId ?? null}
-            />
-          )}
-        </div>
-      </div>
+      <ProfileTabs tabs={TABS} active={activeTab} onChange={setActiveTab} idPrefix={`perfil-${politician.id}`}>
+        {activeTab === "overview" && (
+          <OverviewTab
+            politician={politician}
+            elections={elections}
+            assets={assets}
+          />
+        )}
+        {activeTab === "elections" && <ElectionTab elections={elections} />}
+        {activeTab === "electoral" && <ElectoralPerformanceTab politicianId={politician.id} />}
+        {activeTab === "assets" && <AssetsTab assets={assets} />}
+        {activeTab === "metadata" && (
+          <MetadataTab politician={politician} sources={sources} />
+        )}
+        {activeTab === "score" && <ScoreTab score={score} />}
+        {activeTab === "camara" && (
+          <CamaraTab
+            politicianId={politician.id}
+            camaraId={politician.camaraId ?? null}
+          />
+        )}
+      </ProfileTabs>
 
       {/* ── Contestação CTA ───────────────────────────────────────────────── */}
       <div className="flex items-center justify-between rounded-lg border border-white/8 bg-card/50 px-5 py-4">
@@ -234,12 +253,12 @@ export function PoliticianProfile({
             Políticos, assessorias ou cidadãos podem solicitar revisão de informações.
           </p>
         </div>
-        <Link
+        <TransitionLink
           href="/suporte"
-          className="ml-4 flex-shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-white/25 hover:bg-white/10"
+          className="mi-press focus-ring ml-4 flex-shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 transition-colors hover:border-white/25 hover:bg-white/10"
         >
           Contestar →
-        </Link>
+        </TransitionLink>
       </div>
     </div>
   );

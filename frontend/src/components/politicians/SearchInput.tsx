@@ -1,19 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "@/motion/navigation";
 
 interface SearchInputProps {
   defaultValue?: string;
   placeholder?: string;
 }
 
+/**
+ * Busca de políticos. Enquanto a consulta está de fato pendente (o intervalo
+ * entre digitar e consultar), um traço percorre a base do campo: é o estado
+ * real da consulta, não decoração. Leitores de tela recebem o mesmo estado.
+ */
 export function SearchInput({
   defaultValue = "",
   placeholder = "Buscar político, partido, estado ou cargo...",
 }: SearchInputProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -24,9 +30,11 @@ export function SearchInput({
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const value = e.target.value;
     if (timerRef.current) clearTimeout(timerRef.current);
+    setPending(true);
     timerRef.current = setTimeout(() => {
+      setPending(false);
       const params = new URLSearchParams({ q: value, page: "1" });
-      router.push(`/politicos?${params}`);
+      navigate(`/politicos?${params}`);
     }, 300);
   }
 
@@ -54,9 +62,14 @@ export function SearchInput({
         defaultValue={defaultValue}
         onChange={handleChange}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-white/10 bg-card-elevated py-3.5 pl-11 pr-4 text-sm text-slate-200 placeholder:text-slate-600 transition-all hover:border-brand/30 focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
+        className="w-full rounded-xl border border-white/10 bg-card-elevated py-3.5 pl-11 pr-4 text-sm text-slate-200 placeholder:text-slate-600 transition-colors duration-[var(--motion-acknowledge)] hover:border-brand/30 focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
         aria-label="Buscar político"
+        aria-busy={pending}
       />
+      <div aria-hidden="true" className={`absolute inset-x-3 bottom-0 ${pending ? "query-trace" : "h-px"}`} data-testid="search-pending" data-pending={pending} />
+      <output className="sr-only" aria-live="polite">
+        {pending ? "Preparando consulta" : ""}
+      </output>
     </div>
   );
 }

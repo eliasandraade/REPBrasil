@@ -5,6 +5,8 @@ import { useState } from "react";
 import { displayName, formatCount, formatPercent, pad3, sectionLabel, shortHash, sourceDate, zoneLabel, UNAVAILABLE } from "@/lib/elections/format";
 import { buildElectionsPath, type ExplorerRoute } from "@/lib/elections/route";
 import type { Metrics, SectionResultsResponse, VoteItem } from "@/lib/elections/types";
+import { rememberIdentity } from "@/motion/identity";
+import { TransitionLink } from "@/motion/navigation";
 
 export type VoteTypeFilter = "todos" | "nominal" | "legenda" | "branco" | "nulo";
 
@@ -29,7 +31,7 @@ function Metric({ label, value, help }: { label: string; value: number | null; h
   return (
     <div className="rounded-lg border border-white/8 bg-card-elevated/50 p-3" title={help}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
-      <p className="text-lg font-bold text-slate-100" aria-label={value === null ? `${label}: não informado pela fonte` : undefined}>
+      <p className="value-arrive text-lg font-bold text-slate-100" aria-label={value === null ? `${label}: não informado pela fonte` : undefined}>
         {formatCount(value)}
       </p>
     </div>
@@ -45,13 +47,18 @@ function VoteRow({ v }: { v: VoteItem }) {
           <p className="truncate text-sm text-slate-200">
             <span className="mr-1.5 font-mono text-xs text-slate-500">{v.votable.number}</span>
             {v.candidacy?.politicianId && v.profileAvailable ? (
-              <Link
+              // Do voto à pessoa: o nome é o elemento compartilhado com o cabeçalho do perfil.
+              <TransitionLink
                 href={`/politico/${v.candidacy.politicianId}?aba=eleicoes`}
-                className="font-medium text-slate-100 underline-offset-2 hover:text-brand hover:underline"
+                direction="deeper"
+                shareIdentity
+                data-vt="name"
+                onClick={() => rememberIdentity(v.candidacy?.politicianId, name)}
+                className="mi-underline focus-ring rounded font-medium text-slate-100 hover:text-brand"
                 data-testid="candidate-profile-link"
               >
                 {name}
-              </Link>
+              </TransitionLink>
             ) : (
               <span className="font-medium">{name}</span>
             )}
@@ -145,14 +152,33 @@ export function SectionResults({
   }
 
   if (status === "loading") {
+    // Mesma geometria do resultado real. Rótulos fixos (não são dado), valores
+    // ausentes: nada da seção anterior e nenhum número provisório aparece aqui.
     return (
       <section aria-label="Resultados da seção" data-testid="section-results" aria-busy="true">
         {header}
-        <div className="space-y-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-12 animate-pulse rounded-lg bg-card-elevated" />
+        <div className="mb-3 flex gap-1.5" aria-hidden="true">
+          {[72, 88, 64, 112, 120].map((w, i) => (
+            <div key={i} className="skeleton h-[26px] rounded-md" style={{ width: w }} />
           ))}
         </div>
+        <div className="mb-4 grid grid-cols-3 gap-2" aria-hidden="true">
+          {["Aptos", "Comparecimento", "Abstenções", "Válidos", "Brancos", "Nulos"].map((label) => (
+            <div key={label} className="rounded-lg border border-white/8 bg-card-elevated/50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
+              <div className="skeleton mt-1.5 h-5 w-12" />
+            </div>
+          ))}
+        </div>
+        <ul className="space-y-1.5" aria-hidden="true">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <li key={i} className="rounded-lg border border-white/8 bg-card-elevated/40 px-3 py-2">
+              <div className="skeleton mb-1.5 h-4 w-2/5" />
+              <div className="skeleton h-3 w-1/4" />
+            </li>
+          ))}
+        </ul>
+        <output className="sr-only">Carregando resultado da {sectionLabel(section)}</output>
       </section>
     );
   }
@@ -209,7 +235,7 @@ export function SectionResults({
               aria-selected={active}
               data-office={o.code}
               onClick={() => onOffice(o.code)}
-              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`focus-ring rounded-md border px-2.5 py-1 text-xs font-medium transition-colors duration-[var(--motion-acknowledge)] ${
                 active ? "border-brand bg-brand/10 text-brand" : "border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-200"
               }`}
             >
@@ -236,7 +262,7 @@ export function SectionResults({
             aria-pressed={voteType === t.value}
             data-vote-filter={t.value}
             onClick={() => onVoteType(t.value)}
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+            className={`focus-ring rounded-full border px-2.5 py-0.5 text-[11px] transition-colors duration-[var(--motion-acknowledge)] ${
               voteType === t.value ? "border-white/30 bg-white/10 text-slate-100" : "border-white/10 text-slate-500 hover:text-slate-300"
             }`}
           >
@@ -249,7 +275,7 @@ export function SectionResults({
       {votes.length === 0 ? (
         <p className="py-4 text-center text-sm text-slate-500">Nenhum voto deste tipo nesta urna.</p>
       ) : (
-        <ul className="space-y-1.5" data-testid="vote-list">
+        <ul className="list-arrive space-y-1.5" data-testid="vote-list" key={`${section}|${data.selectedOffice?.code}|${voteType}`}>
           {votes.map((v) => (
             <VoteRow key={`${v.voteType}-${v.votable.number}`} v={v} />
           ))}

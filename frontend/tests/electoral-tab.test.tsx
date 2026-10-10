@@ -95,14 +95,23 @@ describe("perfil político → desempenho eleitoral", () => {
 
 describe("Reduced Motion", () => {
   it("respeita prefers-reduced-motion", () => {
+    // Como no navegador: matchMedia(query).matches reflete o estado atual da preferência.
     const listeners: Array<(e: MediaQueryListEvent) => void> = [];
+    let reduce = true;
     vi.stubGlobal(
       "matchMedia",
-      vi.fn(() => ({ matches: true, addEventListener: (_: string, l: (e: MediaQueryListEvent) => void) => listeners.push(l), removeEventListener: vi.fn() })),
+      vi.fn(() => ({
+        get matches() {
+          return reduce;
+        },
+        addEventListener: (_: string, l: (e: MediaQueryListEvent) => void) => listeners.push(l),
+        removeEventListener: vi.fn(),
+      })),
     );
     window.matchMedia = globalThis.matchMedia;
     const { result } = renderHook(() => useReducedMotion());
     expect(result.current).toBe(true);
+    reduce = false;
     act(() => listeners.forEach((l) => l({ matches: false } as MediaQueryListEvent)));
     expect(result.current).toBe(false);
   });
