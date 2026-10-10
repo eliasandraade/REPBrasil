@@ -161,6 +161,9 @@ em modo `--dry-run` (nada é gravado). Números da fonte, não do banco:
 | Candidatos 2022 (CE + BR) | 1º turno: 1.044 candidaturas em 9 disputas (com vices e suplentes), 1.043 com CPF válido; 2º turno: 4 |
 | Candidatos 2024 (todos os municípios do CE) | 1º turno: 13.213 candidaturas em 552 disputas (184 × 3 cargos), nenhuma com CPF publicado; 2º turno: 8; 21 linhas de 5 eleições suplementares separadas |
 | Bens, complementares e redes 2022/2024 | layouts oficiais reconhecidos; 2024: 23.231 bens (8.557 candidaturas), 15.135 links de redes (296 contatos pessoais descartados) |
+| Prestação de contas 2022, CE (leitura remota por Range) | 127.601 linhas, 940 candidaturas; receitas R$ 214,4 mi, despesas contratadas R$ 208,8 mi, pagas R$ 205,4 mi |
+| Prestação de contas 2024, CE (ZIP de 1,33 GB; só os membros do CE) | 307.017 linhas, 12.630 candidaturas; receitas R$ 274,0 mi, contratadas R$ 259,3 mi, pagas R$ 257,2 mi; 529 linhas de eleições suplementares separadas |
+| Candidatos 2026 (CE + BR), versão mais nova, com histórico | 742 candidaturas (igual ao baseline), todas com CPF válido; 2.093 linhas do histórico oficial para elas |
 
 Cada turno de candidaturas tem uma única data de eleição, igual à do cadastro (a importação recusa
 datas divergentes). Essa validação encontrou e corrigiu dois problemas antes da carga: o dry-run do BU
