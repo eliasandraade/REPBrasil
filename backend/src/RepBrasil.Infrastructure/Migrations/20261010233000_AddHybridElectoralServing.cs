@@ -23,19 +23,17 @@ SET LOCAL search_path TO {ElectoralModel.Schema}, public;
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM derived_archive_scope) THEN
+  IF EXISTS (SELECT 1 FROM electoral_archive.derived_archive_scope) THEN
     RAISE EXCEPTION 'cannot downgrade hybrid electoral serving: archived aggregate scopes exist';
   END IF;
 END $$;
 
-DROP VIEW IF EXISTS zone_office_totals_current;
-DROP VIEW IF EXISTS votable_zone_votes_current;
-DROP TABLE IF EXISTS derived_archive_scope;
-DROP TABLE IF EXISTS zone_office_totals_archive;
-DROP TABLE IF EXISTS votable_zone_votes_archive;
-ALTER MATERIALIZED VIEW IF EXISTS zone_office_totals_live RENAME TO zone_office_totals_current;
-ALTER MATERIALIZED VIEW IF EXISTS votable_zone_votes_live RENAME TO votable_zone_votes_current;
+DROP MATERIALIZED VIEW IF EXISTS zone_office_totals_current;
+DROP MATERIALIZED VIEW IF EXISTS votable_zone_votes_current;
+DROP SCHEMA IF EXISTS electoral_archive CASCADE;
 ");
+
+            migrationBuilder.Sql(ElectoralSqlScripts.InElectoralSchema("008_xray_derived.sql"));
         }
     }
 }
