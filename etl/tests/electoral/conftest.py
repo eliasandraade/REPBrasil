@@ -2,8 +2,8 @@
 
 Testes de banco usam `REPBRASIL_ELECTORAL_TEST_DATABASE_URL`, um banco DESCARTÁVEL
 cujo nome termina em `_test`, com as migrations EF do REPBrasil aplicadas
-(`dotnet ef database update`). Cada teste recria apenas o schema `electoral` a
-partir dos MESMOS scripts SQL que a migration `AddElectoralIntelligence` aplica.
+(`dotnet ef database update`). Cada teste recria os schemas eleitorais a partir dos
+MESMOS scripts SQL que as migrations aplicam.
 """
 
 from __future__ import annotations
@@ -22,11 +22,15 @@ SQL_DIR = (
 
 
 def reset_electoral_schema(conn) -> None:
-    """Recria o schema `electoral` (somente em banco de teste) e deixa o search_path nele."""
+    """Recria os schemas eleitorais (somente em banco de teste) e deixa o search_path no principal."""
     assert TEST_DATABASE_URL
     if not urlparse(TEST_DATABASE_URL).path.rstrip("/").endswith("_test"):
         pytest.fail("refusing to reset a database whose name does not end with _test")
-    conn.execute("DROP SCHEMA IF EXISTS electoral CASCADE; CREATE SCHEMA electoral;")
+    conn.execute(
+        "DROP SCHEMA IF EXISTS electoral_archive CASCADE; "
+        "DROP SCHEMA IF EXISTS electoral CASCADE; "
+        "CREATE SCHEMA electoral;"
+    )
     conn.execute("SET search_path TO electoral, public")
     for script in sorted(SQL_DIR.glob("*.sql")):
         conn.execute(script.read_text(encoding="utf-8"))
