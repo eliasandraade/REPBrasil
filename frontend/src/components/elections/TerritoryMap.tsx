@@ -84,6 +84,7 @@ function webglAvailable() {
 
 export function TerritoryMap(props: Props) {
   const container = useRef<HTMLDivElement>(null);
+  const tooltip = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const geoRef = useRef<TerritoryGeo | null>(null);
   const latest = useRef(props);
@@ -92,14 +93,12 @@ export function TerritoryMap(props: Props) {
   const hovered = useRef<{ source: string; id: number } | null>(null);
   const [status, setStatus] = useState<GeoStatus>("loading");
 
-  // Criação única.
   useEffect(() => {
     if (!webglAvailable()) {
       setStatus("unsupported");
       return;
     }
     let cancelled = false;
-    // Erros de carga já viram status "error"; a promise não tem consumidor.
     void (async () => {
       let geo: TerritoryGeo;
       try {
@@ -110,7 +109,6 @@ export function TerritoryMap(props: Props) {
       }
       const maplibre = await import("maplibre-gl");
       if (cancelled || !container.current) return;
-      // Worker publicado por scripts/copy-maplibre-worker.mjs (predev/prebuild).
       maplibre.setWorkerUrl(`/maplibre/worker-${maplibre.getVersion()}.mjs`);
       geoRef.current = geo;
       const map = new maplibre.Map({
@@ -174,24 +172,46 @@ export function TerritoryMap(props: Props) {
 
         const interactive = (target: "state" | "municipality") =>
           new Set((target === "state" ? latest.current.scope.interactiveStates : latest.current.scope.interactiveMunicipalities).map(Number));
-        const bind = (layer: string, source: string, target: "state" | "municipality") => {
-          const hit = (e: MapLayerMouseEvent) => e.features?.find((f) => interactive(target).has(Number(f.id)));
-          map.on("mousemove", layer, (e) => {
-            const f = hit(e);
-            setHover(f ? { source, id: Number(f.id) } : null);
-          });
-          map.on("mouseleave", layer, () => setHover(null));
-          map.on("click", layer, (e) => {
-            const f = hit(e);
-            if (f) latest.current.onSelect(target, String(f.id));
-          });
+        const hideTooltip = () => {
+          if (tooltip.current) tooltip.current.style.opacity = "0";
         };
-        const setHover = (next: { source: string; id: number } | null) => {
+        const showTooltip = (e: MapLayerMouseEvent, name: unknown) => {
+          if (!tooltip.current || typeof name !== "string" || !name.trim()) {
+            hideTooltip();
+            return;
+          }
+          tooltip.current.textContent = name;
+          tooltip.current.style.transform = `translate3d(${e.point.x + 12}px, ${e.point.y + 12}px, 0)`;
+          tooltip.current.style.opacity = "1";
+        };
+        const setHover = (next: { source: string; id: number } | null, selectable = false) => {
           const prev = hovered.current;
           if (prev && (prev.id !== next?.id || prev.source !== next?.source)) map.setFeatureState(prev, { hover: false });
           if (next) map.setFeatureState(next, { hover: true });
           hovered.current = next;
-          map.getCanvas().style.cursor = next ? "pointer" : "";
+          map.getCanvas().style.cursor = selectable ? "pointer" : "";
+        };
+        const bind = (layer: string, source: string, target: "state" | "municipality") => {
+          const selectable = (e: MapLayerMouseEvent) => e.features?.find((f) => interactive(target).has(Number(f.id)));
+          map.on("mousemove", layer, (e) => {
+            const feature = e.features?.[0];
+            if (!feature || feature.id == null) {
+              setHover(null);
+              hideTooltip();
+              return;
+            }
+            const canSelect = interactive(target).has(Number(feature.id));
+            setHover({ source, id: Number(feature.id) }, canSelect);
+            showTooltip(e, feature.properties?.name);
+          });
+          map.on("mouseleave", layer, () => {
+            setHover(null);
+            hideTooltip();
+          });
+          map.on("click", layer, (e) => {
+            const feature = selectable(e);
+            if (feature) latest.current.onSelect(target, String(feature.id));
+          });
         };
         bind("uf-fill", "ufs", "state");
         bind("mun-fill", "mun", "municipality");
@@ -211,7 +231,6 @@ export function TerritoryMap(props: Props) {
     };
   }, []);
 
-  // Escopo → destaque (dados disponíveis) e visibilidade por nível.
   const scopeKey = JSON.stringify(props.scope);
   useEffect(() => {
     const map = mapRef.current;
@@ -232,16 +251,13 @@ export function TerritoryMap(props: Props) {
     vis(["mun-fill", "mun-line", "mun-focus"], !country);
     const only = props.level === "state" || s.municipality == null ? null : (["==", ["id"], Number(s.municipality)] as never);
     ["mun-fill", "mun-line", "mun-focus"].forEach((id) => map.setFilter(id, only));
-    // scopeKey resume o escopo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, scopeKey, props.level]);
 
-  // Pontos oficiais dos locais (vazio quando a fonte não publica coordenadas).
   const pointsKey = props.points.map((p) => p.code).join(",");
   useEffect(() => {
     const map = mapRef.current;
     if (status !== "ready" || !map) return;
-    // Locais surgem depois que a câmera assenta sobre a zona (consequência da escolha, não explosão).
     const layers = ["place-points", "place-clusters"];
     if (!props.reduced && props.points.length > 0) {
       for (const id of layers) {
@@ -268,11 +284,9 @@ export function TerritoryMap(props: Props) {
         geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
       })),
     });
-    // pointsKey resume os pontos
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, pointsKey]);
 
-  // Rota → câmera (sem animação com Reduced Motion).
   useEffect(() => {
     const map = mapRef.current;
     const geo = geoRef.current;
@@ -285,13 +299,18 @@ export function TerritoryMap(props: Props) {
       ],
       { padding: 32, duration: props.reduced ? 0 : duration.survey, easing: SURVEY_EASING, maxZoom: props.level === "country" ? 5 : 13 },
     );
-    // a rota define o enquadramento
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, props.routeKey, props.scope.state, props.scope.municipality]);
 
   return (
     <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-white/8 bg-background">
       <div ref={container} className="absolute inset-0" data-testid="territory-map" role="region" aria-label="Mapa territorial" />
+      <div
+        ref={tooltip}
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 top-0 z-10 max-w-[220px] rounded-md border border-white/10 bg-slate-950/95 px-2 py-1 text-xs font-medium text-slate-100 opacity-0 shadow-lg transition-opacity motion-reduce:transition-none"
+        data-testid="territory-hover-label"
+      />
       {status !== "ready" && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-xs text-slate-500">
           {status === "loading" && "Carregando malha territorial oficial (IBGE)…"}
