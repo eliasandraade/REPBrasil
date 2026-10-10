@@ -61,8 +61,12 @@ public class SearchServiceTests
             Party("PSTU", "PARTIDO SOCIALISTA DOS TRABALHADORES UNIFICADO", 16, 24, 2026),
         ],
         [
-            Election(2022, 1, "CE", 6), Election(2022, 1, "CE", 3), Election(2022, 1, "CE", 1),
-            Election(2024, 1, "CE", 11), Election(2024, 1, "CE", 13), Election(2024, 2, "CE", 11),
+            Election(2022, 1, "CE", 6),
+            Election(2022, 1, "CE", 3),
+            Election(2022, 1, "CE", 1),
+            Election(2024, 1, "CE", 11),
+            Election(2024, 1, "CE", 13),
+            Election(2024, 2, "CE", 11),
         ]);
 
     [Theory]
