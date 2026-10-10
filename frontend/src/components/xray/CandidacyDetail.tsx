@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { displayName, formatCount, formatPercent, UNAVAILABLE } from "@/lib/elections/format";
 import { buildElectionsPath } from "@/lib/elections/route";
-import { CELL_STATE_LABEL, LEVEL_LABEL, money, signedPercent, xrayApi } from "@/lib/elections/xray";
+import { CELL_STATE_LABEL, LEVEL_LABEL, LEVEL_PLURAL, money, signedPercent, xrayApi } from "@/lib/elections/xray";
 import type { AssetDiffItem, TerritoryLevel, TerritoryValue, XrayCandidacy } from "@/lib/elections/xray-types";
 import { InsightList } from "./InsightList";
 
@@ -114,7 +114,7 @@ function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
         <>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Votos no recorte" value={formatCount(q.data.summary.votes)} />
-            <Stat label={`${LEVEL_LABEL[level]}s com votos`} value={`${formatCount(q.data.summary.territoriesWithVotes)} / ${formatCount(q.data.summary.territoriesCovered)}`} />
+            <Stat label={`${LEVEL_PLURAL[level]} com votos`} value={`${formatCount(q.data.summary.territoriesWithVotes)} / ${formatCount(q.data.summary.territoriesCovered)}`} />
             <Stat label="Concentração top 5" value={formatPercent(q.data.summary.topFiveConcentration)} />
             <Stat label="HHI" value={q.data.summary.hhi === null ? UNAVAILABLE : q.data.summary.hhi.toLocaleString("pt-BR")} />
           </div>

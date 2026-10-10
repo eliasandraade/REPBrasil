@@ -24,7 +24,7 @@ import { TerritoryCandidates } from "@/components/elections/TerritoryCandidates"
 import { XrayTab } from "@/components/xray/XrayTab";
 import { useReducedMotion } from "@/lib/elections/reduced-motion";
 import { buildLayerView, CATEGORICAL } from "@/lib/elections/map-layers";
-import { MAX_COMPARE, parseSelection, signed, signedPercent, toggleSelection, votesText } from "@/lib/elections/xray";
+import { levelCount, MAX_COMPARE, parseSelection, signed, signedPercent, toggleSelection, votesText } from "@/lib/elections/xray";
 
 const ID = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const FRESH = { stale: false, refreshedAt: "2026-10-10T00:00:00Z", note: "ok" };
@@ -314,6 +314,21 @@ describe("camadas do mapa", () => {
     expect(view.municipalities["1"].color).toBe("#0dd48e");
     expect(view.municipalities["2"].text).toBe("PREFEITO 9 · 40,00%");
     expect(view.note).toContain("9 vencedores diferentes");
+    expect(view.note).not.toContain("ordem da legenda"); // sem legenda neste modo
+  });
+
+  it("crescimento e queda: a legenda diz o que o cinza significa em cada camada", () => {
+    const growth = buildLayerView({ ...base, layer: "growth", features: [feature(1, 10), feature(2, 0)], legend: [] });
+    expect(growth.legend.map((l) => l.label)).toEqual(["Crescimento", "Sem crescimento (estável ou queda)"]);
+    expect(growth.municipalities["2"].color).toBe(growth.legend[1].color);
+    const decline = buildLayerView({ ...base, layer: "decline", features: [feature(1, -10)], legend: [] });
+    expect(decline.legend.map((l) => l.label)).toEqual(["Queda", "Sem queda (estável ou crescimento)"]);
+  });
+
+  it("contagem por nível com plural correto", () => {
+    expect([levelCount("section", 1), levelCount("section", 3), levelCount("place", 2), levelCount("zone", 1234)]).toEqual([
+      "1 seção", "3 seções", "2 locais de votação", "1.234 zonas",
+    ]);
   });
 
   it("variações sempre com sinal explícito", () => {

@@ -148,6 +148,18 @@ export const LEVEL_LABEL: Record<TerritoryLevel, string> = {
   place: "Local de votação",
 };
 
+export const LEVEL_PLURAL: Record<TerritoryLevel, string> = {
+  state: "Estados",
+  municipality: "Municípios",
+  zone: "Zonas",
+  section: "Seções",
+  place: "Locais de votação",
+};
+
+/** "1 seção", "3 seções", "2 locais de votação". */
+export const levelCount = (level: TerritoryLevel, n: number) =>
+  `${n.toLocaleString("pt-BR")} ${(n === 1 ? LEVEL_LABEL[level] : LEVEL_PLURAL[level]).toLowerCase()}`;
+
 /** Valor de votos com o estado: nunca escreve 0 quando o estado não afirma contagem. */
 export function votesText(votes: number | null, state: CellState): string {
   if (votes === null || votes === undefined) return state === "value" || state === "zero" ? UNAVAILABLE : CELL_STATE_LABEL[state] ?? UNAVAILABLE;

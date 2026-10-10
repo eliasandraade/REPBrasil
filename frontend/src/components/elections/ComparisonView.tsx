@@ -12,6 +12,7 @@ import {
   CONTEST_COMPARABILITY_LABEL,
   electionLabel,
   LEVEL_LABEL,
+  levelCount,
   MAX_COMPARE,
   parseSelection,
   serializeSelection,
@@ -273,8 +274,8 @@ function ComparisonBody({
               <ul className="space-y-1 text-xs text-slate-300">
                 {data.overtakes.map((o) => (
                   <li key={`${o.subject}-${o.overtakenSubject}-${o.fromElection}-${o.toElection}`}>
-                    {subjectName(o.subject)} passou à frente de {subjectName(o.overtakenSubject)} em {o.territories}{" "}
-                    {LEVEL_LABEL[level].toLowerCase()}(s) de {electionLabel(data.elections[o.fromElection].year, data.elections[o.fromElection].round)} para{" "}
+                    {subjectName(o.subject)} passou à frente de {subjectName(o.overtakenSubject)} em {levelCount(level, o.territories)} de{" "}
+                    {electionLabel(data.elections[o.fromElection].year, data.elections[o.fromElection].round)} para{" "}
                     {electionLabel(data.elections[o.toElection].year, data.elections[o.toElection].round)}.
                   </li>
                 ))}

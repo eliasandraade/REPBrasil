@@ -141,8 +141,11 @@ function abColor(f: MapFeature, value: number, maxAbs: number): string {
   return TIE;
 }
 
+/** Crescimento/queda: o outro sentido (e o estável) chega da API como 0 e fica nesta cor. */
+const FLAT = mix(NEUTRAL, TIE, 0.3);
+
 function deltaColor(value: number, maxAbs: number): string {
-  if (value === 0) return mix(NEUTRAL, TIE, 0.3);
+  if (value === 0) return FLAT;
   const strength = 0.3 + 0.7 * (maxAbs > 0 ? Math.abs(value) / maxAbs : 0);
   return mix(NEUTRAL, value > 0 ? HIGH : NEGATIVE, strength);
 }
@@ -173,10 +176,15 @@ function legendOf(r: MapLayerResponse): LegendEntry[] {
       { key: "tie", label: "Empate", color: TIE },
     ];
   }
-  if (r.layer === "growth" || r.layer === "decline")
+  if (r.layer === "growth")
     return [
       { key: "up", label: "Crescimento", color: HIGH },
+      { key: "flat", label: "Sem crescimento (estável ou queda)", color: FLAT },
+    ];
+  if (r.layer === "decline")
+    return [
       { key: "down", label: "Queda", color: NEGATIVE },
+      { key: "flat", label: "Sem queda (estável ou crescimento)", color: FLAT },
     ];
   return [];
 }
@@ -203,7 +211,7 @@ export function buildLayerView(r: MapLayerResponse): MapLayerView {
       places.push({ ...v, key: f.key, name: f.name, latitude: f.latitude, longitude: f.longitude });
   }
   const note = manyWinners(r)
-    ? `${r.note} ${r.legend.length} vencedores diferentes: a cor indica a % de quem venceu em cada território; o nome aparece ao passar o mouse.`
+    ? `Candidatura com mais votos em cada território, sem cor partidária. ${r.legend.length} vencedores diferentes: a cor indica a % de quem venceu em cada território; o nome aparece ao passar o mouse.`
     : r.note;
   return { kind: r.layer, level: r.level, municipalities, places, legend: legendOf(r), gradient: gradientOf(r), note };
 }
