@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 from src.electoral import db as electoral_db
 from src.electoral.lake import LakeScope
 
-LOGICAL_VIEWS = ("votable_zone_votes_current", "zone_office_totals_current")
+DERIVED_VIEWS = ("votable_zone_votes_current", "zone_office_totals_current")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -42,10 +42,10 @@ def _freshness(cur) -> tuple[int, object]:
           FROM derived_refresh
          WHERE view_name = ANY(%s::text[])
         """,
-        (list(LOGICAL_VIEWS),),
+        (list(DERIVED_VIEWS),),
     )
     rows, min_runs, max_runs, min_last, max_last = cur.fetchone()
-    if rows != len(LOGICAL_VIEWS):
+    if rows != len(DERIVED_VIEWS):
         raise RuntimeError("derived aggregates have no complete freshness record; run refresh-derived")
     if min_runs != current_runs or max_runs != current_runs or min_last != current_last or max_last != current_last:
         raise RuntimeError(
@@ -84,53 +84,66 @@ def main() -> int:
 
     with electoral_db.connect(database_url) as conn:
         with conn.transaction(), conn.cursor() as cur:
-            cur.execute("SELECT to_regclass('votable_zone_votes_live'), to_regclass('derived_archive_scope')")
-            live_rel, marker_rel = cur.fetchone()
-            if live_rel is None or marker_rel is None:
+            cur.execute(
+                "SELECT to_regclass('votable_zone_votes_current'), "
+                "to_regclass('electoral_archive.derived_archive_scope')"
+            )
+            serving_rel, marker_rel = cur.fetchone()
+            if serving_rel is None or marker_rel is None:
                 raise SystemExit("hybrid serving schema missing; apply AddHybridElectoralServing migration")
 
             current_runs, current_last = _freshness(cur)
-            live_votable = _votable_stats(cur, "votable_zone_votes_live", scope)
-            live_zone = _zone_stats(cur, "zone_office_totals_live", scope)
-            if live_votable["rows"] == 0 or live_zone["rows"] == 0:
-                raise SystemExit("refusing snapshot: live aggregate scope is empty")
-            if live_votable["votes"] != live_zone["votes"]:
+            current_votable = _votable_stats(cur, "votable_zone_votes_current", scope)
+            current_zone = _zone_stats(cur, "zone_office_totals_current", scope)
+            if current_votable["rows"] == 0 or current_zone["rows"] == 0:
+                raise SystemExit("refusing snapshot: current aggregate scope is empty")
+            if current_votable["votes"] != current_zone["votes"]:
                 raise SystemExit(
-                    f"refusing snapshot: live aggregate vote totals differ: votable={live_votable} zone={live_zone}"
+                    "refusing snapshot: current aggregate vote totals differ: "
+                    f"votable={current_votable} zone={current_zone}"
                 )
 
-            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"derived-archive:{scope.year}:{scope.turn}:{scope.uf}",))
             cur.execute(
-                "DELETE FROM votable_zone_votes_archive WHERE year=%s AND turn=%s AND uf=%s",
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                (f"derived-archive:{scope.year}:{scope.turn}:{scope.uf}",),
+            )
+            cur.execute(
+                "DELETE FROM electoral_archive.votable_zone_votes "
+                "WHERE year=%s AND turn=%s AND uf=%s",
                 (scope.year, scope.turn, scope.uf),
             )
             cur.execute(
-                """INSERT INTO votable_zone_votes_archive
-                   SELECT * FROM votable_zone_votes_live WHERE year=%s AND turn=%s AND uf=%s""",
+                """INSERT INTO electoral_archive.votable_zone_votes
+                   SELECT * FROM votable_zone_votes_current
+                    WHERE year=%s AND turn=%s AND uf=%s""",
                 (scope.year, scope.turn, scope.uf),
             )
             cur.execute(
-                "DELETE FROM zone_office_totals_archive WHERE year=%s AND turn=%s AND uf=%s",
+                "DELETE FROM electoral_archive.zone_office_totals "
+                "WHERE year=%s AND turn=%s AND uf=%s",
                 (scope.year, scope.turn, scope.uf),
             )
             cur.execute(
-                """INSERT INTO zone_office_totals_archive
-                   SELECT * FROM zone_office_totals_live WHERE year=%s AND turn=%s AND uf=%s""",
+                """INSERT INTO electoral_archive.zone_office_totals
+                   SELECT * FROM zone_office_totals_current
+                    WHERE year=%s AND turn=%s AND uf=%s""",
                 (scope.year, scope.turn, scope.uf),
             )
 
-            archived_votable = _votable_stats(cur, "votable_zone_votes_archive", scope)
-            archived_zone = _zone_stats(cur, "zone_office_totals_archive", scope)
-            if archived_votable != live_votable or archived_zone != live_zone:
+            archived_votable = _votable_stats(
+                cur, "electoral_archive.votable_zone_votes", scope
+            )
+            archived_zone = _zone_stats(cur, "electoral_archive.zone_office_totals", scope)
+            if archived_votable != current_votable or archived_zone != current_zone:
                 raise RuntimeError(
                     "archive aggregate copy mismatch: "
-                    f"live_votable={live_votable} archive_votable={archived_votable} "
-                    f"live_zone={live_zone} archive_zone={archived_zone}"
+                    f"current_votable={current_votable} archive_votable={archived_votable} "
+                    f"current_zone={current_zone} archive_zone={archived_zone}"
                 )
 
             cur.execute(
                 """
-                INSERT INTO derived_archive_scope
+                INSERT INTO electoral_archive.derived_archive_scope
                     (year, turn, uf, snapshotted_at, votable_rows, votable_votes, zone_rows, zone_votes)
                 VALUES (%s, %s, %s, now(), %s, %s, %s, %s)
                 ON CONFLICT (year, turn, uf) DO UPDATE SET
