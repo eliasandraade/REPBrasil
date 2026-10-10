@@ -162,6 +162,36 @@ def test_source_row_hash_is_computed_with_the_cpf_redacted(tmp_path):
     assert doc_a not in repr(a)
 
 
+RUNOFF = {"NR_TURNO": "2", "CD_ELEICAO": "999003", "DT_ELEICAO": "25/10/2099", "CD_SIT_TOT_TURNO": "-1", "DS_SIT_TOT_TURNO": "#NULO"}
+
+
+def test_official_file_with_both_rounds_imports_only_the_requested_turn(tmp_path):
+    """O TSE publica as linhas do 2º turno no mesmo arquivo, com o MESMO SQ_CANDIDATO."""
+    from src.electoral.candidates.store import CandidatesError, select_candidacies
+
+    beta_1 = BETA
+    beta_2 = BETA | RUNOFF
+    rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, [ALFA, beta_1, beta_2]))
+    selected, other = select_candidacies(rows, year=2099, turn=1, units={"BR"})
+    assert [(r.tse_candidate_id, r.turn) for r in selected] == [(9001, 1), (9002, 1)]
+    assert other == {2: 1}
+    selected_2, other_2 = select_candidacies(rows, year=2099, turn=2, units={"BR"})
+    assert [(r.tse_candidate_id, r.turn, r.election_code) for r in selected_2] == [(9002, 2, 999003)]
+    assert other_2 == {1: 2}
+    other_year, _ = parse_file(write_csv(tmp_path / "x.csv", CANDIDATES_COLUMNS, [ALFA | {"ANO_ELEICAO": "2098"}]))
+    with pytest.raises(CandidatesError, match="year 2098"):
+        select_candidacies(other_year, year=2099, turn=1, units={"BR"})
+
+
+def test_cli_summary_keeps_counts_and_drops_bulky_lists():
+    from src.electoral.candidates.cli import summarize
+
+    report = {"status": "succeeded", "linked": 640, "ambiguous": [{"number": 1}] * 8, "identity": {"resolved": 742},
+              "nested": {"warnings": [{"a": 1}] * 290}}
+    assert summarize(report) == {"status": "succeeded", "linked": 640, "ambiguous_count": 8, "identity": {"resolved": 742},
+                                 "nested": {"warnings_count": 290}}
+
+
 def test_elected_is_undefined_for_runoff_and_federal_requires_br(tmp_path):
     rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, [ALFA, BETA]))
     assert [r.elected for r in rows] == [False, None]
@@ -323,4 +353,13 @@ def test_a_different_hmac_key_on_the_same_database_is_refused(conn, tmp_path):
     assert conn.execute('SELECT count(*) FROM "Persons"').fetchone()[0] == 2
     # mesma chave continua aceita
     assert run_import(conn, tmp_path / "c", [ALFA, BETA], [GAMA], sha="e")["status"] == "succeeded"
+
+
+@db
+def test_import_skips_rows_of_another_round_and_reports_them(conn, tmp_path):
+    report = run_import(conn, tmp_path, [ALFA, BETA, BETA | RUNOFF], [GAMA])
+    assert report["status"] == "succeeded" and report["candidacies"] == 3
+    assert report["other_turn_rows"] == {"2": 1}
+    assert conn.execute("SELECT count(*) FROM candidacy WHERE tse_candidate_id = 9002").fetchone()[0] == 1
+    assert conn.execute("SELECT count(*) FROM contest WHERE tse_election_code = 999003").fetchone()[0] == 0
 

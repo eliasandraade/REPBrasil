@@ -28,7 +28,7 @@ from ..open_data.layout import detect_csv_layout
 from . import identity
 from .layout import CANDIDATES_COLUMNS, CANDIDATES_PROFILE_ID, HISTORY_COLUMNS, HISTORY_PROFILE_ID
 from .parser import iter_csv, parse_candidate, parse_history
-from .store import dumps, import_candidates, link_votables
+from .store import dumps, import_candidates, link_votables, select_candidacies
 
 KIND_CANDIDATES = "tse-open-data-candidates"
 KIND_HISTORY = "tse-open-data-candidacy-history"
@@ -61,12 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
     imp.add_argument("--supersede", action="store_true", help="apply a newer official file that changes stored candidacies (diff recorded)")
     imp.add_argument("--dry-run", action="store_true", help="parse and validate only; never touch the database")
     imp.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
+    imp.add_argument("--report", type=Path, default=None, help="write the full JSON report here (stdout gets a summary)")
 
     link = sub.add_parser("link-votables", help="link BU votables of one UF to official candidacies (no vote table is changed)")
     link.add_argument("--year", type=int, required=True)
     link.add_argument("--turn", type=int, required=True)
     link.add_argument("--uf", required=True)
     link.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
+    link.add_argument("--report", type=Path, default=None, help="write the full JSON report here (stdout gets a summary)")
     return parser
 
 
@@ -81,6 +83,27 @@ def _members(manifest: dict, pattern: str) -> list[dict]:
     regex = re.compile(pattern)
     names = sorted(m["name"] for m in manifest["zip_members"] if regex.fullmatch(m["name"]))
     return [extract_member(manifest, re.escape(n)) for n in names]
+
+
+def summarize(value):
+    """Resumo para stdout: listas viram contagens (`<campo>_count`); o relatório completo vai para --report.
+    Evita despejar centenas de objetos nos logs da plataforma."""
+    if isinstance(value, dict):
+        out = {}
+        for k, v in value.items():
+            if isinstance(v, list):
+                out[f"{k}_count"] = len(v)
+            else:
+                out[k] = summarize(v)
+        return out
+    return value
+
+
+def _emit(report_path: Path | None, report: dict) -> None:
+    if report_path is not None:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(dumps(report) + "\n", encoding="utf-8")
+    print(dumps(summarize(report)))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -127,26 +150,37 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("no historico_candidatura CSV found in the acquired history ZIP")
 
         if args.dry_run:
+            selected, other_turns = select_candidacies(candidates, year=args.year, turn=args.turn, units=units)
             checks: dict[str, int] = {}
-            for r in candidates:
+            for r in selected:
                 status = identity.check_cpf(r.cpf_raw).status
                 checks[status] = checks.get(status, 0) + 1
-            print(dumps({"status": "dry_run", "files": files, "candidacies": len(candidates), "history_rows": len(history),
-                         "identity": checks}))
+            keys = [(r.election_code, r.office_code, r.electoral_unit, r.tse_candidate_id) for r in selected]
+            current = {r.tse_candidate_id for r in selected}
+            _emit(args.report, {
+                "status": "dry_run", "files": files, "rows_parsed": len(candidates), "candidacies": len(selected),
+                "other_turn_rows": {str(t): n for t, n in sorted(other_turns.items())},
+                "duplicate_candidacies": len(keys) - len(set(keys)),
+                "contests": len({k[:3] for k in keys}),
+                "by_unit": {u: sum(1 for r in selected if r.electoral_unit == u) for u in sorted(units)},
+                "identity": checks,
+                "history_rows": len(history),
+                "history_rows_for_selected": sum(1 for h in history if h.current_year == args.year and h.current_tse_candidate_id in current),
+            })
             return 0
         key = identity.load_key()
         with electoral_db.connect(_database_url(args), autocommit=True) as conn:
-            print(dumps(import_candidates(
+            _emit(args.report, import_candidates(
                 conn, year=args.year, turn=args.turn, units=units, candidates=candidates,
                 candidates_manifest=cand_manifest, candidates_layout=cand_layout,
                 history=history, history_manifest=hist_manifest, history_layout=hist_layout,
                 key=key, supersede=args.supersede,
-            )))
+            ))
         return 0
 
     if args.command == "link-votables":
         with electoral_db.connect(_database_url(args), autocommit=True) as conn:
-            print(dumps(link_votables(conn, year=args.year, turn=args.turn, uf=args.uf)))
+            _emit(args.report, link_votables(conn, year=args.year, turn=args.turn, uf=args.uf))
         return 0
     return 2
 

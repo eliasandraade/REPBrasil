@@ -256,6 +256,29 @@ def _register_source(cur: psycopg.Cursor, manifest: dict[str, Any], name: str, n
     )
 
 
+def select_candidacies(
+    candidates: Iterable[CandidateRow], *, year: int, turn: int, units: set[str]
+) -> tuple[list[CandidateRow], dict[int, int]]:
+    """Candidaturas da UE e do turno pedidos.
+
+    O arquivo oficial traz, para a mesma eleição, as linhas de cada turno com o MESMO
+    SQ_CANDIDATO (ex.: Presidente 2º turno, CD_ELEICAO próprio). Linhas de outro turno são
+    separadas e contadas — nunca misturadas. Ano diferente do pedido continua sendo erro.
+    """
+    selected: list[CandidateRow] = []
+    other: dict[int, int] = defaultdict(int)
+    for r in candidates:
+        if r.electoral_unit not in units:
+            continue
+        if r.year != year:
+            raise CandidatesError(f"{r.source_member}:{r.line}: year {r.year} differs from {year}")
+        if r.turn != turn:
+            other[r.turn] += 1
+            continue
+        selected.append(r)
+    return selected, dict(other)
+
+
 def import_candidates(
     conn: psycopg.Connection,
     *,
@@ -272,16 +295,13 @@ def import_candidates(
     supersede: bool = False,
 ) -> dict[str, Any]:
     units = {u.upper() for u in units}
-    selected = [r for r in candidates if r.electoral_unit in units]
+    selected, other_turn_rows = select_candidacies(candidates, year=year, turn=turn, units=units)
     scope = {
         "year": year, "turn": turn, "units": ",".join(sorted(units)),
         "history_zip_sha256": history_manifest["zip"]["sha256"],
     }
     if not selected:
-        raise CandidatesError(f"no candidacies for electoral units {sorted(units)}")
-    for r in selected:
-        if (r.year, r.turn) != (year, turn):
-            raise CandidatesError(f"{r.source_member}:{r.line}: year/turn {r.year}/{r.turn} differ from {year}/{turn}")
+        raise CandidatesError(f"no candidacies for electoral units {sorted(units)} in {year}/{turn}")
     seen: dict[tuple, str] = {}
     for r in selected:
         k = (r.election_code, r.office_code, r.electoral_unit, r.tse_candidate_id)
@@ -300,6 +320,7 @@ def import_candidates(
         "superseded": 0, "identity": defaultdict(int), "persons": 0, "politicians_created": 0,
         "politicians_linked_by_history": 0, "identity_conflicts": [], "diff": [],
         "key_fingerprint": identity.key_fingerprint(key),
+        "other_turn_rows": {str(t): n for t, n in sorted(other_turn_rows.items())},
     }
     try:
         with conn.transaction(), conn.cursor() as cur:
