@@ -13,8 +13,13 @@ tem vários CSVs) e `source_row_hash`.
 | Eleitorado por local de votação | `eleitorado_local_votacao_<ano>.zip` | zonas, locais, seções, agregações, aptos, coordenadas publicadas | não publicado |
 | Boletim de Urna (por UF e turno) | `bweb_<turno>_<UF>_<data>.zip` | votos por urna × cargo | **SHA-512 publicado e conferido** |
 | Candidatos | `consulta_cand_<ano>.zip` | disputas, candidaturas, CPF (só para HMAC) | não publicado |
-| Histórico de candidaturas | `historico_candidatura_<ano>.zip` | ligação oficial entre candidaturas da mesma pessoa | não publicado |
+| Histórico de candidaturas | `historico_candidatura_<ano>.zip` (publicado a partir de 2026) | ligação oficial entre candidaturas da mesma pessoa (`candidacy_prior`) | não publicado |
+| Bens de candidatos | `bem_candidato_<ano>.zip` → `bem_candidato_<ano>_<UF>.csv` | `candidacy_asset` (bens por candidatura) | não publicado |
+| Informações complementares | `consulta_cand_complementar_<ano>.zip` | situação detalhada, presença na urna, destinação dos votos, julgamento, cassação, diploma, limite de gastos, reeleição (lista fechada) | não publicado |
+| Redes sociais | `rede_social_candidato_<ano>_<UF>.zip` (até 2022) / `rede_social_candidato_<ano>.zip` (2024+) | URLs públicas declaradas | não publicado |
+| Prestação de contas de candidatos | dataset `prestacao-de-contas-eleitorais-<ano>` (2022: `dadosabertos-tse-jus-br-dataset-prestacao-de-contas-eleitorais-2022`), recurso "Prestação de contas de candidatos" | receitas, despesas contratadas e pagas (`candidacy_finance_record`) | não publicado (SHA-256/512 calculados em streaming) |
 | Malhas territoriais | IBGE API de malhas v3 (`qualidade=minima`) | geometria de UF/município no mapa | — (proveniência em `frontend/public/geo/meta.json`) |
+| Localidades IBGE | `servicodados.ibge.gov.br/api/v1/localidades/estados/<UF>/municipios` | auditoria do registro TSE ↔ IBGE (códigos e nomes) | — |
 
 Autoridades separadas: **IBGE** = geografia e código territorial; **TSE** = eleição, candidato,
 zona, local, seção e voto.
@@ -54,3 +59,37 @@ python -m src.electoral.candidates.cli link-votables --year 2026 --turn 1 --uf C
 
 Nunca usar `--skip-csv-hash` em carga real. Reexecuções são idempotentes (`already_imported`);
 um arquivo oficial mais novo que altere dados gravados exige `--supersede` e registra o diff.
+
+## Raio X do Ceará: 2022, 2024 e 2026
+
+Runbook completo, semântica e procedimento de produção em [CEARA_ELECTORAL_XRAY.md](CEARA_ELECTORAL_XRAY.md).
+
+| Arquivo oficial | Observação |
+|---|---|
+| BU CE 2022 1º turno `bweb_1t_CE_051020221321.zip` | cabeçalho com 2 nomes diferentes de 2024/2026 (`DS_AGREGADAS`, `QT_ELEITORES_BIOMETRIA_NH`): perfil `tse-bweb-2022-v1`, mesmas 45 colunas na mesma ordem |
+| BU CE 2022 2º turno `bweb_2t_CE_311020221535.zip` | só Presidente (Governador do CE decidido no 1º turno) |
+| BU CE 2024 1º turno `bweb_1t_CE_091020241636.zip` | Prefeito e Vereador, 184 municípios |
+| BU CE 2024 2º turno `bweb_2t_CE_281020241046.zip` | só municípios com 2º turno |
+| Cadastro 2022/2024 `eleitorado_local_votacao_<ano>.zip` | um CSV NACIONAL (a UF é filtrada; linhas de outras UFs são contadas); `QT_ELEITOR_ELEICAO_MUNICIPAL` só em 2024 |
+| Candidatos 2024 `consulta_cand_2024.zip` | CPF mascarado (`-4`) em todas as linhas; inclui eleições suplementares de 2025/2026 (separadas) |
+
+## Privacidade
+
+- CPF: só HMAC-SHA256 chaveado (identidade); nunca gravado, logado, exposto, nem usado num hash
+  simples. A impressão digital de cada linha é calculada com o CPF redigido.
+- Não gravados: título eleitoral, e-mail, telefone, data de nascimento, cor/raça, gênero, etnia,
+  naturalidade, idade, CPF do vice, município/UF de doadores e fornecedores, números de recibo.
+- Texto livre (descrições de bens e despesas): e-mails e sequências com formato de CPF mascarados.
+- Redes sociais: só URLs http(s); WhatsApp, `mailto:`/`tel:` e URLs com e-mail são descartados.
+- Doadores/fornecedores: nome publicado pelo TSE; documento só como HMAC (agrupamento); CNPJ em
+  claro apenas para empresas (identificador público).
+
+## Outras fontes oficiais pesquisadas
+
+| Fonte | Endpoint | Situação |
+|---|---|---|
+| Câmara dos Deputados | `https://dadosabertos.camara.leg.br/api/v2` (sem autenticação) | adaptador existente (`etl/src/sources/camara`): deputados por legislatura; a API de detalhe publica CPF — ligação por HMAC possível como evolução futura |
+| Senado Federal | `https://legis.senado.leg.br/dadosabertos/senador/lista/atual?uf=CE` (JSON com `Accept: application/json`) | provedor `etl/src/sources/senado` (código oficial do Senado, partido, UF, mandato). Sem CPF nem SQ ⇒ nenhum vínculo automático com candidaturas |
+| IBGE | `https://servicodados.ibge.gov.br/api/v1/localidades` | provedor `etl/src/sources/ibge` para auditar o registro territorial (184 municípios no CE) |
+| Portal da Transparência | `https://api.portaldatransparencia.gov.br/api-de-dados` | exige chave (`chave-api-dados`, cadastro gov.br) — HTTP 401 sem ela; cruzamentos são por CPF/CNPJ ou nome ⇒ não integrado (o REP Brasil não guarda CPF e não liga por nome) |
+| TSE — propostas de governo e certidões criminais | ZIPs de PDFs por UF no dataset `candidatos-<ano>` | não importados (documentos por candidato; ver limites em CEARA_ELECTORAL_XRAY.md) |
