@@ -30,9 +30,12 @@ public class XrayServiceTests
         }
         repo.Totals.AddRange([Xray.Totals(2026, 3, "11111", 1, 1200), Xray.Totals(2026, 3, "22222", 2, 900)]);
         repo.ZoneVotes.AddRange([
-            Xray.ZoneVotes(A22, "11111", 1, 10), Xray.ZoneVotes(A22, "22222", 2, 30),
-            Xray.ZoneVotes(A26, "11111", 1, 20), Xray.ZoneVotes(A26, "22222", 2, 25),
-            Xray.ZoneVotes(Governor, "11111", 1, 600), Xray.ZoneVotes(Governor, "22222", 2, 450),
+            Xray.ZoneVotes(A22, "11111", 1, 10),
+            Xray.ZoneVotes(A22, "22222", 2, 30),
+            Xray.ZoneVotes(A26, "11111", 1, 20),
+            Xray.ZoneVotes(A26, "22222", 2, 25),
+            Xray.ZoneVotes(Governor, "11111", 1, 600),
+            Xray.ZoneVotes(Governor, "22222", 2, 450),
         ]);
         repo.Ranks.AddRange([
             new ContestRankRow { CandidacyId = A22, Votes = 40, Rank = 9, CandidatesWithVotes = 50 },

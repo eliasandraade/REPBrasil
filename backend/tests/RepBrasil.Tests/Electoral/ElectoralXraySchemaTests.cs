@@ -24,6 +24,7 @@ public class ElectoralXraySchemaTests
         .UseNpgsql(Environment.GetEnvironmentVariable(ElectoralSchemaFactAttribute.Variable))
         .Options);
 
+    // Sem chaves literais no SQL: ExecuteSqlRaw formata o texto (string.Format).
     private const string Seed = """
         SET LOCAL search_path TO electoral, public;
         INSERT INTO state (code, name) VALUES ('XX', 'UF Fictícia');
@@ -50,9 +51,9 @@ public class ElectoralXraySchemaTests
            'https://cdn.tse.jus.br/fc.zip', NULL, NULL, NULL, now(), 'fc.zip', 1, repeat('3', 64), repeat('b', 128), NULL, NULL, NULL,
            NULL, NULL, NULL, NULL, NULL, NULL, 'not_published');
         INSERT INTO ingestion_run (id, source, scope, status, finished_at, source_file_id) VALUES
-          ('00000000-0000-0000-0000-0000000000e1', 'tse-open-data-bu', '{"municipality": "99991", "zone": "1"}', 'succeeded', now(), '00000000-0000-0000-0000-0000000000f1'),
-          ('00000000-0000-0000-0000-0000000000e2', 'tse-open-data-bu', '{"municipality": "99991", "zone": "1"}', 'succeeded', now(), '00000000-0000-0000-0000-0000000000f2'),
-          ('00000000-0000-0000-0000-0000000000ec', 'tse-open-data-candidates', '{}', 'succeeded', now(), '00000000-0000-0000-0000-0000000000fc');
+          ('00000000-0000-0000-0000-0000000000e1', 'tse-open-data-bu', jsonb_build_object('municipality', '99991', 'zone', '1'), 'succeeded', now(), '00000000-0000-0000-0000-0000000000f1'),
+          ('00000000-0000-0000-0000-0000000000e2', 'tse-open-data-bu', jsonb_build_object('municipality', '99991', 'zone', '1'), 'succeeded', now(), '00000000-0000-0000-0000-0000000000f2'),
+          ('00000000-0000-0000-0000-0000000000ec', 'tse-open-data-candidates', jsonb_build_object(), 'succeeded', now(), '00000000-0000-0000-0000-0000000000fc');
         INSERT INTO contest (id, election_id, tse_election_code, office_code, office_name, scope, electoral_unit, uf) VALUES
           ('00000000-0000-0000-0000-0000000000c8', '00000000-0000-0000-0000-000000002098', 980, 7, 'Deputado Estadual', 'state', 'XX', 'XX'),
           ('00000000-0000-0000-0000-0000000000c9', '00000000-0000-0000-0000-000000002099', 990, 7, 'Deputado Estadual', 'state', 'XX', 'XX');
@@ -156,7 +157,7 @@ public class ElectoralXraySchemaTests
 
             var sections = await repo.SectionResultsAsync([new ElectionOffice(2098, 1, 7)], "XX", "99991", null, Ct);
             Assert.Equal([101, 102], sections.Single(s => s.Section == 101).SectionMembers);
-            Assert.Equal(20L, sections.Single(s => s.Section == 104).ValidVotes - 11); // 4 + 5 legenda = 9 → 20-11
+            Assert.Equal(9L, sections.Single(s => s.Section == 104).ValidVotes); // B 4 + legenda 5
             Assert.DoesNotContain(await repo.SectionVotesAsync([A98], "XX", "99991", null, Ct), v => v.ResultId == 800104);
             Assert.Equal(2, (await repo.ElectionCandidaciesAsync(2099, 1, "XX", null, Ct)).Count);
             Assert.True(XrayService.Freshness(await repo.FreshnessAsync(Ct)).Stale); // lotes novos sem refresh registrado
