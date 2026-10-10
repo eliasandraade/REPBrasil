@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import polars as pl
 import pytest
 
-from electoral.lake import LAKE_SCHEMA_VERSION, LakeError, LakeScope, load_manifest, parquet_totals, scope_path
+from src.electoral.lake import LAKE_SCHEMA_VERSION, LakeError, LakeScope, load_manifest, parquet_totals, scope_path
 
 
 def _write_fixture(root: Path) -> tuple[LakeScope, Path]:
@@ -36,8 +37,6 @@ def _write_fixture(root: Path) -> tuple[LakeScope, Path]:
 
 
 def _sha256(path: Path) -> str:
-    import hashlib
-
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
