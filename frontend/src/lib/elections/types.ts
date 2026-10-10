@@ -215,7 +215,20 @@ export interface TerritoryPerformance {
 
 export interface CandidacyPerformance {
   votes: number;
-  coverage: { complete: boolean; ufs: Array<{ uf: string; municipalitiesWithResults: number; municipalitiesInCadaster: number }>; note: string };
+  /** Medida por escopo município × zona do cadastro; completa só com todos os escopos importados. */
+  coverage: {
+    complete: boolean;
+    ufs: Array<{
+      uf: string;
+      complete: boolean;
+      zonesWithResults: number;
+      zonesExpected: number;
+      municipalitiesComplete: number;
+      municipalitiesWithAnyResult: number;
+      municipalitiesExpected: number;
+    }>;
+    note: string;
+  };
   municipalities: TerritoryPerformance[];
   municipalitiesWithVotes: number;
   definitions: Record<string, string>;

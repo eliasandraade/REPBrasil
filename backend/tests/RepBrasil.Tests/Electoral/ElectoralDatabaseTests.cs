@@ -73,4 +73,18 @@ public class ElectoralDatabaseTests
         Assert.Equal(319, aggregated.Metrics!.Eligible);
         Assert.Equal(281, aggregated.Metrics.Turnout);
     }
+
+    [ElectoralDatabaseFact]
+    public async Task Coverage_is_measured_against_every_cadaster_zone_scope()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(Environment.GetEnvironmentVariable(ElectoralDatabaseFactAttribute.Variable))
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        var scopes = await new ElectoralReadRepository(db).ResultsCoverageAsync(2026, 1, Ct);
+        var ce = CandidacyService.CoverageByUf(scopes).Single(u => u.Uf == "CE");
+        Assert.Equal((205, 205, 184, 184), (ce.ZonesExpected, ce.ZonesWithResults, ce.MunicipalitiesExpected, ce.MunicipalitiesComplete));
+        Assert.True(CandidacyService.Coverage("CE", scopes).Complete);
+        Assert.False(CandidacyService.Coverage("BR", scopes).Complete);
+    }
 }

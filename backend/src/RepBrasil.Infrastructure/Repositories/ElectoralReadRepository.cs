@@ -282,19 +282,22 @@ public class ElectoralReadRepository(ApplicationDbContext db) : IElectoralReadRe
               LEFT JOIN electoral.municipality mu ON mu.state_code = m.uf AND mu.tse_code = m.municipality_tse_code
             """, candidacyId).ToListAsync(ct);
 
-    public async Task<IReadOnlyList<CoverageRow>> ResultsCoverageAsync(int year, int round, CancellationToken ct) =>
-        await db.Database.SqlQueryRaw<CoverageRow>("""
-            WITH e AS (SELECT id FROM electoral.election WHERE year = {0} AND round = {1}),
-                 res AS (SELECT f.uf::text AS uf, count(DISTINCT r.scope->>'municipality')::int AS n
-                           FROM electoral.ingestion_run r JOIN electoral.open_data_source_file f ON f.id = r.source_file_id
-                          WHERE r.source = 'tse-open-data-bu' AND r.status = 'succeeded' AND f.year = {0} AND f.turn = {1}
-                          GROUP BY f.uf),
-                 cad AS (SELECT m.state_code::text AS uf, count(DISTINCT zm.municipality_id)::int AS n
-                           FROM electoral.zone_municipality zm JOIN electoral.municipality m ON m.id = zm.municipality_id
-                          WHERE zm.election_id = (SELECT id FROM e)
-                          GROUP BY m.state_code)
-            SELECT COALESCE(res.uf, cad.uf) AS "Uf", COALESCE(res.n, 0) AS "MunicipalitiesWithResults",
-                   COALESCE(cad.n, 0) AS "MunicipalitiesInCadaster"
-              FROM res FULL JOIN cad ON cad.uf = res.uf
+    public async Task<IReadOnlyList<CoverageScopeRow>> ResultsCoverageAsync(int year, int round, CancellationToken ct) =>
+        await db.Database.SqlQueryRaw<CoverageScopeRow>("""
+            WITH expected AS (
+                   SELECT DISTINCT m.state_code::text AS uf, m.tse_code::text AS tse_code, z.zone_number AS zone
+                     FROM electoral.zone_municipality zm
+                     JOIN electoral.election e ON e.id = zm.election_id
+                     JOIN electoral.municipality m ON m.id = zm.municipality_id
+                     JOIN electoral.electoral_zone z ON z.id = zm.zone_id
+                    WHERE e.year = {0} AND e.round = {1}),
+                 imported AS (
+                   SELECT DISTINCT f.uf::text AS uf, r.scope->>'municipality' AS tse_code, (r.scope->>'zone')::int AS zone
+                     FROM electoral.ingestion_run r
+                     JOIN electoral.open_data_source_file f ON f.id = r.source_file_id
+                    WHERE r.source = 'tse-open-data-bu' AND r.status = 'succeeded' AND f.year = {0} AND f.turn = {1})
+            SELECT x.uf AS "Uf", x.tse_code AS "MunicipalityTseCode", x.zone AS "Zone",
+                   EXISTS (SELECT 1 FROM imported i WHERE i.uf = x.uf AND i.tse_code = x.tse_code AND i.zone = x.zone) AS "Imported"
+              FROM expected x
             """, year, round).ToListAsync(ct);
 }

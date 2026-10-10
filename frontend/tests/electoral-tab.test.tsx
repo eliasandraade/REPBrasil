@@ -37,7 +37,7 @@ const RESPONSE: PoliticianCandidaciesResponse = {
       source: { source: "TSE", url: "https://cdn.tse.jus.br/x.zip", zipSha256: "cc7b", member: "consulta_cand_2026_CE.csv", line: 2 },
       performance: {
         votes: 12345,
-        coverage: { complete: true, ufs: [{ uf: "CE", municipalitiesWithResults: 184, municipalitiesInCadaster: 184 }], note: "Todas as seções da disputa estão importadas." },
+        coverage: { complete: true, ufs: [{ uf: "CE", complete: true, zonesWithResults: 205, zonesExpected: 205, municipalitiesComplete: 184, municipalitiesWithAnyResult: 184, municipalitiesExpected: 184 }], note: "Todas as seções da disputa estão importadas." },
         municipalities: [
           { uf: "CE", municipalityTseCode: "13897", municipalityName: "Fortaleza", municipalitySlug: "fortaleza", votes: 10000, validVotes: 1000000, shareOfValidVotes: 1, urns: 4000 },
         ],

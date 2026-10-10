@@ -28,7 +28,7 @@ public sealed class FakeElectoralRepository : IElectoralReadRepository
     public Dictionary<long, List<VoteRow>> Votes { get; } = [];
     public List<CandidacyRow> Candidacies { get; } = [];
     public Dictionary<Guid, List<TerritoryVotesRow>> CandidacyVotes { get; } = [];
-    public List<CoverageRow> Coverage { get; } = [];
+    public List<CoverageScopeRow> Coverage { get; } = [];
     public List<string> VoteQueries { get; } = [];
 
     public Task<IReadOnlyList<ElectionRow>> ElectionsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<ElectionRow>>(Elections);
@@ -87,6 +87,6 @@ public sealed class FakeElectoralRepository : IElectoralReadRepository
     public Task<IReadOnlyList<TerritoryVotesRow>> CandidacyVotesByMunicipalityAsync(Guid candidacyId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<TerritoryVotesRow>>(CandidacyVotes.GetValueOrDefault(candidacyId) ?? []);
 
-    public Task<IReadOnlyList<CoverageRow>> ResultsCoverageAsync(int year, int round, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<CoverageRow>>(Coverage);
+    public Task<IReadOnlyList<CoverageScopeRow>> ResultsCoverageAsync(int year, int round, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<CoverageScopeRow>>(Coverage);
 }

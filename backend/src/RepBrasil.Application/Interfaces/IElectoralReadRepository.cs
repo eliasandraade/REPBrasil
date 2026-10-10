@@ -41,6 +41,9 @@ public interface IElectoralReadRepository
     /// <summary>Votos da candidatura por município, só nos lotes vigentes (nunca soma versões).</summary>
     Task<IReadOnlyList<TerritoryVotesRow>> CandidacyVotesByMunicipalityAsync(Guid candidacyId, CancellationToken ct);
 
-    /// <summary>Cobertura de resultados importados por UF para o pleito/turno.</summary>
-    Task<IReadOnlyList<CoverageRow>> ResultsCoverageAsync(int year, int round, CancellationToken ct);
+    /// <summary>
+    /// Todos os escopos UF × município × zona esperados pelo cadastro do pleito/turno, cada um marcado
+    /// com a existência de lote BU bem-sucedido.
+    /// </summary>
+    Task<IReadOnlyList<CoverageScopeRow>> ResultsCoverageAsync(int year, int round, CancellationToken ct);
 }

@@ -198,9 +198,14 @@ public sealed class TerritoryVotesRow
     public int Urns { get; init; }
 }
 
-public sealed class CoverageRow
+/// <summary>
+/// Escopo esperado pelo cadastro eleitoral (UF × município × zona) e se há lote BU bem-sucedido
+/// para ele. Unidade mínima de cobertura: completude nunca é inferida por contagem de municípios.
+/// </summary>
+public sealed class CoverageScopeRow
 {
     public string Uf { get; init; } = string.Empty;
-    public int MunicipalitiesWithResults { get; init; }
-    public int MunicipalitiesInCadaster { get; init; }
+    public string MunicipalityTseCode { get; init; } = string.Empty;
+    public int Zone { get; init; }
+    public bool Imported { get; init; }
 }

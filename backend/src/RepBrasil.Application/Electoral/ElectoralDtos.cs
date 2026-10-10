@@ -141,7 +141,13 @@ public record CandidacySourceDto(string Source, string Url, string ZipSha256, st
 /// <summary>Cobertura dos votos por seção importados para a disputa (só UFs com BU carregado).</summary>
 public record CoverageDto(bool Complete, IReadOnlyList<CoverageUfDto> Ufs, string Note);
 
-public record CoverageUfDto(string Uf, int MunicipalitiesWithResults, int MunicipalitiesInCadaster);
+/// <summary>
+/// Cobertura de uma UF medida por escopo município × zona do cadastro. Completa ⇔ todos os escopos
+/// esperados têm resultado. Municípios completos = todas as suas zonas importadas.
+/// </summary>
+public record CoverageUfDto(
+    string Uf, bool Complete, int ZonesWithResults, int ZonesExpected, int MunicipalitiesComplete,
+    int MunicipalitiesWithAnyResult, int MunicipalitiesExpected);
 
 /// <summary>
 /// Votos (FATO, soma dos BUs vigentes) e participação nos válidos do cargo no mesmo município

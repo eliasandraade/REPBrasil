@@ -163,21 +163,82 @@ public class ElectoralServicesTests
         Assert.Equal(new ResultFiltersDto(1, null, null, "nominal"), SectionResultsService.ParseFilters("1", "", null, "nominal"));
     }
 
-    [Fact]
-    public void Coverage_is_explicit_for_national_and_state_contests()
+    private static CoverageScopeRow Scope(string uf, string municipality, int zone, bool imported) =>
+        new() { Uf = uf, MunicipalityTseCode = municipality, Zone = zone, Imported = imported };
+
+    private const string CompleteNote = "Todas as seções da disputa estão importadas.";
+
+    private static void AssertPartial(CoverageDto coverage)
     {
-        IReadOnlyList<CoverageRow> coverage =
+        Assert.False(coverage.Complete);
+        Assert.NotEqual(CompleteNote, coverage.Note);
+        Assert.DoesNotContain("Todas as seções", coverage.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Coverage_single_zone_municipality_fully_imported_is_complete()
+    {
+        var c = CandidacyService.Coverage("CE", [Scope("CE", "13935", 50, true)]);
+        Assert.True(c.Complete);
+        Assert.Equal(CompleteNote, c.Note);
+        var uf = Assert.Single(c.Ufs);
+        Assert.Equal((1, 1, 1, 1), (uf.ZonesWithResults, uf.ZonesExpected, uf.MunicipalitiesComplete, uf.MunicipalitiesExpected));
+    }
+
+    [Fact]
+    public void Coverage_three_zone_municipality_with_one_zone_imported_is_partial()
+    {
+        // Regressão P1: um lote em 1 de 3 zonas NÃO torna o município (nem a UF) coberto.
+        var c = CandidacyService.Coverage("CE",
+            [Scope("CE", "13730", 37, true), Scope("CE", "13730", 120, false), Scope("CE", "13730", 123, false)]);
+        AssertPartial(c);
+        var uf = Assert.Single(c.Ufs);
+        Assert.Equal((1, 3, 0, 1, 1), (uf.ZonesWithResults, uf.ZonesExpected, uf.MunicipalitiesComplete, uf.MunicipalitiesWithAnyResult, uf.MunicipalitiesExpected));
+        Assert.Contains("1 de 3 zonas", c.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Coverage_three_zone_municipality_fully_imported_is_complete()
+    {
+        var c = CandidacyService.Coverage("CE",
+            [Scope("CE", "13730", 37, true), Scope("CE", "13730", 120, true), Scope("CE", "13730", 123, true)]);
+        Assert.True(c.Complete);
+        Assert.Equal(CompleteNote, c.Note);
+    }
+
+    [Fact]
+    public void Coverage_state_with_one_partially_imported_municipality_is_partial()
+    {
+        // Todos os municípios têm "algum" resultado — a contagem antiga por município declararia completo.
+        var c = CandidacyService.Coverage("CE",
         [
-            new CoverageRow { Uf = "CE", MunicipalitiesWithResults = 184, MunicipalitiesInCadaster = 184 },
-            new CoverageRow { Uf = "PE", MunicipalitiesWithResults = 0, MunicipalitiesInCadaster = 185 },
+            Scope("CE", "13935", 50, true),
+            Scope("CE", "13897", 1, true), Scope("CE", "13897", 94, true),
+            Scope("CE", "13730", 37, true), Scope("CE", "13730", 120, false), Scope("CE", "13730", 123, true),
+        ]);
+        AssertPartial(c);
+        var uf = Assert.Single(c.Ufs);
+        Assert.Equal(3, uf.MunicipalitiesWithAnyResult);
+        Assert.Equal(2, uf.MunicipalitiesComplete);
+        Assert.Equal((5, 6), (uf.ZonesWithResults, uf.ZonesExpected));
+    }
+
+    [Fact]
+    public void Coverage_federal_contest_with_only_ce_loaded_is_partial()
+    {
+        IReadOnlyList<CoverageScopeRow> scopes =
+        [
+            Scope("CE", "13935", 50, true), Scope("CE", "13730", 37, true),
+            Scope("PE", "25313", 1, false),
         ];
-        var national = CandidacyService.Coverage("BR", coverage);
-        Assert.False(national.Complete);
+        var national = CandidacyService.Coverage("BR", scopes);
+        AssertPartial(national);
         Assert.Equal(["CE"], national.Ufs.Select(u => u.Uf));
+        Assert.True(national.Ufs[0].Complete);
         Assert.Contains("CE", national.Note, StringComparison.Ordinal);
-        Assert.True(CandidacyService.Coverage("CE", coverage).Complete);
-        Assert.False(CandidacyService.Coverage("PE", coverage).Complete);
-        Assert.False(CandidacyService.Coverage("SP", coverage).Complete);
+        Assert.Contains("exterior", national.Note, StringComparison.Ordinal);
+        AssertPartial(CandidacyService.Coverage("PE", scopes));
+        AssertPartial(CandidacyService.Coverage("SP", scopes));
     }
 
     [Fact]
@@ -227,7 +288,7 @@ public class ElectoralServicesTests
             new TerritoryVotesRow { Uf = "CE", MunicipalityTseCode = "13730", MunicipalityName = "Caucaia", Votes = 2000, ValidVotes = 4000, Urns = 5 },
             new TerritoryVotesRow { Uf = "CE", MunicipalityTseCode = "13935", MunicipalityName = "General Sampaio", Votes = 5, ValidVotes = 0, Urns = 1 },
         ];
-        repo.Coverage.Add(new CoverageRow { Uf = "CE", MunicipalitiesWithResults = 184, MunicipalitiesInCadaster = 184 });
+        repo.Coverage.AddRange([Scope("CE", "13897", 1, true), Scope("CE", "13730", 37, true), Scope("CE", "13935", 50, true)]);
         var service = new CandidacyService(repo);
         var response = await service.ByPoliticianAsync(politician, 2, Ct);
         var c = response.Candidacies.Single(x => x.Id == withVotes.Id);

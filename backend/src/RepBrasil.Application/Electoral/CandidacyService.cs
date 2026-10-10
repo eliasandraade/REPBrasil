@@ -15,25 +15,52 @@ public class CandidacyService(IElectoralReadRepository repo)
     {
         ["votes"] = "fato: soma dos votos da candidatura nos Boletins de Urna oficiais importados (lote vigente de cada zona)",
         ["shareOfValidVotes"] = "métrica derivada: votos ÷ votos válidos (nominais + legenda) do mesmo cargo no município",
-        ["coverage"] = "abrangência: só UFs cujo Boletim de Urna foi importado; disputa federal fora delas não está somada",
+        ["coverage"] = "abrangência: escopos município × zona do cadastro com Boletim de Urna vigente; completa só quando todos estão importados",
     };
 
-    public static CoverageDto Coverage(string electoralUnit, IReadOnlyList<CoverageRow> coverage)
+    /// <summary>Cobertura por UF a partir dos escopos município × zona esperados no cadastro.</summary>
+    public static IReadOnlyList<CoverageUfDto> CoverageByUf(IReadOnlyList<CoverageScopeRow> scopes) =>
+        scopes.GroupBy(s => s.Uf)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g =>
+            {
+                var municipalities = g.GroupBy(s => s.MunicipalityTseCode).ToList();
+                var expected = g.Count();
+                var imported = g.Count(s => s.Imported);
+                return new CoverageUfDto(
+                    g.Key, expected > 0 && imported == expected, imported, expected,
+                    municipalities.Count(m => m.All(s => s.Imported)),
+                    municipalities.Count(m => m.Any(s => s.Imported)),
+                    municipalities.Count);
+            })
+            .ToList();
+
+    /// <summary>
+    /// Abrangência dos votos somados para uma disputa. Disputa estadual: completa só se todos os escopos
+    /// município × zona da UF tiverem resultado vigente. Disputa federal: exige todas as UFs completas e,
+    /// como os votos do exterior ainda não são modelados, nunca é declarada completa nesta versão.
+    /// </summary>
+    public static CoverageDto Coverage(string electoralUnit, IReadOnlyList<CoverageScopeRow> scopes)
     {
-        static bool Complete(CoverageRow c) => c.MunicipalitiesInCadaster > 0 && c.MunicipalitiesWithResults == c.MunicipalitiesInCadaster;
-        var relevant = electoralUnit == "BR"
-            ? coverage.Where(c => c.MunicipalitiesWithResults > 0).OrderBy(c => c.Uf).ToList()
-            : coverage.Where(c => c.Uf == electoralUnit).ToList();
-        var complete = electoralUnit == "BR"
-            ? relevant.Count == AllUfs && relevant.All(Complete)
-            : relevant.Count == 1 && Complete(relevant[0]);
-        var ufs = relevant.Select(c => new CoverageUfDto(c.Uf, c.MunicipalitiesWithResults, c.MunicipalitiesInCadaster)).ToList();
-        var note = complete
-            ? "Todas as seções da disputa estão importadas."
-            : electoralUnit == "BR"
-                ? $"Disputa nacional: votos somados apenas nas UFs importadas ({string.Join(", ", ufs.Select(u => u.Uf))})."
-                : "Cobertura parcial: nem todos os municípios da UF têm Boletim de Urna importado.";
-        return new CoverageDto(complete, ufs, note);
+        var byUf = CoverageByUf(scopes);
+        if (electoralUnit == "BR")
+        {
+            var imported = byUf.Where(u => u.ZonesWithResults > 0).ToList();
+            var partialUfs = imported.Where(u => !u.Complete).Select(u => u.Uf).ToList();
+            var note = $"Disputa nacional: votos somados apenas nas UFs importadas ({string.Join(", ", imported.Select(u => u.Uf))})"
+                + (partialUfs.Count > 0 ? $", com importação parcial em {string.Join(", ", partialUfs)}" : "")
+                + $"; {AllUfs - imported.Count(u => u.Complete)} UF(s) sem cobertura completa e votos do exterior não importados.";
+            return new CoverageDto(false, imported, note);
+        }
+
+        var uf = byUf.FirstOrDefault(u => u.Uf == electoralUnit);
+        if (uf is null)
+            return new CoverageDto(false, [], $"Sem cadastro eleitoral importado para {electoralUnit}: nenhuma seção coberta.");
+        return uf.Complete
+            ? new CoverageDto(true, [uf], "Todas as seções da disputa estão importadas.")
+            : new CoverageDto(false, [uf],
+                $"Cobertura parcial: {uf.ZonesWithResults} de {uf.ZonesExpected} zonas (município × zona) com Boletim de Urna importado; "
+                + $"{uf.MunicipalitiesComplete} de {uf.MunicipalitiesExpected} municípios completos.");
     }
 
     public static TerritoryPerformanceDto TerritoryView(TerritoryVotesRow r) => new(
@@ -53,7 +80,7 @@ public class CandidacyService(IElectoralReadRepository repo)
         performance);
 
     private async Task<CandidacyPerformanceDto?> PerformanceAsync(
-        CandidacyRow c, int? top, Dictionary<(int, int), IReadOnlyList<CoverageRow>> coverageCache, CancellationToken ct)
+        CandidacyRow c, int? top, Dictionary<(int, int), IReadOnlyList<CoverageScopeRow>> coverageCache, CancellationToken ct)
     {
         if (!c.HasVotes) return null;
         var rows = await repo.CandidacyVotesByMunicipalityAsync(c.Id, ct);
@@ -73,7 +100,7 @@ public class CandidacyService(IElectoralReadRepository repo)
     public async Task<PoliticianCandidaciesResponse> ByPoliticianAsync(Guid politicianId, int topMunicipalities, CancellationToken ct)
     {
         var rows = await repo.CandidaciesByPoliticianAsync(politicianId, ct);
-        var cache = new Dictionary<(int, int), IReadOnlyList<CoverageRow>>();
+        var cache = new Dictionary<(int, int), IReadOnlyList<CoverageScopeRow>>();
         var list = new List<CandidacyDto>();
         foreach (var c in rows)
         {
