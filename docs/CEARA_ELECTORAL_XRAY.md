@@ -180,7 +180,9 @@ sem vínculo, limite de 5, idempotência e privacidade dos importadores.
   não são modeladas: o modelo `election(ano, turno)` não comporta duas eleições no mesmo ano/turno.
 - 2026: 1º turno importado; o 2º turno de 2026 ocorre em 25/10/2026.
 - Prestação de contas de 2026 ainda é parcial (campanha recém-encerrada); o envio de maior prioridade vale.
-- Propostas de governo e certidões criminais (PDFs por candidato, ZIPs por UF) não são importadas.
+- Propostas de governo e certidões criminais (PDFs por candidato, ZIPs por UF) não são importadas; a aba
+  Registros indica o DivulgaCandContas (TSE), onde são publicadas, com os dados para localizar a candidatura
+  (sem link profundo: o formato da URL não pôde ser conferido na fonte, cujo CDN bloqueia acesso automatizado).
 - Portal da Transparência exige chave de API (cadastro gov.br) e só cruza por CPF/CNPJ ou nome; o
   REP Brasil não guarda CPF e não liga por nome ⇒ não integrado.
 - Senado não publica CPF nem SQ_CANDIDATO: os senadores não são ligados automaticamente às candidaturas.

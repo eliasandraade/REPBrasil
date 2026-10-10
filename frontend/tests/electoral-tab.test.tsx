@@ -143,6 +143,13 @@ describe("Raio X do perfil", () => {
     const list = await screen.findByTestId("xray-territory-list");
     expect(list.textContent).toContain("30.000");
     expect(list.textContent).toContain("sem Boletim de Urna");
+    // registros oficiais: redes declaradas ao TSE e onde o TSE publica propostas e certidões
+    fireEvent.click(screen.getByRole("tab", { name: "Registros" }));
+    const social = within(screen.getByTestId("xray-records")).getByRole("link", { name: "https://example.org/perfil" });
+    expect(social.getAttribute("rel")).toContain("nofollow");
+    const documents = screen.getByTestId("xray-official-documents");
+    expect(documents.textContent).toContain("nº 12345");
+    expect(within(documents).getByRole("link", { name: "DivulgaCandContas" }).getAttribute("href")).toBe("https://divulgacandcontas.tse.jus.br/");
   });
 
   it("seleção de comparação respeita o máximo de 5 candidaturas", async () => {

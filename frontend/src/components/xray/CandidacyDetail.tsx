@@ -287,6 +287,15 @@ function RecordsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
       ) : (
         <p className="text-xs text-slate-500">Informações complementares do TSE não importadas para esta candidatura.</p>
       )}
+      <div data-testid="xray-official-documents" className="rounded-md border border-white/8 p-2.5 text-xs text-slate-400">
+        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Propostas de governo e certidões</p>
+        Publicadas pelo TSE na página da candidatura no{" "}
+        <a href="https://divulgacandcontas.tse.jus.br/" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+          DivulgaCandContas
+        </a>{" "}
+        (busque por {c.contest.year}, {c.contest.unit.name}, {displayName(c.contest.officeName)}, nº {c.number}). O REP Brasil ainda não importa
+        esses documentos.
+      </div>
       <p className="text-[10px] text-slate-600">
         Fonte: TSE, Candidatos — informações complementares e redes sociais. Dados pessoais sensíveis (cor/raça, etnia, naturalidade, idade) não
         são gravados; links de contato pessoal são descartados.
