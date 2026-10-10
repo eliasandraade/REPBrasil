@@ -5,10 +5,11 @@ import json
 import os
 import shutil
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import polars as pl
 import psycopg
