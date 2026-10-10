@@ -231,11 +231,25 @@ public class ElectoralXrayRepository(ApplicationDbContext db) : IElectoralXrayRe
 
     public Task<IReadOnlyList<SectionResultRow>> SectionResultsAsync(
         IReadOnlyList<ElectionOffice> keys, string uf, string municipalityTseCode, int? zone, CancellationToken ct) =>
+        // Votos válidos agregados em conjunto (um hash join com votable), não por subconsulta correlacionada:
+        // com milhares de urnas o planner repetia uma varredura de votable por urna (EXPLAIN, Fortaleza).
         Query<SectionResultRow>($$"""
             WITH {{KeysCte}},
                  latest AS (
                    SELECT l.ingestion_run_id FROM electoral.latest_bu_ingestion_run l
-                    WHERE l.uf = {3} AND l.municipality_tse_code = {4} AND ({5} < 0 OR l.zone = {5}))
+                    WHERE l.uf = {3} AND l.municipality_tse_code = {4} AND ({5} < 0 OR l.zone = {5})),
+                 results AS (
+                   SELECT r.* FROM electoral.section_office_result r
+                     JOIN latest ON latest.ingestion_run_id = r.ingestion_run_id
+                     JOIN keys ON keys.year = r.year AND keys.round = r.turn AND keys.office_code = r.office_code
+                    WHERE r.uf = {3} AND r.municipality_tse_code = {4} AND ({5} < 0 OR r.zone = {5})),
+                 valid AS (
+                   SELECT v.result_id, sum(v.votes) AS votes
+                     FROM results r
+                     JOIN electoral.section_office_vote v ON v.result_id = r.id
+                     JOIN electoral.votable t ON t.id = v.votable_id
+                    WHERE t.vote_kind IN ('candidate', 'party_legend')
+                    GROUP BY v.result_id)
             SELECT r.id AS "ResultId", r.year AS "Year", r.turn AS "Round", r.office_code AS "OfficeCode", r.uf::text AS "Uf",
                    r.municipality_tse_code::text AS "MunicipalityTseCode", r.municipality_name AS "MunicipalityName",
                    r.zone AS "Zone", r.section AS "Section",
@@ -243,24 +257,25 @@ public class ElectoralXrayRepository(ApplicationDbContext db) : IElectoralXrayRe
                           ORDER BY x) AS "SectionMembers",
                    r.polling_place_code::text AS "PollingPlaceCode", r.eligible AS "Eligible", r.turnout AS "Turnout",
                    -- a urna existe: soma vazia de votos válidos é zero real
-                   COALESCE((SELECT sum(v.votes) FROM electoral.section_office_vote v
-                              JOIN electoral.votable t ON t.id = v.votable_id
-                             WHERE v.result_id = r.id AND t.vote_kind IN ('candidate', 'party_legend')), 0)::bigint AS "ValidVotes"
-              FROM electoral.section_office_result r
-              JOIN latest ON latest.ingestion_run_id = r.ingestion_run_id
-              JOIN keys ON keys.year = r.year AND keys.round = r.turn AND keys.office_code = r.office_code
-             WHERE r.uf = {3} AND r.municipality_tse_code = {4} AND ({5} < 0 OR r.zone = {5})
+                   COALESCE(valid.votes, 0)::bigint AS "ValidVotes"
+              FROM results r
+              LEFT JOIN valid ON valid.result_id = r.id
             """, ct, Ints("years", keys.Select(k => k.Year)), Ints("rounds", keys.Select(k => k.Round)),
             Ints("offices", keys.Select(k => k.OfficeCode)), uf, municipalityTseCode, zone ?? -1);
 
     public Task<IReadOnlyList<SectionCandidacyVotesRow>> SectionVotesAsync(
         IReadOnlyList<Guid> candidacyIds, string uf, string municipalityTseCode, int? zone, CancellationToken ct) =>
+        // Lotes vigentes do município calculados uma vez (CTE materializada): na junção direta com a
+        // visão o planner a reexecutava por linha de voto (EXPLAIN, Fortaleza).
         Query<SectionCandidacyVotesRow>("""
+            WITH latest AS MATERIALIZED (
+                   SELECT l.ingestion_run_id FROM electoral.latest_bu_ingestion_run l
+                    WHERE l.uf = {1} AND l.municipality_tse_code = {2} AND ({3} < 0 OR l.zone = {3}))
             SELECT v.result_id AS "ResultId", vc.candidacy_id AS "CandidacyId", sum(v.votes)::bigint AS "Votes"
               FROM electoral.votable_candidacy vc
               JOIN electoral.section_office_vote v ON v.votable_id = vc.votable_id
               JOIN electoral.section_office_result r ON r.id = v.result_id AND r.uf = vc.uf
-              JOIN electoral.latest_bu_ingestion_run l ON l.ingestion_run_id = r.ingestion_run_id
+              JOIN latest ON latest.ingestion_run_id = r.ingestion_run_id
              WHERE vc.candidacy_id = ANY({0}) AND r.uf = {1} AND r.municipality_tse_code = {2} AND ({3} < 0 OR r.zone = {3})
              GROUP BY v.result_id, vc.candidacy_id
             """, ct, Uuids("ids", candidacyIds), uf, municipalityTseCode, zone ?? -1);
