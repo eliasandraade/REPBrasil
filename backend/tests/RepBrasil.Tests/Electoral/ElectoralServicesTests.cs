@@ -213,8 +213,11 @@ public class ElectoralServicesTests
         var c = CandidacyService.Coverage("CE",
         [
             Scope("CE", "13935", 50, true),
-            Scope("CE", "13897", 1, true), Scope("CE", "13897", 94, true),
-            Scope("CE", "13730", 37, true), Scope("CE", "13730", 120, false), Scope("CE", "13730", 123, true),
+            Scope("CE", "13897", 1, true),
+            Scope("CE", "13897", 94, true),
+            Scope("CE", "13730", 37, true),
+            Scope("CE", "13730", 120, false),
+            Scope("CE", "13730", 123, true),
         ]);
         AssertPartial(c);
         var uf = Assert.Single(c.Ufs);
@@ -228,7 +231,8 @@ public class ElectoralServicesTests
     {
         IReadOnlyList<CoverageScopeRow> scopes =
         [
-            Scope("CE", "13935", 50, true), Scope("CE", "13730", 37, true),
+            Scope("CE", "13935", 50, true),
+            Scope("CE", "13730", 37, true),
             Scope("PE", "25313", 1, false),
         ];
         var national = CandidacyService.Coverage("BR", scopes);
