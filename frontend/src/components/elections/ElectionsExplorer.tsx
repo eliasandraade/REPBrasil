@@ -237,6 +237,12 @@ export function ElectionsExplorer() {
   const ufCode = stateRow?.uf ?? (uf ? uf.toUpperCase() : null);
   const munTse = mun?.status === "available" ? mun.municipality.tseCode : null;
   const names = useSelectionNames(selection, ufCode);
+  // candidaturas da camada vindas só da URL (link compartilhado): nomes também nos seletores do mapa
+  const layerIds = [layerState.candidacy, layerState.base, layerState.a, layerState.b].filter(
+    (id): id is string => !!id && !selection.includes(id),
+  );
+  const layerNames = useSelectionNames([...new Set(layerIds)], ufCode);
+  const mapNames = useMemo(() => new Map([...layerNames, ...names]), [layerNames, names]);
   const officesQ = useQuery({
     queryKey: ["el-offices", year, round, ufCode, munTse],
     queryFn: () => xrayApi.candidates(year, round, ufCode!, { municipality: munTse, pageSize: 1 }),
@@ -445,9 +451,9 @@ export function ElectionsExplorer() {
                     state={layerState}
                     onChange={onLayerChange}
                     selection={selection}
-                    names={names}
+                    names={mapNames}
                     offices={officesQ.data?.offices ?? []}
-                    note={mapLayer.response?.note ?? null}
+                    note={mapLayer.view?.note ?? null}
                     loading={mapLayer.loading}
                     error={mapLayer.error}
                     disabled={false}
