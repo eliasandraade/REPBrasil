@@ -196,7 +196,8 @@ def _check_link(conn: psycopg.Connection, year: int, turn: int, uf: str, out: Di
     ):
         if stats.get(key):
             out[bucket].append({"kind": kind, "count": stats[key]})
-    return {k: stats.get(k) for k in ("votables", "linked", "already_linked", "unmatched", "ambiguous", "name_mismatch")}
+    keys = ("votables", "linked", "already_linked", "resolved_by_inserted_in_urn", "unmatched", "ambiguous", "name_mismatch")
+    return {k: stats.get(k) for k in keys if k in stats}
 
 
 def audit_election(

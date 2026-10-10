@@ -377,3 +377,28 @@ def test_the_same_official_file_imports_each_turn_once(conn, tmp_path):
     assert conn.execute(
         "SELECT count(*), count(DISTINCT person_id) FROM candidacy WHERE tse_candidate_id = 9002").fetchone() == (2, 1)
 
+
+
+@db
+def test_substitution_is_linked_by_the_official_inserted_in_urn_flag_and_names_ignore_punctuation(conn, tmp_path):
+    """Substituição de candidatura mantém o número na disputa: o complementar oficial diz qual foi à urna."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    twin = state(9104, 1111, "OUTRA PESSOA COM O MESMO NÚMERO", "DEPUTADA FICTÍCIA GAMA", cpf(100000005))
+    delta = state(9102, 2222, "DEPUTADO FICTÍCIO DELTA REIS", "DEPUTADO FICTÍCIO-DELTA.", cpf(100000004))  # só pontuação
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, twin, delta])
+    for sq, inserted in ((9101, "SIM"), (9104, "NÃO")):
+        conn.execute(
+            """INSERT INTO candidacy_source_record (candidacy_id, record_kind, payload, source_file_id, ingestion_run_id,
+                                                   source_member, source_line, source_row_hash)
+               SELECT id, 'complement', jsonb_build_object('inserted_in_urn', %s::text), source_file_id, ingestion_run_id,
+                      'consulta_cand_complementar_2099_XX.csv', 2, repeat('a', 64)
+                 FROM candidacy WHERE tse_candidate_id = %s""",
+            (inserted, sq),
+        )
+    report = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert (report["linked"], report["resolved_by_inserted_in_urn"], report["ambiguous"], report["name_mismatch"]) == (4, 1, [], [])
+    methods = dict(conn.execute(
+        "SELECT c.tse_candidate_id, vc.method FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id"))
+    assert methods == {9001: "contest_number", 9002: "contest_number", 9101: "contest_number_inserted_in_urn",
+                       9102: "contest_number"}
+    assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
