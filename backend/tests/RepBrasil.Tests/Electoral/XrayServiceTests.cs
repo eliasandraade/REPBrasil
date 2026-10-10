@@ -102,6 +102,20 @@ public class XrayServiceTests
     }
 
     [Fact]
+    public async Task Evolution_compares_with_the_previous_candidacy_of_the_same_contest()
+    {
+        // Dep. Estadual 2022 → Vereadora 2024 → Dep. Estadual 2026: o delta é 2022 → 2026, não 2024 → 2026
+        var repo = Repo();
+        var v24 = Guid.NewGuid();
+        repo.Candidacies.Add(Xray.Candidacy(v24, 2024, 13, "municipal", "11111", 12345, "CANDIDATA", Person, Politician, officeName: "Vereador"));
+        var r = await new XrayService(repo).BuildAsync(Politician, Ct);
+        Assert.Equal([(A22, v24), (A22, A26)], r.Evolution.Select(s => (s.FromCandidacyId, s.ToCandidacyId)));
+        Assert.NotEqual(ContestComparability.Comparable, r.Evolution[0].Comparability);
+        Assert.Equal((ContestComparability.Comparable, 5L), (r.Evolution[1].Comparability, r.Evolution[1].DeltaVotes!.Value));
+        Assert.Contains(r.Insights, i => i.Code == "evolution_votes" && i.Text.Contains("de 2022 para 2026"));
+    }
+
+    [Fact]
     public async Task Assets_evolution_matches_items_without_judging()
     {
         var r = await new XrayService(Repo()).BuildAsync(Politician, Ct);

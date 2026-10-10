@@ -22,7 +22,7 @@ public class XrayService(IElectoralXrayRepository repo)
         ["coverage"] = "zonas da unidade da disputa com Boletim de Urna importado ÷ zonas esperadas pelo cadastro oficial da eleição",
         ["state"] = "value/zero = número afirmado (zero real só com BU do cargo e vínculo auditado); no_coverage, unlinked, not_on_ballot, ticket_member, outside_contest e partial_coverage nunca viram zero",
         ["ticket"] = "vice e suplentes são votados na chapa do titular (mesma eleição, unidade e número): os votos mostrados são da chapa",
-        ["evolution"] = "variação entre candidaturas consecutivas; delta só quando a disputa é comparável (mesmo cargo e mesma unidade) e as duas votações têm cobertura completa",
+        ["evolution"] = "cada candidatura comparada à anterior da mesma disputa (cargo + unidade), ou à imediatamente anterior quando não há; delta só quando a disputa é comparável (mesmo cargo e mesma unidade) e as duas votações têm cobertura completa",
         ["assets"] = "bens declarados ao TSE pertencem à candidatura de cada eleição; a variação é descritiva e não indica irregularidade",
     };
 
@@ -219,14 +219,16 @@ public class XrayService(IElectoralXrayRepository repo)
                     c.SourceMember, c.SourceLine)));
         }
 
-        // Evolução: candidaturas próprias (não vice/suplente) em ordem cronológica, pares consecutivos.
+        // Evolução: candidaturas próprias (não vice/suplente) em ordem cronológica. Cada uma é comparada à anterior
+        // da MESMA disputa (cargo + unidade) quando existe — Dep. Federal 2022 → 2026 com uma prefeitura em 2024 no
+        // meio —; senão à imediatamente anterior, que aparece sem delta (cargo ou unidade diferente).
         var chronological = rows.Where(r => !Comparability.IsTicketMember(r.OfficeCode))
             .OrderBy(r => r.Year).ThenBy(r => r.Round).ThenBy(r => r.OfficeCode).ToList();
         var evolution = new List<EvolutionStepDto>();
         for (var i = 1; i < chronological.Count; i++)
         {
-            var from = chronological[i - 1];
             var to = chronological[i];
+            var from = chronological.Take(i).LastOrDefault(p => SameContest(p, to)) ?? chronological[i - 1];
             var a = aggregates[from.Id];
             var b = aggregates[to.Id];
             var comparability = Comparability.Contest(
@@ -260,6 +262,9 @@ public class XrayService(IElectoralXrayRepository repo)
             politicianId, politician.PersonId, politician.Name, candidacies, history, evolution, assetsEvolution, insights,
             freshness, Definitions);
     }
+
+    private static bool SameContest(XrayCandidacyRow a, XrayCandidacyRow b) =>
+        a.OfficeCode == b.OfficeCode && a.Scope == b.Scope && a.ElectoralUnit == b.ElectoralUnit;
 
     private static decimal? Sum(List<FinanceTotalsRow> rows, string kind)
     {
