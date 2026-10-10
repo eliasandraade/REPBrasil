@@ -56,6 +56,8 @@ class DetectedLayout:
     quotechar: str
     line_terminator: str
     columns: tuple[str, ...]
+    # Cabeçalho exato do arquivo quando o perfil renomeia colunas para os nomes canônicos.
+    source_columns: tuple[str, ...] | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -85,9 +87,38 @@ def _check_encoding(sample: bytes) -> None:
         raise LayoutError("sample contains bytes 0x80-0x9F: not plain Latin-1 as documented (cp1252?)")
 
 
+# Perfil 2022: cabeçalho real de `bweb_1t_CE_051020221321.csv` e
+# `bweb_2t_CE_311020221535.csv`. Mesmas 45 colunas, na mesma ordem e com o mesmo
+# significado (leiame oficial do ZIP); só dois nomes diferem. O arquivo é lido com o
+# cabeçalho exato e as colunas recebem os nomes canônicos acima.
+PROFILE_ID_2022 = "tse-bweb-2022-v1"
+RENAMED_2022: dict[str, str] = {
+    "DS_SECOES_AGREGADAS": "DS_AGREGADAS",
+    "QT_ELEI_BIOM_SEM_HABILITACAO": "QT_ELEITORES_BIOMETRIA_NH",
+}
+COLUMNS_2022: tuple[str, ...] = tuple(RENAMED_2022.get(c, c) for c in COLUMNS)
+
+# (perfil, cabeçalho exato do arquivo); 2024 publica o mesmo cabeçalho de 2026.
+PROFILES: tuple[tuple[str, tuple[str, ...]], ...] = ((PROFILE_ID, COLUMNS), (PROFILE_ID_2022, COLUMNS_2022))
+
+
 def detect_layout(path: Path, *, sample_bytes: int = 4 << 20) -> DetectedLayout:
-    """Layout do Boletim de Urna (perfil `tse-bweb-2026-v1`)."""
-    return detect_csv_layout(path, columns=COLUMNS, profile_id=PROFILE_ID, sample_bytes=sample_bytes)
+    """Layout do Boletim de Urna: o cabeçalho tem de ser EXATAMENTE um dos perfis
+    documentados. As colunas devolvidas usam sempre os nomes canônicos (`COLUMNS`)."""
+    errors: list[str] = []
+    for profile_id, header in PROFILES:
+        try:
+            detected = detect_csv_layout(path, columns=header, profile_id=profile_id, sample_bytes=sample_bytes)
+        except LayoutError as exc:
+            if "header does not match" not in str(exc):
+                raise  # encoding/separador errados não dependem do perfil
+            errors.append(str(exc))
+            continue
+        return DetectedLayout(
+            detected.profile, detected.encoding, detected.delimiter, detected.quotechar, detected.line_terminator, COLUMNS,
+            source_columns=None if header == COLUMNS else header,
+        )
+    raise LayoutError("; ".join(errors))
 
 
 def detect_csv_layout(

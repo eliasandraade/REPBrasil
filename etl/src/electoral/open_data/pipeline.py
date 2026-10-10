@@ -19,6 +19,7 @@ from .layout import DetectedLayout, detect_layout
 from .parser import ScanStats, scan
 from .reconcile import ReconciliationReport, reconcile_with_cadastro
 from .results import ConsistencyError, NormalizedZone, normalize_zone
+from .scope_index import scan_indexed
 
 
 @dataclass
@@ -109,6 +110,7 @@ def prepare_import(
     cadastro: dict[str, Any] | None = None,
     ea20_paths: list[Path] | None = None,
     verify_csv_hash: bool = True,
+    scope_index: dict[str, Any] | None = None,
 ) -> PreparedImport:
     """`cadastro`: recorte canônico da zona (banco ou CSV oficial do cadastro);
     `cadastro_path`: o mesmo formato em JSON (fixtures). Exatamente um."""
@@ -120,7 +122,12 @@ def prepare_import(
     layout = detect_layout(csv_path)
     scope_info = manifest["scope"]
     stats = ScanStats()
-    rows = list(scan(csv_path, layout, uf=scope_info["uf"], municipality=municipality, zone=zone, stats=stats))
+    if scope_index is not None:
+        if scope_index.get("csv_sha256") != manifest["csv"]["sha256"]:
+            raise ConsistencyError("scope index does not belong to this CSV")
+        rows = list(scan_indexed(csv_path, layout, scope_index, uf=scope_info["uf"], municipality=municipality, zone=zone, stats=stats))
+    else:
+        rows = list(scan(csv_path, layout, uf=scope_info["uf"], municipality=municipality, zone=zone, stats=stats))
     if not rows:
         raise ConsistencyError(f"no rows for municipality {municipality} zone {zone} in {manifest['csv']['name']}")
     for row in rows:
