@@ -327,6 +327,64 @@ def _insert(cur: psycopg.Cursor, kind: str, candidacy_id: str, rows: list[Record
     return inserted
 
 
+def _classify(rows: list[RecordRow], *, year: int, uf: str, kind: str, report: dict[str, Any]) -> dict[tuple[int, int | None], list[RecordRow]]:
+    """Linhas do pleito por (SQ_CANDIDATO, CD_ELEICAO); as demais só são contadas."""
+    by_key: dict[tuple[int, int | None], list[RecordRow]] = defaultdict(list)
+    for r in rows:
+        if r.uf != uf:
+            report["other_uf_rows"] += 1
+        elif r.year != year:
+            report["other_year_rows"] += 1
+        elif r.election_type_code not in (ORDINARY_ELECTION, None):
+            report["other_election_rows"] += 1
+        elif kind == "asset" and r.payload["value"] is None:
+            report["rows_without_value"] += 1
+        else:
+            by_key[(r.tse_candidate_id, r.election_code)].append(r)
+    return by_key
+
+
+def _groups(
+    by_key: dict[tuple[int, int | None], list[RecordRow]], ids: dict[tuple[int, int], str], report: dict[str, Any]
+) -> dict[str, list[RecordRow]]:
+    """Registros de cada candidatura importada, sem linhas repetidas (mesma impressão digital)."""
+    groups: dict[str, list[RecordRow]] = {}
+    for (sq, election_code), group in by_key.items():
+        cid = ids.get((sq, election_code)) if election_code is not None else None
+        if cid is None:
+            report["rows_unmatched"] += len(group)
+            continue
+        unique: dict[str, RecordRow] = {}
+        for r in group:
+            if r.row_hash in unique:
+                report["duplicate_rows"] += 1
+            else:
+                unique[r.row_hash] = r
+        groups[cid] = list(unique.values())
+    return groups
+
+
+def _apply(
+    cur: psycopg.Cursor, kind: str, groups: dict[str, list[RecordRow]], *, supersede: bool, source_id: str, run_id: str,
+    report: dict[str, Any],
+) -> None:
+    """Novo ⇒ insere; idêntico ⇒ nada; diferente ⇒ diff (e, com supersede, substitui o conjunto da candidatura)."""
+    stored = _stored(cur, kind, list(groups))
+    for cid, group in groups.items():
+        new = {r.row_hash for r in group}
+        old = stored.get(cid, set())
+        if not old:
+            report["inserted"] += _insert(cur, kind, cid, group, source_id, run_id)
+        elif old == new:
+            report["unchanged"] += 1
+        else:
+            report["diff"].append({"candidacy_id": cid, "added": len(new - old), "removed": len(old - new)})
+            if supersede:
+                _delete(cur, kind, cid)
+                _insert(cur, kind, cid, group, source_id, run_id)
+                report["superseded"] += 1
+
+
 def import_records(
     conn: psycopg.Connection,
     *,
@@ -355,18 +413,7 @@ def import_records(
         "duplicate_rows": 0, "rows_unmatched": 0, "candidacies": 0, "inserted": 0, "unchanged": 0,
         "superseded": 0, "diff": [],
     }
-    by_key: dict[tuple[int, int | None], list[RecordRow]] = defaultdict(list)
-    for r in rows:
-        if r.uf != uf:
-            report["other_uf_rows"] += 1
-        elif r.year != year:
-            report["other_year_rows"] += 1
-        elif r.election_type_code not in (ORDINARY_ELECTION, None):
-            report["other_election_rows"] += 1
-        elif kind == "asset" and r.payload["value"] is None:
-            report["rows_without_value"] += 1
-        else:
-            by_key[(r.tse_candidate_id, r.election_code)].append(r)
+    by_key = _classify(rows, year=year, uf=uf, kind=kind, report=report)
     try:
         with conn.transaction(), conn.cursor() as cur:
             cur.execute("SELECT to_regclass('candidacy_asset') IS NOT NULL AND to_regclass('candidacy_source_record') IS NOT NULL")
@@ -390,37 +437,9 @@ def import_records(
                 (source, Jsonb(scope), source_id),
             )
             run_id = str(cur.fetchone()[0])
-
-            groups: dict[str, list[RecordRow]] = {}
-            for key, group in by_key.items():
-                cid = ids.get(key) if key[1] is not None else None
-                if cid is None:
-                    report["rows_unmatched"] += len(group)
-                    continue
-                unique: dict[str, RecordRow] = {}
-                for r in group:
-                    if r.row_hash in unique:
-                        report["duplicate_rows"] += 1
-                        continue
-                    unique[r.row_hash] = r
-                groups[cid] = list(unique.values())
+            groups = _groups(by_key, ids, report)
             report["candidacies"] = len(groups)
-
-            stored = _stored(cur, kind, list(groups))
-            for cid, group in groups.items():
-                new = {r.row_hash for r in group}
-                old = stored.get(cid, set())
-                if not old:
-                    report["inserted"] += _insert(cur, kind, cid, group, source_id, run_id)
-                    continue
-                if old == new:
-                    report["unchanged"] += 1
-                    continue
-                report["diff"].append({"candidacy_id": cid, "added": len(new - old), "removed": len(old - new)})
-                if supersede:
-                    _delete(cur, kind, cid)
-                    _insert(cur, kind, cid, group, source_id, run_id)
-                    report["superseded"] += 1
+            _apply(cur, kind, groups, supersede=supersede, source_id=source_id, run_id=run_id, report=report)
             if report["diff"] and not supersede:
                 raise RecordsConflict(
                     f"{len(report['diff'])} candidacies have {kind} records that differ from this official file; "

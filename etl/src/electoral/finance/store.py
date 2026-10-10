@@ -56,10 +56,8 @@ def _submission_rank(r: FinanceRow) -> tuple[int, int, str]:
     return (ACCOUNTS_PRIORITY.get(r.accounts_type or "", 0), r.turn or 0, r.accounts_date or "")
 
 
-def select_rows(rows: list[FinanceRow], *, year: int, uf: str) -> tuple[dict[tuple[int, int], list[FinanceRow]], dict[str, int]]:
-    """Agrupa por candidatura (SQ, CD_ELEICAO) e mantém um único envio de contas por candidatura."""
-    counts: dict[str, int] = defaultdict(int)
-    provider_to_key: dict[int, set[tuple[int, int]]] = defaultdict(set)
+def _kept_rows(rows: list[FinanceRow], *, year: int, uf: str, counts: dict[str, int]) -> list[FinanceRow]:
+    """Linhas do pleito com valor; as demais só são contadas."""
     kept: list[FinanceRow] = []
     for r in rows:
         if r.uf != uf:
@@ -72,9 +70,15 @@ def select_rows(rows: list[FinanceRow], *, year: int, uf: str) -> tuple[dict[tup
             counts["rows_without_amount"] += 1
         else:
             kept.append(r)
-            if r.tse_candidate_id is not None and r.election_code is not None:
-                provider_to_key[r.provider_id].add((r.tse_candidate_id, r.election_code))
+    return kept
 
+
+def _by_candidacy(kept: list[FinanceRow], counts: dict[str, int]) -> dict[tuple[int, int], list[FinanceRow]]:
+    """Receitas e contratadas pelo par (SQ, CD_ELEICAO); pagas pelo prestador, quando ele é de uma só candidatura."""
+    provider_to_key: dict[int, set[tuple[int, int]]] = defaultdict(set)
+    for r in kept:
+        if r.tse_candidate_id is not None and r.election_code is not None:
+            provider_to_key[r.provider_id].add((r.tse_candidate_id, r.election_code))
     by_key: dict[tuple[int, int], list[FinanceRow]] = defaultdict(list)
     for r in kept:
         if r.tse_candidate_id is not None and r.election_code is not None:
@@ -85,18 +89,82 @@ def select_rows(rows: list[FinanceRow], *, year: int, uf: str) -> tuple[dict[tup
             counts["paid_rows_without_unique_provider"] += 1
             continue
         by_key[next(iter(keys))].append(r)
+    return by_key
 
-    selected: dict[tuple[int, int], list[FinanceRow]] = {}
-    for key, group in by_key.items():
-        submissions: dict[tuple[int, int | None, str | None], list[FinanceRow]] = defaultdict(list)
-        for r in group:
-            submissions[(r.provider_id, r.turn, r.accounts_type)].append(r)
-        best = max(submissions.items(), key=lambda item: _submission_rank(item[1][0]))[0]
-        for sub, sub_rows in submissions.items():
-            if sub != best:
-                counts["superseded_submission_rows"] += len(sub_rows)
-        selected[key] = submissions[best]
+
+def _best_submission(group: list[FinanceRow], counts: dict[str, int]) -> list[FinanceRow]:
+    """Um único envio de contas por candidatura (maior prioridade); os outros são contados."""
+    submissions: dict[tuple[int, int | None, str | None], list[FinanceRow]] = defaultdict(list)
+    for r in group:
+        submissions[(r.provider_id, r.turn, r.accounts_type)].append(r)
+    best = max(submissions.items(), key=lambda item: _submission_rank(item[1][0]))[0]
+    for sub, sub_rows in submissions.items():
+        if sub != best:
+            counts["superseded_submission_rows"] += len(sub_rows)
+    return submissions[best]
+
+
+def select_rows(rows: list[FinanceRow], *, year: int, uf: str) -> tuple[dict[tuple[int, int], list[FinanceRow]], dict[str, int]]:
+    """Agrupa por candidatura (SQ, CD_ELEICAO) e mantém um único envio de contas por candidatura."""
+    counts: dict[str, int] = defaultdict(int)
+    by_key = _by_candidacy(_kept_rows(rows, year=year, uf=uf, counts=counts), counts)
+    selected = {key: _best_submission(group, counts) for key, group in by_key.items()}
     return selected, dict(counts)
+
+
+def _prepared(group: list[FinanceRow], key: bytes, report: dict[str, Any]) -> dict[str, tuple[FinanceRow, str | None]]:
+    """Impressão digital de cada linha (documento só como HMAC), sem repetições."""
+    prepared: dict[str, tuple[FinanceRow, str | None]] = {}
+    for r in group:
+        hmac = identity.document_hash(key, r.document_digits) if r.document_digits else None
+        digest = r.content_hash(hmac)
+        if digest in prepared:
+            report["duplicate_rows"] += 1
+        else:
+            prepared[digest] = (r, hmac)
+    return prepared
+
+
+def _apply_candidacy(
+    cur: psycopg.Cursor, candidacy_id: str, prepared: dict[str, tuple[FinanceRow, str | None]], *, supersede: bool,
+    source_id: str, run_id: str, report: dict[str, Any],
+) -> None:
+    """Novo ⇒ insere; idêntico ⇒ nada; diferente ⇒ diff (e, com supersede, substitui o conjunto da candidatura)."""
+    cur.execute(
+        """SELECT source_row_hash FROM candidacy_finance_record
+            WHERE candidacy_id = %s AND record_kind IN ('revenue', 'expense_contracted', 'expense_paid')""",
+        (candidacy_id,),
+    )
+    stored = {row[0] for row in cur.fetchall()}
+    if stored and stored == set(prepared):
+        report["unchanged"] += 1
+        return
+    if stored:
+        report["diff"].append({"candidacy_id": candidacy_id, "added": len(set(prepared) - stored),
+                               "removed": len(stored - set(prepared))})
+        if not supersede:
+            return
+        cur.execute(
+            """DELETE FROM candidacy_finance_record
+                WHERE candidacy_id = %s AND record_kind IN ('revenue', 'expense_contracted', 'expense_paid')""",
+            (candidacy_id,),
+        )
+        report["superseded"] += 1
+    for digest, (r, hmac) in prepared.items():
+        cur.execute(
+            """INSERT INTO candidacy_finance_record (candidacy_id, record_kind, direction, occurred_on, amount,
+                                                     category, description, counterparty_name,
+                                                     counterparty_document_hash, counterparty_kind,
+                                                     counterparty_cnpj, payload, source_file_id, ingestion_run_id,
+                                                     source_member, source_line, source_row_hash, source_generated_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
+               ON CONFLICT (candidacy_id, record_kind, source_row_hash) DO NOTHING""",
+            (candidacy_id, r.kind, DIRECTION[r.kind], r.occurred_on, r.amount, r.category, r.description,
+             r.counterparty_name, hmac, r.counterparty_kind, r.counterparty_cnpj,
+             Jsonb({**r.payload, "record_id": r.record_id}), source_id, run_id, r.member, r.line, digest),
+        )
+        report["inserted"] += cur.rowcount
+        report["by_kind"][r.kind] += cur.rowcount
 
 
 def import_finance(
@@ -151,49 +219,8 @@ def import_finance(
                     report["rows_unmatched"] += len(group)
                     continue
                 report["candidacies"] += 1
-                prepared: dict[str, tuple[FinanceRow, str | None]] = {}
-                for r in group:
-                    hmac = identity.document_hash(key, r.document_digits) if r.document_digits else None
-                    digest = r.content_hash(hmac)
-                    if digest in prepared:
-                        report["duplicate_rows"] += 1
-                        continue
-                    prepared[digest] = (r, hmac)
-                cur.execute(
-                    """SELECT source_row_hash FROM candidacy_finance_record
-                        WHERE candidacy_id = %s AND record_kind IN ('revenue', 'expense_contracted', 'expense_paid')""",
-                    (candidacy_id,),
-                )
-                stored = {row[0] for row in cur.fetchall()}
-                if stored and stored == set(prepared):
-                    report["unchanged"] += 1
-                    continue
-                if stored:
-                    report["diff"].append({"candidacy_id": candidacy_id, "added": len(set(prepared) - stored),
-                                           "removed": len(stored - set(prepared))})
-                    if not supersede:
-                        continue
-                    cur.execute(
-                        """DELETE FROM candidacy_finance_record
-                            WHERE candidacy_id = %s AND record_kind IN ('revenue', 'expense_contracted', 'expense_paid')""",
-                        (candidacy_id,),
-                    )
-                    report["superseded"] += 1
-                for digest, (r, hmac) in prepared.items():
-                    cur.execute(
-                        """INSERT INTO candidacy_finance_record (candidacy_id, record_kind, direction, occurred_on, amount,
-                                                                 category, description, counterparty_name,
-                                                                 counterparty_document_hash, counterparty_kind,
-                                                                 counterparty_cnpj, payload, source_file_id, ingestion_run_id,
-                                                                 source_member, source_line, source_row_hash, source_generated_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
-                           ON CONFLICT (candidacy_id, record_kind, source_row_hash) DO NOTHING""",
-                        (candidacy_id, r.kind, DIRECTION[r.kind], r.occurred_on, r.amount, r.category, r.description,
-                         r.counterparty_name, hmac, r.counterparty_kind, r.counterparty_cnpj,
-                         Jsonb({**r.payload, "record_id": r.record_id}), source_id, run_id, r.member, r.line, digest),
-                    )
-                    report["inserted"] += cur.rowcount
-                    report["by_kind"][r.kind] += cur.rowcount
+                _apply_candidacy(cur, candidacy_id, _prepared(group, key, report), supersede=supersede,
+                                 source_id=source_id, run_id=run_id, report=report)
             if report["diff"] and not supersede:
                 raise FinanceConflict(
                     f"{len(report['diff'])} candidacies have finance records that differ from this official file; rerun with --supersede",
