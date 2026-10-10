@@ -4,7 +4,11 @@ import json
 
 import pytest
 
-from src.electoral.open_data.state_import import StateImportError, _validate_manifest_scope, _write_json
+from src.electoral.open_data.state_import import (
+    StateImportError,
+    _validate_manifest_scope,
+    _write_json,
+)
 
 
 def manifest(*, year: int = 2026, turn: int = 1, uf: str = "PI", verified: bool = True):
