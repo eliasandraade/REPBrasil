@@ -1,7 +1,10 @@
-import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
 import { SearchInput } from "@/components/politicians/SearchInput";
-import { TypewriterTitle } from "@/components/home/TypewriterTitle";
-import { AnimatedStatCard } from "@/components/home/AnimatedStatCard";
+import { StatCard } from "@/components/home/StatCard";
+import { TransitionLink } from "@/motion/navigation";
+import { Reveal } from "@/motion/reveal";
+
+const order = (i: number) => ({ "--i": i }) as CSSProperties;
 
 // ─── Feature Card ─────────────────────────────────────────────────────────────
 
@@ -9,13 +12,15 @@ function FeatureCard({
   icon,
   title,
   description,
+  index,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   description: string;
+  index: number;
 }) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card p-5 transition-colors hover:border-brand/30">
+    <div className="reveal-unfold mi-surface rounded-lg border border-white/8 bg-card p-5 hover:border-brand/30" style={order(index)}>
       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-brand/10 text-brand">
         {icon}
       </div>
@@ -31,14 +36,16 @@ function SourceBadge({
   name,
   org,
   type,
+  index,
 }: {
   name: string;
   org: string;
   type: string;
+  index: number;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-white/8 bg-card p-4">
-      <div className="mt-0.5 h-2 w-2 flex-shrink-0 rounded-full bg-brand" />
+    <div className="relative z-10 flex items-start gap-3 rounded-lg border border-white/8 bg-card p-4">
+      <div className="reveal-node mt-0.5 h-2 w-2 flex-shrink-0 rounded-full bg-brand" style={order(index)} />
       <div>
         <p className="text-sm font-medium text-slate-200">{name}</p>
         <p className="text-xs text-slate-500">{org}</p>
@@ -106,118 +113,131 @@ function ScoreIcon() {
   );
 }
 
+function ArrowIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg className="mi-arrow" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </svg>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
+//
+// Coreografia (docs/MOTION_SYSTEM.md · Home):
+// 1. Entrada — registro documental: régua, selos de procedência carimbados,
+//    anotação sob o objeto da plataforma e o visor que enquadra a busca.
+//    O título é renderizado completo no servidor (sem texto "digitando").
+// 2. Leitura (scroll) — cada seção tem uma função: consolidar (números),
+//    desdobrar (capacidades), enquadrar (manifesto), conectar (fontes).
+//    As limitações ficam imóveis de propósito: são um compromisso, não um efeito.
+// 3. Microinteração — superfícies marcam o canto, setas apontam o destino,
+//    pressionar escurece o tom; nada muda de tamanho ou de lugar.
 
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-background">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="hero-gradient relative overflow-hidden border-b border-white/8 py-16 md:py-24">
-        <div className="bg-grid-pattern absolute inset-0 opacity-100" />
-
-        {/* Animated ambient orbs */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="animate-orb-1 absolute left-[10%] top-[20%] h-72 w-72 rounded-full bg-brand/6 blur-[80px]" />
-          <div className="animate-orb-2 absolute right-[8%] top-[30%] h-56 w-56 rounded-full bg-brand/5 blur-[70px]" />
-          <div className="animate-orb-3 absolute left-[55%] bottom-[-5%] h-64 w-64 rounded-full bg-brand/4 blur-[90px]" />
-        </div>
+        <div className="bg-grid-pattern absolute inset-0 opacity-100" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-4xl px-6">
-
-          {/* Badge bar */}
-          <div className="mb-6 flex flex-wrap items-center justify-center gap-2 animate-fade-in-up" style={{ animationDelay: "0ms" }}>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-medium text-brand">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-              Produto da Andrade Systems
-            </span>
-            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400">
-              Dados Públicos Oficiais · TSE
-            </span>
-            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400">
-              Fontes Rastreáveis · SHA-256
-            </span>
-            <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/8 px-3 py-1 text-xs text-amber-400">
-              Base inicial em expansão
-            </span>
+          {/* Régua de abertura */}
+          <div aria-hidden="true" className="hero-rule mx-auto mb-6 flex max-w-2xl items-center gap-2">
+            <span className="h-2 w-px bg-brand/60" />
+            <span className="h-px flex-1 bg-gradient-to-r from-brand/50 via-white/15 to-transparent" />
+            <span className="h-2 w-px bg-white/20" />
           </div>
 
-          {/* Title — typewriter */}
-          <TypewriterTitle />
+          {/* Selos de procedência */}
+          <ul className="mb-6 flex flex-wrap items-center justify-center gap-2" aria-label="Procedência dos dados">
+            <li className="hero-stamp inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-medium text-brand" style={order(0)}>
+              <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
+              Produto da Andrade Systems
+            </li>
+            <li className="hero-stamp inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400" style={order(1)}>
+              Dados Públicos Oficiais · TSE
+            </li>
+            <li className="hero-stamp inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400" style={order(2)}>
+              Fontes Rastreáveis · SHA-256
+            </li>
+            <li className="hero-stamp inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/8 px-3 py-1 text-xs text-amber-400" style={order(3)}>
+              Base inicial em expansão
+            </li>
+          </ul>
 
-          {/* Subtitle */}
-          <p className="mx-auto mb-10 max-w-2xl text-center text-base leading-relaxed text-slate-400 sm:text-lg animate-fade-in-up" style={{ animationDelay: "240ms" }}>
+          <h1 className="mb-4 text-center text-3xl font-bold leading-tight tracking-tight text-slate-100 sm:text-4xl md:text-5xl">
+            Inteligência pública sobre <span className="hero-annotation">agentes políticos</span> brasileiros.
+          </h1>
+
+          <p className="mx-auto mb-10 max-w-2xl text-center text-base leading-relaxed text-slate-400 sm:text-lg">
             O REPBrasil organiza dados públicos oficiais, fontes rastreáveis e
             informações estruturadas para ampliar a compreensão sobre a vida
             pública no Brasil.
           </p>
 
-          {/* Search */}
-          <div className="mx-auto mb-6 max-w-2xl">
+          {/* Busca enquadrada: o instrumento central da consulta */}
+          <div className="hero-viewfinder mx-auto mb-6 max-w-2xl">
+            <span aria-hidden="true" className="vf-corner" data-c="tl" />
+            <span aria-hidden="true" className="vf-corner" data-c="tr" />
+            <span aria-hidden="true" className="vf-corner" data-c="bl" />
+            <span aria-hidden="true" className="vf-corner" data-c="br" />
             <SearchInput placeholder="Busque por nome, cargo, partido, município ou UF" />
           </div>
 
-          {/* CTAs */}
-          <div className="flex flex-wrap items-center justify-center gap-3 animate-fade-in-up" style={{ animationDelay: "360ms" }}>
-            <Link
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <TransitionLink
               href="/politicos"
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-brand-sm transition-all hover:bg-brand-light hover:shadow-brand"
+              className="mi-press focus-ring inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-slate-900 hover:bg-brand-light"
             >
               Buscar político
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            </Link>
-            <Link
+              <ArrowIcon />
+            </TransitionLink>
+            <TransitionLink
               href="/manifesto"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-300 transition-all hover:border-white/25 hover:bg-white/10 hover:text-slate-100"
+              className="mi-press focus-ring inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:border-white/25 hover:bg-white/10 hover:text-slate-100"
             >
               Conhecer manifesto
-            </Link>
+            </TransitionLink>
           </div>
         </div>
       </section>
 
-      {/* ── Stats ─────────────────────────────────────────────────────────── */}
-      <section className="border-b border-white/8 py-10">
-        <div className="mx-auto max-w-4xl px-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <AnimatedStatCard
-              numericTarget={1000}
-              numericStart={0}
-              suffix="+"
-              displayValue="1.000+"
-              label="Políticos indexados"
-              note="base inicial"
-              tooltip="Base inicial com 1.000 políticos indexados, a partir dos dados eleitorais do TSE 2024. Expansão progressiva prevista com novos ciclos e integração com Câmara e Senado."
-              duration={1200}
-            />
-            <AnimatedStatCard
-              numericTarget={3}
-              numericStart={0}
-              displayValue="3"
-              label="Fontes oficiais TSE"
-              note="candidatos · bens · resultados"
-              tooltip="Três bases públicas do TSE: candidaturas 2024, bens declarados 2024 e resultados eleitorais 2024. Cada arquivo com hash SHA-256 e download original disponível."
-              duration={700}
-            />
-            <AnimatedStatCard
-              numericTarget={2024}
-              numericStart={2000}
-              displayValue="2024"
-              label="Ciclo eleitoral"
-              note="dados do TSE"
-              tooltip="Dados importados do ciclo eleitoral de 2024. Importação de ciclos anteriores e de eleições suplementares está prevista nas próximas fases da plataforma."
-              duration={900}
-            />
-            <AnimatedStatCard
-              displayValue="Em dev."
-              label="Score REPBrasil"
-              note="metodologia em construção"
-              tooltip="O Score REPBrasil está em desenvolvimento. Nenhum índice é exibido antes da metodologia ser publicada, explicada e aberta à auditoria pública."
-            />
-          </div>
-        </div>
+      {/* ── Números da plataforma — consolidação ──────────────────────────── */}
+      <section className="border-b border-white/8 py-10" aria-label="Números da plataforma">
+        <Reveal className="mx-auto grid max-w-4xl grid-cols-2 gap-3 px-6 sm:grid-cols-4">
+          <StatCard
+            index={0}
+            value="1.000+"
+            label="Políticos indexados"
+            note="base inicial"
+            hint="Base inicial com 1.000 políticos indexados, a partir dos dados eleitorais do TSE 2024. Expansão progressiva prevista com novos ciclos e integração com Câmara e Senado."
+          />
+          <StatCard
+            index={1}
+            value="3"
+            label="Fontes oficiais TSE"
+            note="candidatos · bens · resultados"
+            hint="Três bases públicas do TSE: candidaturas 2024, bens declarados 2024 e resultados eleitorais 2024. Cada arquivo com hash SHA-256 e download original disponível."
+          />
+          <StatCard
+            index={2}
+            value="2024"
+            label="Ciclo eleitoral"
+            note="dados do TSE"
+            hint="Dados importados do ciclo eleitoral de 2024. Importação de ciclos anteriores e de eleições suplementares está prevista nas próximas fases da plataforma."
+          />
+          <StatCard
+            index={3}
+            value="Em dev."
+            label="Score REPBrasil"
+            note="metodologia em construção"
+            hint="O Score REPBrasil está em desenvolvimento. Nenhum índice é exibido antes da metodologia ser publicada, explicada e aberta à auditoria pública."
+          />
+        </Reveal>
       </section>
 
-      {/* ── O que fazemos ─────────────────────────────────────────────────── */}
+      {/* ── O que fazemos — desdobramento ─────────────────────────────────── */}
       <section className="border-b border-white/8 py-14">
         <div className="mx-auto max-w-4xl px-6">
           <div className="mb-8 text-center">
@@ -228,51 +248,57 @@ export default function HomePage() {
               Uma infraestrutura de inteligência cívica para dados públicos brasileiros.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Reveal className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <FeatureCard
+              index={0}
               icon={<DatabaseIcon />}
               title="Organiza dados públicos"
               description="Coleta, estrutura e contextualiza dados eleitorais e declarações públicas em uma experiência navegável."
             />
             <FeatureCard
+              index={1}
               icon={<LinkIcon />}
               title="Conecta fontes oficiais"
               description="Cada dado exibido aponta para uma fonte verificável. Download original disponível com hash SHA-256."
             />
             <FeatureCard
+              index={2}
               icon={<UserIcon />}
               title="Estrutura perfis políticos"
               description="Perfis organizados com histórico eleitoral, patrimônio declarado, fontes vinculadas e score em desenvolvimento."
             />
             <FeatureCard
+              index={3}
               icon={<ShieldIcon />}
               title="Rastreabilidade integral"
               description="SHA-256 de cada arquivo-fonte, data de importação e integridade verificável. Nada é afirmado sem origem."
             />
             <FeatureCard
+              index={4}
               icon={<MessageIcon />}
               title="Contestação disponível"
               description="Políticos, assessorias e cidadãos podem solicitar revisão de informações mediante indicação de fonte oficial."
             />
             <FeatureCard
+              index={5}
               icon={<ScoreIcon />}
               title="Score em desenvolvimento"
               description="Um índice explicável e auditável baseado em critérios objetivos. Metodologia em refinamento, sem score fake."
             />
-          </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* ── Por que existe ────────────────────────────────────────────────── */}
+      {/* ── Por que existe — enquadramento ────────────────────────────────── */}
       <section className="border-b border-white/8 py-14">
         <div className="mx-auto max-w-4xl px-6">
-          <div className="rounded-xl border border-brand/20 bg-brand/5 p-6 sm:p-8">
+          <Reveal className="rounded-xl border border-brand/20 bg-brand/5 p-6 sm:p-8">
             <div className="mb-4 flex items-center gap-2">
-              <div className="h-px flex-1 bg-brand/20" />
+              <div className="reveal-rule-out-left h-px flex-1 bg-brand/20" />
               <span className="text-xs font-semibold uppercase tracking-widest text-brand/70">
                 Por que o REPBrasil existe
               </span>
-              <div className="h-px flex-1 bg-brand/20" />
+              <div className="reveal-rule-out-right h-px flex-1 bg-brand/20" />
             </div>
             <blockquote className="mb-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               &ldquo;O Brasil não sofre por falta de dados. Sofre porque dados públicos,
@@ -280,18 +306,18 @@ export default function HomePage() {
               O REPBrasil nasce para organizar informações oficiais sobre agentes
               políticos brasileiros em uma experiência clara, rastreável e auditável.&rdquo;
             </blockquote>
-            <Link
+            <TransitionLink
               href="/manifesto"
-              className="inline-flex items-center gap-2 text-sm font-medium text-brand transition-colors hover:text-brand-light"
+              className="focus-ring inline-flex items-center gap-2 rounded text-sm font-medium text-brand hover:text-brand-light"
             >
-              Ler manifesto completo
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            </Link>
-          </div>
+              <span className="mi-underline">Ler manifesto completo</span>
+              <ArrowIcon size={13} />
+            </TransitionLink>
+          </Reveal>
         </div>
       </section>
 
-      {/* ── Fontes e rastreabilidade ──────────────────────────────────────── */}
+      {/* ── Fontes e rastreabilidade — conexão ────────────────────────────── */}
       <section className="border-b border-white/8 py-14">
         <div className="mx-auto max-w-4xl px-6">
           <div className="mb-8">
@@ -302,23 +328,29 @@ export default function HomePage() {
               Transparência é parte central do REPBrasil. Cada dado relevante aponta para uma fonte pública verificável.
             </p>
           </div>
-          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          <Reveal className="relative mb-6 grid gap-3 sm:grid-cols-3">
+            {/* A linha atravessa os intervalos entre as fontes: a procedência é uma cadeia. */}
+            <span aria-hidden="true" className="reveal-connector absolute inset-x-0 top-[22px] hidden h-px bg-brand/40 sm:block" />
+            <span aria-hidden="true" className="reveal-connector-v absolute inset-y-0 left-[20px] w-px bg-brand/40 sm:hidden" />
             <SourceBadge
+              index={0}
               name="TSE — Candidatos 2024"
               org="Tribunal Superior Eleitoral"
               type="Dados de candidaturas e filiação partidária"
             />
             <SourceBadge
+              index={1}
               name="TSE — Bens Declarados 2024"
               org="Tribunal Superior Eleitoral"
               type="Declarações patrimoniais dos candidatos"
             />
             <SourceBadge
+              index={2}
               name="TSE — Resultados 2024"
               org="Tribunal Superior Eleitoral"
               type="Resultados eleitorais por cargo e município"
             />
-          </div>
+          </Reveal>
           <div className="flex flex-wrap gap-3 text-xs text-slate-600">
             <span className="flex items-center gap-1.5 rounded border border-white/8 bg-card px-2.5 py-1.5">
               <HashIcon />
@@ -336,7 +368,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Limitações honestas ───────────────────────────────────────────── */}
+      {/* ── Limitações honestas — imóvel de propósito ─────────────────────── */}
       <section className="border-b border-white/8 py-14">
         <div className="mx-auto max-w-4xl px-6">
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-5 sm:p-6">
@@ -352,12 +384,12 @@ export default function HomePage() {
               <li>• Esta plataforma não substitui as fontes oficiais. Consulte sempre a fonte vinculada.</li>
               <li>• Contestação disponível para correções fundamentadas com fonte ou documento comprobatório.</li>
             </ul>
-            <Link
+            <TransitionLink
               href="/suporte"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-amber-400 transition-colors hover:text-amber-300"
+              className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded text-xs font-medium text-amber-400 hover:text-amber-300"
             >
-              Contestar ou corrigir informação →
-            </Link>
+              <span className="mi-underline">Contestar ou corrigir informação</span> →
+            </TransitionLink>
           </div>
         </div>
       </section>
@@ -366,11 +398,10 @@ export default function HomePage() {
       <footer className="border-t border-white/8 py-10">
         <div className="mx-auto max-w-4xl px-6">
           <div className="mb-8 grid gap-8 sm:grid-cols-3">
-            {/* Brand */}
             <div className="sm:col-span-1">
               <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand/10 border border-brand/20">
-                  <span className="font-black text-brand text-sm leading-none">R</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-brand/20 bg-brand/10">
+                  <span className="text-sm font-black leading-none text-brand">R</span>
                 </div>
                 <span className="font-bold text-slate-100">REPBrasil</span>
               </div>
@@ -384,25 +415,23 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Links */}
             <div>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Plataforma
               </p>
               <ul className="space-y-2 text-xs text-slate-500">
-                <li><Link href="/politicos" className="transition-colors hover:text-slate-300">Buscar políticos</Link></li>
-                <li><Link href="/manifesto" className="transition-colors hover:text-slate-300">Manifesto</Link></li>
-                <li><Link href="/suporte" className="transition-colors hover:text-slate-300">Central de suporte</Link></li>
+                <li><TransitionLink href="/politicos" className="mi-underline focus-ring rounded hover:text-slate-300">Buscar políticos</TransitionLink></li>
+                <li><TransitionLink href="/manifesto" className="mi-underline focus-ring rounded hover:text-slate-300">Manifesto</TransitionLink></li>
+                <li><TransitionLink href="/suporte" className="mi-underline focus-ring rounded hover:text-slate-300">Central de suporte</TransitionLink></li>
               </ul>
             </div>
 
-            {/* Institucional */}
             <div>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Institucional
               </p>
               <ul className="space-y-2 text-xs text-slate-500">
-                <li><Link href="/suporte" className="transition-colors hover:text-slate-300">Contestação de dados</Link></li>
+                <li><TransitionLink href="/suporte" className="mi-underline focus-ring rounded hover:text-slate-300">Contestação de dados</TransitionLink></li>
                 <li><span className="text-slate-700">Termos de uso</span></li>
                 <li><span className="text-slate-700">Privacidade</span></li>
               </ul>
