@@ -15,6 +15,10 @@ import {
   toggleSelection,
 } from "@/lib/elections/xray";
 import type { XrayCandidacy, XrayResponse } from "@/lib/elections/xray-types";
+import { DataState } from "@/components/ui/DataState";
+import { SourceBadge } from "@/components/ui/SourceBadge";
+import { Term } from "@/components/ui/Term";
+import { outcomeTerm } from "@/lib/glossary";
 import { byRecency } from "./useXray";
 
 const ROLE_LABEL = { vice: "Vice", first_substitute: "1º suplente", second_substitute: "2º suplente" } as const;
@@ -35,7 +39,7 @@ export function TotalsLine({ c }: Readonly<{ c: XrayCandidacy }>) {
   if (c.ticket) {
     return (
       <p className="text-xs text-slate-400" data-testid="xray-ticket">
-        {ROLE_LABEL[c.ticket.role]} · {c.ticket.note}
+        <Term id="chapa">{ROLE_LABEL[c.ticket.role]}</Term> · {c.ticket.note}
         {c.ticket.headVotes !== null && (
           <span className="text-slate-300">
             {" "}
@@ -54,7 +58,9 @@ export function TotalsLine({ c }: Readonly<{ c: XrayCandidacy }>) {
         </p>
       </div>
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-slate-600">% dos válidos</p>
+        <p className="text-[10px] uppercase tracking-wider text-slate-600">
+          % dos <Term id="votos-validos">válidos</Term>
+        </p>
         <p className="text-base font-bold text-slate-100">{formatPercent(t.shareOfValidVotes)}</p>
       </div>
       <div>
@@ -106,7 +112,11 @@ export function CandidacyCard({
           </p>
         </div>
         <div className="flex flex-wrap gap-1">
-          {c.roundOutcome && <Badge tone={c.elected ? "brand" : "muted"}>{outcomeLabel(c.roundOutcome)}</Badge>}
+          {c.roundOutcome && (
+            <Badge tone={c.elected ? "brand" : "muted"}>
+              {outcomeTerm(c.roundOutcome) ? <Term id={outcomeTerm(c.roundOutcome)!}>{outcomeLabel(c.roundOutcome)}</Term> : outcomeLabel(c.roundOutcome)}
+            </Badge>
+          )}
           {c.candidacyStatus && <Badge>{outcomeLabel(c.candidacyStatus)}</Badge>}
           {c.identityStatus === "resolved_tse_link" && <Badge>vínculo oficial TSE</Badge>}
         </div>
@@ -128,9 +138,18 @@ export function CandidacyCard({
           </label>
         )}
       </div>
-      <p className="mt-2 border-t border-white/5 pt-1.5 text-[10px] text-slate-600">
-        TSE · SQ {c.tseCandidateId} · {c.source.member}, linha {c.source.line}
-      </p>
+      <div className="mt-2">
+        <SourceBadge
+          publisher="TSE"
+          dataset="Candidaturas (Dados Abertos)"
+          details={[
+            { label: "Candidatura (SQ)", value: String(c.tseCandidateId), mono: true },
+            { label: "Arquivo", value: `${c.source.member}, linha ${c.source.line}` },
+            { label: "Pacote oficial", value: c.source.url, href: c.source.url },
+            { label: "SHA-256 ZIP", value: `${c.source.zipSha256.slice(0, 12)}…`, title: c.source.zipSha256, mono: true },
+          ]}
+        />
+      </div>
     </article>
   );
 }
@@ -207,7 +226,7 @@ export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; on
       <p className="text-xs text-slate-500">
         Candidaturas oficiais do TSE ligadas por identificadores oficiais (CPF só como HMAC; histórico oficial de candidaturas) — nunca por nome.
       </p>
-      {data.freshness.stale && <p className="text-[11px] text-amber-300/80">{data.freshness.note}</p>}
+      {data.freshness.stale && <DataState kind="processing">{data.freshness.note}</DataState>}
       <div className="space-y-2" data-testid="xray-timeline">
         {candidacies.map((c) => (
           <CandidacyCard

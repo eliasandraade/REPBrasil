@@ -14,6 +14,7 @@ import {
   type OverviewResponse,
 } from "@/lib/overview";
 import { TransitionLink } from "@/motion/navigation";
+import { DataState, RetryButton } from "@/components/ui/DataState";
 
 function Arrow() {
   return (
@@ -156,16 +157,9 @@ export function HomeCoverage() {
           </SectionTitle>
           {isPending && <Skeleton className="h-64" />}
           {isError && (
-            <p className="rounded-lg border border-white/8 bg-card px-4 py-4 text-sm text-slate-400">
-              Não foi possível carregar a cobertura agora.{" "}
-              <button type="button" onClick={() => refetch()} className="focus-ring rounded text-brand hover:underline">
-                Tentar de novo
-              </button>
-            </p>
+            <DataState kind="error" title="Não foi possível carregar a cobertura agora." action={<RetryButton onRetry={() => refetch()} />} />
           )}
-          {data?.elections.length === 0 && (
-            <p className="rounded-lg border border-white/8 bg-card px-4 py-4 text-sm text-slate-400">Nenhuma eleição importada ainda.</p>
-          )}
+          {data?.elections.length === 0 && <DataState kind="empty" title="Nenhuma eleição importada ainda." />}
           {data && data.elections.length > 0 && <Coverage data={data} />}
         </div>
       </section>

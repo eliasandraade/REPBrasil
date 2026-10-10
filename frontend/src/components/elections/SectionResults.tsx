@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { displayName, formatCount, formatPercent, pad3, sectionLabel, shortHash, sourceDate, zoneLabel, UNAVAILABLE } from "@/lib/elections/format";
 import { buildElectionsPath, type ExplorerRoute } from "@/lib/elections/route";
 import type { Metrics, SectionResultsResponse, VoteItem } from "@/lib/elections/types";
 import { rememberIdentity } from "@/motion/identity";
+import { SourceBadge } from "@/components/ui/SourceBadge";
+import { Term } from "@/components/ui/Term";
+import type { GlossaryId } from "@/lib/glossary";
 import { TransitionLink } from "@/motion/navigation";
 
 export type VoteTypeFilter = "todos" | "nominal" | "legenda" | "branco" | "nulo";
@@ -27,10 +29,10 @@ const METRIC_HELP: Record<keyof Metrics, string> = {
   null: "Votos nulos. — quando a fonte não permite confirmar o zero.",
 };
 
-function Metric({ label, value, help }: { label: string; value: number | null; help: string }) {
+function Metric({ label, value, help, term }: Readonly<{ label: string; value: number | null; help: string; term?: GlossaryId }>) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card-elevated/50 p-3" title={help}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
+    <div className="rounded-lg border border-white/8 bg-card-elevated/50 p-3" title={term ? undefined : help}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{term ? <Term id={term}>{label}</Term> : label}</p>
       <p className="value-arrive text-lg font-bold text-slate-100" aria-label={value === null ? `${label}: não informado pela fonte` : undefined}>
         {formatCount(value)}
       </p>
@@ -113,7 +115,6 @@ export function SectionResults({
   closeHref: string;
   onRetry: () => void;
 }) {
-  const [showSource, setShowSource] = useState(false);
   const section = route.section!;
   const header = (
     <div className="mb-4 flex items-start justify-between gap-3">
@@ -220,7 +221,7 @@ export function SectionResults({
 
       {(data.aggregatedSections?.length ?? 0) > 0 && (
         <p className="mb-3 text-[11px] text-slate-500">
-          Urna com seções agregadas: {data.aggregatedSections!.map(pad3).join(", ")} (aptos e votos já incluídos).
+          Urna com <Term id="secao-agregada">seções agregadas</Term>: {data.aggregatedSections!.map(pad3).join(", ")} (aptos e votos já incluídos).
         </p>
       )}
 
@@ -246,10 +247,10 @@ export function SectionResults({
       </div>
 
       <div className="mb-4 grid grid-cols-3 gap-2" data-testid="metrics">
-        <Metric label="Aptos" value={m.eligible} help={METRIC_HELP.eligible} />
+        <Metric label="Aptos" value={m.eligible} help={METRIC_HELP.eligible} term="aptos" />
         <Metric label="Comparecimento" value={m.turnout} help={METRIC_HELP.turnout} />
-        <Metric label="Abstenções" value={m.abstentions} help={METRIC_HELP.abstentions} />
-        <Metric label="Válidos" value={m.valid} help={METRIC_HELP.valid} />
+        <Metric label="Abstenções" value={m.abstentions} help={METRIC_HELP.abstentions} term="abstencao" />
+        <Metric label="Válidos" value={m.valid} help={METRIC_HELP.valid} term="votos-validos" />
         <Metric label="Brancos" value={m.blank} help={METRIC_HELP.blank} />
         <Metric label="Nulos" value={m.null} help={METRIC_HELP.null} />
       </div>
@@ -271,7 +272,9 @@ export function SectionResults({
         ))}
       </div>
 
-      <p className="mb-2 text-[11px] text-slate-500">Percentual sobre os votos válidos da urna no cargo; brancos e nulos não recebem percentual.</p>
+      <p className="mb-2 text-[11px] text-slate-500">
+        Percentual sobre os <Term id="votos-validos">votos válidos</Term> da urna no cargo; brancos e nulos não recebem percentual.
+      </p>
       {votes.length === 0 ? (
         <p className="py-4 text-center text-sm text-slate-500">Nenhum voto deste tipo nesta urna.</p>
       ) : (
@@ -282,40 +285,21 @@ export function SectionResults({
         </ul>
       )}
 
-      <div className="mt-4 rounded-lg border border-white/8 bg-card/60 px-3 py-2 text-[11px] text-slate-500" data-testid="source-badge">
-        <div className="flex items-center justify-between gap-2">
-          <span>
-            Fonte: <span className="text-slate-300">Tribunal Superior Eleitoral</span> · Boletim de Urna (Dados Abertos)
-          </span>
-          <button type="button" onClick={() => setShowSource((s) => !s)} className="text-brand underline-offset-2 hover:underline" aria-expanded={showSource}>
-            {showSource ? "ocultar" : "proveniência"}
-          </button>
-        </div>
-        {showSource && (
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            <dt>Recurso</dt>
-            <dd className="text-slate-300">{p.resourceName}</dd>
-            <dt>Arquivo</dt>
-            <dd>
-              <a href={p.url} className="break-all text-slate-300 hover:text-brand" rel="noopener noreferrer" target="_blank">
-                {p.url}
-              </a>
-            </dd>
-            <dt>SHA-256 ZIP</dt>
-            <dd className="font-mono text-slate-300" title={p.sourceFileSha256}>{shortHash(p.sourceFileSha256)}</dd>
-            <dt>Checksum oficial</dt>
-            <dd className="text-slate-300">{p.officialChecksum.verified ? `${p.officialChecksum.algorithm} conferido` : UNAVAILABLE}</dd>
-            <dt>Gerado pelo TSE</dt>
-            <dd className="text-slate-300">{sourceDate(p.sourceGeneratedAt) ?? UNAVAILABLE}</dd>
-            <dt>Lote</dt>
-            <dd className="font-mono text-slate-300">{p.importBatchId}</dd>
-            <dt>Urna</dt>
-            <dd className="text-slate-300">
-              {data.urn?.number ?? UNAVAILABLE}
-              {data.urn?.type ? ` · ${data.urn.type}` : ""}
-            </dd>
-          </dl>
-        )}
+      <div className="mt-4">
+        <SourceBadge
+          testId="source-badge"
+          publisher="Tribunal Superior Eleitoral"
+          dataset="Boletim de Urna (Dados Abertos)"
+          details={[
+            { label: "Recurso", value: p.resourceName },
+            { label: "Arquivo", value: p.url, href: p.url },
+            { label: "SHA-256 ZIP", value: shortHash(p.sourceFileSha256), title: p.sourceFileSha256, mono: true },
+            { label: "Checksum oficial", value: p.officialChecksum.verified ? `${p.officialChecksum.algorithm} conferido` : UNAVAILABLE },
+            { label: "Gerado pelo TSE", value: sourceDate(p.sourceGeneratedAt) ?? UNAVAILABLE },
+            { label: "Lote", value: p.importBatchId, mono: true },
+            { label: "Urna", value: `${data.urn?.number ?? UNAVAILABLE}${data.urn?.type ? ` · ${data.urn.type}` : ""}` },
+          ]}
+        />
       </div>
     </section>
   );

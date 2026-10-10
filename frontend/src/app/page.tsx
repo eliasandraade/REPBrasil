@@ -131,6 +131,7 @@ export default function HomePage() {
             <TransitionLink href="/politicos" className="mi-underline focus-ring rounded hover:text-slate-300">Políticos</TransitionLink>
             <TransitionLink href="/eleicoes/comparar" className="mi-underline focus-ring rounded hover:text-slate-300">Comparar</TransitionLink>
             <TransitionLink href="/manifesto" className="mi-underline focus-ring rounded hover:text-slate-300">Manifesto</TransitionLink>
+            <TransitionLink href="/glossario" className="mi-underline focus-ring rounded hover:text-slate-300">Glossário</TransitionLink>
             <TransitionLink href="/suporte" className="mi-underline focus-ring rounded hover:text-slate-300">Suporte e correções</TransitionLink>
           </nav>
         </div>

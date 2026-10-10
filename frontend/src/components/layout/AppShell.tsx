@@ -90,6 +90,7 @@ const NAV_SECTIONS = [
   {
     label: "Suporte",
     items: [
+      { href: "/glossario", label: "Glossário", Icon: BookOpenIcon, exact: false },
       { href: "/suporte", label: "Central de Suporte", Icon: LifeBuoyIcon, exact: false },
     ],
   },

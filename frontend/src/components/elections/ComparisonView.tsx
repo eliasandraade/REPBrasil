@@ -24,6 +24,8 @@ import {
 import type { CompareTerritory, ComparisonResponse, TerritoryLevel } from "@/lib/elections/xray-types";
 import { InsightList } from "@/components/xray/InsightList";
 import { compareTerritoryLabel } from "@/lib/elections/compare-csv";
+import { DataState, RetryButton } from "@/components/ui/DataState";
+import { Term } from "@/components/ui/Term";
 import { AddCandidacy, CompareActions } from "./CompareTools";
 
 const LEVELS: TerritoryLevel[] = ["state", "municipality", "zone", "section", "place"];
@@ -167,12 +169,26 @@ export function ComparisonView() {
         </fieldset>
 
         {ids.length === 0 && <EmptyComparison onAdd={add} />}
-        {needsMunicipality && <p className="mt-6 text-sm text-slate-400">Seção e local de votação exigem um município: escolha-o pelo nível Município.</p>}
-        {q.isLoading && <div className="skeleton mt-6 h-40 rounded-xl" aria-busy="true" aria-label="Carregando comparação" />}
+        {needsMunicipality && (
+          <div className="mt-6">
+            <DataState kind="empty" title="Escolha um município">
+              Seção e local de votação exigem um município: escolha-o no nível Município.
+            </DataState>
+          </div>
+        )}
+        {q.isLoading && (
+          <div className="mt-6">
+            <DataState kind="loading" title="Carregando comparação" height="h-40" />
+          </div>
+        )}
         {q.isError && (
-          <p className="mt-6 text-sm text-slate-400" role="alert">
-            {q.error instanceof ApiError && q.error.status === 400 ? "Pedido inválido para a comparação." : "Não foi possível carregar a comparação."}
-          </p>
+          <div className="mt-6">
+            <DataState
+              kind="error"
+              title={q.error instanceof ApiError && q.error.status === 400 ? "Pedido inválido para a comparação." : "Não foi possível carregar a comparação."}
+              action={<RetryButton onRetry={() => q.refetch()} />}
+            />
+          </div>
         )}
 
         {data && (
@@ -285,7 +301,9 @@ function ComparisonBody({
                 </th>
               ))}
               {data.subjects.some((s) => s.candidacyIds.length > 1) && <th className="px-3 py-2">Evolução</th>}
-              <th className="px-3 py-2">Comparabilidade</th>
+              <th className="px-3 py-2">
+                <Term id="comparavel">Comparabilidade</Term>
+              </th>
             </tr>
           </thead>
           <tbody>

@@ -6,6 +6,7 @@ import { buildElectionsPath } from "@/lib/elections/route";
 import { xrayApi } from "@/lib/elections/xray";
 import type { XrayCandidacy, XrayResponse } from "@/lib/elections/xray-types";
 import { TransitionLink } from "@/motion/navigation";
+import { DataState, RetryButton } from "@/components/ui/DataState";
 import { InsightList } from "@/components/xray/InsightList";
 import { CandidacyCard, EvolutionList } from "@/components/xray/XrayTimeline";
 import { latestCandidacy } from "@/components/xray/useXray";
@@ -25,10 +26,11 @@ function TopPlaces({ c, onMore }: Readonly<{ c: XrayCandidacy; onMore: () => voi
     queryFn: () => xrayApi.territory(c.candidacyId, "municipality", {}),
     staleTime: 60_000,
   });
-  if (q.isLoading) return <div className="skeleton h-32 rounded-lg" aria-busy="true" aria-label="Carregando onde teve mais votos" />;
-  if (q.isError || !q.data) return <p className="text-xs text-slate-400">Não foi possível carregar a distribuição por município.</p>;
+  if (q.isLoading) return <DataState kind="loading" title="Carregando onde teve mais votos" height="h-32" />;
+  if (q.isError || !q.data)
+    return <DataState kind="error" title="Não foi possível carregar a distribuição por município." action={<RetryButton onRetry={() => q.refetch()} />} />;
   const top = q.data.territories.filter((t) => t.votes !== null && t.votes > 0).slice(0, 5);
-  if (top.length === 0) return <p className="text-xs text-slate-500">Sem votos apurados por município nesta candidatura.</p>;
+  if (top.length === 0) return <DataState kind="no_coverage">Sem votos apurados por município nesta candidatura.</DataState>;
   const max = Math.max(1, ...top.map((t) => t.votes ?? 0));
   return (
     <div>

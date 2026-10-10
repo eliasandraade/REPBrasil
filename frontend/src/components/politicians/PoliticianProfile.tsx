@@ -7,6 +7,7 @@ import { AssetsPanel, FinancePanel, RecordsPanel, TerritoryPanel } from "@/compo
 import { CandidacyPicker } from "@/components/xray/CandidacyPicker";
 import { EvolutionList, XrayTimeline } from "@/components/xray/XrayTimeline";
 import { byRecency, latestCandidacy, useXray } from "@/components/xray/useXray";
+import { DataState, RetryButton } from "@/components/ui/DataState";
 import { ProfileHeader, type LoadState } from "./ProfileHeader";
 import { ProfileOverview } from "./ProfileOverview";
 import { ProfileTabs, type TabDef } from "./ProfileTabs";
@@ -60,7 +61,7 @@ function loadState(q: { isError: boolean; isPending: boolean }): LoadState {
 }
 
 function Unavailable({ children }: Readonly<{ children: string }>) {
-  return <p className="py-8 text-center text-sm text-slate-500">{children}</p>;
+  return <DataState kind="no_coverage">{children}</DataState>;
 }
 
 /**
@@ -102,14 +103,11 @@ export function PoliticianProfile({
     ...(hasCamara ? [{ id: "camara" as TabId, label: "Câmara" }] : []),
   ];
 
-  const loading = <div className="skeleton h-40 rounded-lg" aria-busy="true" aria-label="Carregando dados eleitorais" />;
+  const loading = <DataState kind="loading" title="Carregando dados eleitorais" height="h-40" />;
   const failed = (
-    <p className="text-sm text-slate-400">
-      Não foi possível carregar os dados eleitorais.{" "}
-      <button type="button" onClick={() => xrayQ.refetch()} className="focus-ring rounded text-brand hover:underline">
-        Tentar de novo
-      </button>
-    </p>
+    <DataState kind="error" title="Não foi possível carregar os dados eleitorais." action={<RetryButton onRetry={() => xrayQ.refetch()} />}>
+      Falha de comunicação não é ausência de dados.
+    </DataState>
   );
   /** Conteúdo eleitoral, com carregamento, falha e "sem candidatura" ditos com clareza. */
   const electoralOr = (render: () => ReactNode, legacy: () => ReactNode) => {
