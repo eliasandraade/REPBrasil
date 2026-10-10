@@ -174,7 +174,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Drawer: foco entra ao abrir e volta ao botão ao fechar; Esc fecha.
   useEffect(() => {
     if (mobileOpen) {
-      drawerRef.current?.querySelector<HTMLElement>("a[aria-current], a")?.focus();
+      // Foco no item da página atual (não no primeiro link do documento, que é o logo).
+      const drawer = drawerRef.current;
+      (drawer?.querySelector<HTMLElement>("a[aria-current='page']") ?? drawer?.querySelector<HTMLElement>("nav a"))?.focus();
     } else if (wasOpen.current) {
       toggleRef.current?.focus();
     }

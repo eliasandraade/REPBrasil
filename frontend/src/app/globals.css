@@ -9,6 +9,9 @@
 
   html {
     height: 100%;
+    /* Canvas escuro: durante uma View Transition as camadas em opacidade parcial
+       deixam o canvas aparecer; sem cor própria ele surgia como um véu claro. */
+    background-color: #0a0f16;
   }
 
   body {

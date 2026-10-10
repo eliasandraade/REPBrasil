@@ -25,6 +25,11 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("next/image", () => ({
+  // eslint-disable-next-line @next/next/no-img-element
+  default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
+}));
+
 import { directionBetween, routeDepth } from "@/motion/depth";
 import { duration, easing, easingFn } from "@/motion/tokens";
 import { Reveal } from "@/motion/reveal";
@@ -34,6 +39,8 @@ import HomePage from "@/app/page";
 import { PoliticianProfile } from "@/components/politicians/PoliticianProfile";
 import { SectionResults } from "@/components/elections/SectionResults";
 import { SearchInput } from "@/components/politicians/SearchInput";
+import { CamaraTab } from "@/components/politicians/tabs/CamaraTab";
+import { AppShell } from "@/components/layout/AppShell";
 
 function mockMatchMedia(reduce: boolean) {
   vi.stubGlobal(
@@ -100,6 +107,11 @@ describe("tokens de movimento", () => {
     for (const [name, curve] of Object.entries(easing)) {
       expect(css).toContain(`--ease-${cssName[name]}: cubic-bezier(${curve.join(", ")});`);
     }
+  });
+
+  it("o canvas tem a cor do produto (sem véu claro no meio de uma View Transition)", () => {
+    const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf-8");
+    expect(globals).toMatch(/html \{[^}]*background-color: #0a0f16;/);
   });
 
   it("nenhuma curva quica (dados oficiais não oscilam)", () => {
@@ -424,5 +436,68 @@ describe("busca", () => {
     expect(nav.push).toHaveBeenCalledWith("/politicos?q=wagner&page=1", { scroll: undefined });
     vi.useRealTimers();
     expect(identityHint("ninguem")).toBeNull();
+  });
+});
+
+// ─── Câmara ─────────────────────────────────────────────────────────────────
+
+describe("aba Câmara", () => {
+  function renderCamara(response: () => Promise<Response>) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.stubGlobal("fetch", vi.fn(response));
+    render(
+      <QueryClientProvider client={client}>
+        <CamaraTab politicianId="pol-9" camaraId="220593" />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("carregando: estrutura sem nenhum dado inventado; depois o mandato oficial", async () => {
+    let resolve!: (r: Response) => void;
+    renderCamara(() => new Promise<Response>((r) => (resolve = r)));
+    const busy = document.querySelector("[aria-busy='true']")!;
+    expect(busy.textContent).toBe("Carregando dados da Câmara");
+    expect(busy.querySelector("output")).toBeTruthy();
+    resolve(
+      new Response(
+        JSON.stringify([
+          { id: "m1", house: "CAMARA", legislature: 57, title: "DEPUTADO FEDERAL", state: "MT", partyAcronym: "PL", startDate: "2023-02-01", endDate: "2027-01-31", externalId: "220593", externalUrl: null },
+        ]),
+        { status: 200 },
+      ),
+    );
+    expect(await screen.findByText("DEPUTADO FEDERAL")).toBeTruthy();
+    expect(screen.getByText(/57ª Legislatura/)).toBeTruthy();
+  });
+
+  it("falha da API não vira 'nenhum mandato'", async () => {
+    renderCamara(() => Promise.resolve(new Response("boom", { status: 500 })));
+    expect(await screen.findByText("Erro ao carregar dados da Câmara.")).toBeTruthy();
+    expect(screen.queryByText(/Nenhum mandato/)).toBeNull();
+  });
+});
+
+// ─── Drawer móvel ───────────────────────────────────────────────────────────
+
+describe("drawer de navegação móvel", () => {
+  it("fechado é inerte; abre com foco no item da página atual; Esc fecha e devolve o foco ao botão", () => {
+    nav.pathname = "/eleicoes";
+    render(
+      <NavigationProvider>
+        <AppShell>
+          <p>conteúdo</p>
+        </AppShell>
+      </NavigationProvider>,
+    );
+    const drawer = document.getElementById("mobile-nav")!;
+    expect(drawer.hasAttribute("inert")).toBe(true);
+    const toggle = screen.getByRole("button", { name: "Abrir menu" });
+    fireEvent.click(toggle);
+    expect(drawer.hasAttribute("inert")).toBe(false);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(within(drawer).getByRole("link", { name: "Eleições" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(drawer.hasAttribute("inert")).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Abrir menu" }));
   });
 });
