@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -21,13 +22,38 @@ from .acquire import load_manifest, verify_file_sha256
 from .pipeline import prepare_import
 from .store import import_prepared
 
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_UF_RE = re.compile(r"^[A-Z]{2}$")
+_DEFAULT_DATA_ROOT = Path("/data/open-data")
+_DEFAULT_REPORTS_ROOT = Path("/data/reports")
+
 
 class StateImportError(RuntimeError):
     pass
 
 
+def _normalize_uf(value: str) -> str:
+    uf = value.strip().upper()
+    if not _UF_RE.fullmatch(uf):
+        raise StateImportError(f"invalid UF {value!r}; expected two ASCII letters")
+    return uf
+
+
+def _artifact_manifest(root: Path, artifact_sha256: str) -> Path:
+    digest = artifact_sha256.strip().lower()
+    if not _SHA256_RE.fullmatch(digest):
+        raise StateImportError("artifact SHA-256 must contain exactly 64 hexadecimal characters")
+    base = root.resolve()
+    manifest = (base / digest / "manifest.json").resolve()
+    if manifest.parent.parent != base:
+        raise StateImportError("artifact path escaped the configured data root")
+    if not manifest.is_file():
+        raise StateImportError(f"artifact manifest not found for SHA-256 {digest}")
+    return manifest
+
+
 def _validate_manifest_scope(manifest: dict[str, Any], *, year: int, turn: int, uf: str) -> str:
-    expected_uf = uf.upper()
+    expected_uf = _normalize_uf(uf)
     scope = manifest.get("scope") or {}
     actual = (scope.get("year"), scope.get("turn"), str(scope.get("uf", "")).upper())
     expected = (year, turn, expected_uf)
@@ -176,32 +202,38 @@ def import_state(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Import one UF from an acquired official BU manifest")
-    parser.add_argument("manifest", type=Path)
+    parser = argparse.ArgumentParser(description="Import one UF from an acquired official BU artifact")
+    parser.add_argument("--artifact-sha256", required=True)
     parser.add_argument("--year", type=int, required=True)
     parser.add_argument("--turn", type=int, required=True)
     parser.add_argument("--uf", required=True)
-    parser.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
-    parser.add_argument("--progress", type=Path, default=None)
-    parser.add_argument("--report", type=Path, default=None)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    database_url = args.database_url or os.environ.get("DATABASE_URL")
+    database_url = os.environ.get("DATABASE_URL")
     if not database_url:
-        raise SystemExit("DATABASE_URL (or --database-url) is required")
+        raise SystemExit("DATABASE_URL is required")
+
+    state = _normalize_uf(args.uf)
+    data_root = Path(os.environ.get("REPBRASIL_ELECTORAL_DATA_ROOT", str(_DEFAULT_DATA_ROOT)))
+    reports_root = Path(os.environ.get("REPBRASIL_ELECTORAL_REPORTS_ROOT", str(_DEFAULT_REPORTS_ROOT)))
+    manifest_path = _artifact_manifest(data_root, args.artifact_sha256)
+    report_prefix = f"{state.lower()}-{args.year}-{args.turn}-bu"
+    progress_path = reports_root / f"{report_prefix}-progress.json"
+    report_path = reports_root / f"{report_prefix}-report.json"
+
     with electoral_db.connect(database_url, autocommit=True) as conn:
         report = import_state(
             conn,
-            args.manifest,
+            manifest_path,
             year=args.year,
             turn=args.turn,
-            uf=args.uf,
-            progress_path=args.progress,
+            uf=state,
+            progress_path=progress_path,
         )
-    _write_json(args.report, report)
+    _write_json(report_path, report)
     print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
     return 0
 
