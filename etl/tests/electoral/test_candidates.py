@@ -40,7 +40,7 @@ def cpf(seed: int) -> str:
 
 BASE = dict.fromkeys(CANDIDATES_COLUMNS, "#NULO") | {
     "DT_GERACAO": "01/01/2099", "HH_GERACAO": "10:00:00", "ANO_ELEICAO": "2099", "CD_TIPO_ELEICAO": "2",
-    "NM_TIPO_ELEICAO": "ELEIÇÃO ORDINÁRIA", "NR_TURNO": "1", "DT_ELEICAO": "04/10/2099",
+    "NM_TIPO_ELEICAO": "ELEIÇÃO ORDINÁRIA", "NR_TURNO": "1", "DT_ELEICAO": "01/01/2099",
     "NR_CPF_CANDIDATO": "", "DS_EMAIL": "NÃO DIVULGÁVEL", "CD_SITUACAO_CANDIDATURA": "-3",
     "DS_SITUACAO_CANDIDATURA": "#NE", "TP_AGREMIACAO": "PARTIDO ISOLADO", "NR_FEDERACAO": "-1",
     "SQ_COLIGACAO": "1", "NM_COLIGACAO": "PARTIDO ISOLADO", "DT_NASCIMENTO": "01/01/1970",
@@ -162,7 +162,7 @@ def test_source_row_hash_is_computed_with_the_cpf_redacted(tmp_path):
     assert doc_a not in repr(a)
 
 
-RUNOFF = {"NR_TURNO": "2", "CD_ELEICAO": "999003", "DT_ELEICAO": "25/10/2099", "CD_SIT_TOT_TURNO": "-1", "DS_SIT_TOT_TURNO": "#NULO"}
+RUNOFF = {"NR_TURNO": "2", "CD_ELEICAO": "999003", "DT_ELEICAO": "15/01/2099", "CD_SIT_TOT_TURNO": "-1", "DS_SIT_TOT_TURNO": "#NULO"}
 
 
 def test_official_file_with_both_rounds_imports_only_the_requested_turn(tmp_path):
