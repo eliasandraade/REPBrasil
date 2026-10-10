@@ -97,6 +97,28 @@ public class ComparisonServiceTests
     }
 
     [Fact]
+    public async Task A_third_election_does_not_block_a_comparable_pair()
+    {
+        // 2024 recompõe a seção 100 (agregada 105) só nessa eleição: 2022 → 2026 continua comparável.
+        var repo = Repo();
+        var g24 = Guid.NewGuid();
+        repo.Candidacies.Add(Xray.Candidacy(g24, 2024, 13, "municipal", "99999", 77777, "CANDIDATA G", Guid.NewGuid(), officeName: "Vereador"));
+        repo.Sections.Add(Xray.Section(41, 2024, 13, 100, [100, 105]));
+        repo.SectionVotes.Add(Xray.Votes(41, g24, 9));
+
+        var r = await new ComparisonService(repo).CompareAsync(Section(A22, B22, A26, B26, g24), Ct);
+
+        var s100 = Territory(r, 100);
+        Assert.Equal(TerritoryComparability.SectionCompositionChanged, s100.Comparability); // visão das três eleições
+        var subjectA = r.Candidacies.Single(c => c.CandidacyId == A22).Subject;
+        var a = s100.Evolution.Single(e => e.Subject == subjectA);
+        Assert.Equal((ContestComparability.Comparable, 10L), (a.Comparability, a.DeltaVotes!.Value));
+        var overtake = Assert.Single(r.Overtakes); // A passou B entre 2022 e 2026, apesar de 2024
+        Assert.Equal((0, 2), (overtake.FromElection, overtake.ToElection));
+        Assert.Contains(s100.Key, overtake.Keys);
+    }
+
+    [Fact]
     public async Task Aggregated_section_change_blocks_the_delta()
     {
         var r = await new ComparisonService(Repo()).CompareAsync(Section(A22, A26), Ct);

@@ -249,11 +249,9 @@ public class ComparisonService(IElectoralXrayRepository repo)
             {
                 var (from, fromCell) = own[i - 1];
                 var (to, toCell) = own[i];
-                var contest = Comparability.Contest(from.Contest, to.Contest, HasVotes(from), HasVotes(to));
-                var status = contest != ContestComparability.Comparable ? contest
-                    : comparability != TerritoryComparability.Comparable ? comparability
-                    : !Comparability.IsComplete(fromCell.State) || !Comparability.IsComplete(toCell.State) ? TerritoryComparability.CoverageOrSectionMissing
-                    : ContestComparability.Comparable;
+                var status = StepStatus(
+                    Comparability.Contest(from.Contest, to.Contest, HasVotes(from), HasVotes(to)),
+                    PairComparability(members, from.Election, to.Election), fromCell, toCell);
                 var (delta, pct) = status == ContestComparability.Comparable ? Comparability.Delta(fromCell.Votes, toCell.Votes) : (null, null);
                 evolution.Add(new CompareEvolutionDto(
                     subject, from.Row.Id, to.Row.Id, status, delta, pct,
@@ -278,6 +276,24 @@ public class ComparisonService(IElectoralXrayRepository repo)
             cells.Select(x => x.Cell).ToList(), evolution, leaders);
     }
 
+    /// <summary>
+    /// Comparabilidade do território entre DUAS eleições (um passo da evolução ou uma superação): na seção ou no
+    /// local, a composição só dessas duas; nos agregados (estado, município, zona) a completude é conferida célula a
+    /// célula. Uma terceira eleição selecionada, sem cobertura ou recomposta, não bloqueia o par.
+    /// </summary>
+    private static string PairComparability(IReadOnlyDictionary<int, IReadOnlyList<int>>? members, int e1, int e2) =>
+        members is null
+            ? TerritoryComparability.Comparable
+            : Comparability.SectionStatus([members.GetValueOrDefault(e1), members.GetValueOrDefault(e2)]);
+
+    private static string StepStatus(string contest, string pair, CompareCellDto from, CompareCellDto to)
+    {
+        if (contest != ContestComparability.Comparable) return contest;
+        if (pair != TerritoryComparability.Comparable) return pair;
+        if (!Comparability.IsComplete(from.State) || !Comparability.IsComplete(to.State)) return TerritoryComparability.CoverageOrSectionMissing;
+        return ContestComparability.Comparable;
+    }
+
     private static IReadOnlyList<OvertakeDto> Overtakes(IReadOnlyList<Cand> cands, IReadOnlyList<CompareTerritoryDto> territories, int electionCount)
     {
         var result = new List<OvertakeDto>();
@@ -296,7 +312,7 @@ public class ComparisonService(IElectoralXrayRepository repo)
                         if (Comparability.Contest(a2.Contest, b2.Contest, HasVotes(a2), HasVotes(b2)) != ContestComparability.Comparable) continue;
                         if (Comparability.Contest(a1.Contest, a2.Contest, HasVotes(a1), HasVotes(a2)) != ContestComparability.Comparable) continue;
                         var keys = new List<string>();
-                        foreach (var t in territories.Where(t => t.Comparability == TerritoryComparability.Comparable))
+                        foreach (var t in territories.Where(t => PairComparability(t.MembersByElection, e1, e2) == TerritoryComparability.Comparable))
                         {
                             var cells = new[] { a1, b1, a2, b2 }.Select(c => t.Cells.First(x => x.CandidacyId == c.Row.Id)).ToArray();
                             if (!cells.All(x => Comparability.IsComplete(x.State))) continue;

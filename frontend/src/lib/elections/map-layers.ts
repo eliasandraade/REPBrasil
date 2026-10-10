@@ -99,9 +99,14 @@ function deltaText(r: MapLayerResponse, f: MapFeature): string {
   return from === null || to === null ? reason : `${reason} · ${formatCount(from)} → ${formatCount(to)} votos`;
 }
 
-function abText(f: MapFeature): string {
-  if (f.value === null) return "sem comparação completa";
-  return `A ${formatCount(num(f.details.aVotes))} × B ${formatCount(num(f.details.bVotes))} (${signed(f.value)})`;
+/** Com diferença: A × B e o saldo. Sem diferença: o motivo (disputa ou território) e os votos lado a lado. */
+function abText(r: MapLayerResponse, f: MapFeature): string {
+  const a = num(f.details.aVotes);
+  const b = num(f.details.bVotes);
+  if (f.value !== null) return `A ${formatCount(a)} × B ${formatCount(b)} (${signed(f.value)})`;
+  let reason = f.state === "comparable" ? "sem comparação completa" : comparabilityLabel(f.state);
+  if (r.comparability && r.comparability !== "comparable_contest") reason = comparabilityLabel(r.comparability);
+  return a === null || b === null ? reason : `${reason} · A ${formatCount(a)} × B ${formatCount(b)}`;
 }
 
 function valueText(r: MapLayerResponse, f: MapFeature): string {
@@ -116,7 +121,7 @@ function valueText(r: MapLayerResponse, f: MapFeature): string {
     case "decline":
       return deltaText(r, f);
     case "ab":
-      return abText(f);
+      return abText(r, f);
   }
 }
 
@@ -214,4 +219,15 @@ export function buildLayerView(r: MapLayerResponse): MapLayerView {
     ? `Candidatura com mais votos em cada território, sem cor partidária. ${r.legend.length} vencedores diferentes: a cor indica a % de quem venceu em cada território; o nome aparece ao passar o mouse.`
     : r.note;
   return { kind: r.layer, level: r.level, municipalities, places, legend: legendOf(r), gradient: gradientOf(r), note };
+}
+
+/**
+ * Assinatura estável da camada temática: muda quando muda qualquer coisa escrita no mapa — cor dos municípios e,
+ * nos locais de votação (GeoJSON), cor, texto do tooltip, nome e coordenadas.
+ */
+export function layerSignature(layer: MapLayerView | null | undefined): string {
+  if (!layer) return "";
+  const municipalities = Object.entries(layer.municipalities).map(([k, v]) => k + ":" + v.color);
+  const places = layer.places.map((p) => [p.key, p.color, p.text, p.name, p.latitude, p.longitude].join(":"));
+  return [layer.kind, layer.level, municipalities.join(","), places.join(",")].join("|");
 }

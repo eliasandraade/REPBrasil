@@ -3,7 +3,7 @@
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { bboxOf, boundsForLevel, loadTerritoryGeo, type GeoStatus, type TerritoryGeo } from "@/lib/elections/geo";
-import type { MapLayerView } from "@/lib/elections/map-layers";
+import { layerSignature, type MapLayerView } from "@/lib/elections/map-layers";
 import type { ExplorerLevel } from "@/lib/elections/route";
 import { duration, easingFn } from "@/motion/tokens";
 
@@ -88,14 +88,6 @@ function webglAvailable() {
   } catch {
     return false;
   }
-}
-
-/** Assinatura estável da camada temática (muda só quando cores ou feições mudam). */
-function layerSignature(layer: MapLayerView | null | undefined): string {
-  if (!layer) return "";
-  const municipalities = Object.entries(layer.municipalities).map(([k, v]) => k + ":" + v.color);
-  const places = layer.places.map((p) => p.key + ":" + p.color);
-  return [layer.kind, layer.level, municipalities.join(","), places.join(",")].join("|");
 }
 
 export function TerritoryMap(props: Props) {

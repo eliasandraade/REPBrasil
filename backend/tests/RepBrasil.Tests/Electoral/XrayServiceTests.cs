@@ -201,6 +201,14 @@ public class XrayServiceTests
         Assert.Contains("cargo ou unidade diferente", otherOffice.Note);
         Assert.All(otherOffice.Features, f => Assert.Null(f.Value));
 
+        // A × B entre cargos diferentes: votos lado a lado, sem diferença nem "vencedor"
+        var abOtherOffice = await service.MapAsync(new MapQuery(2026, 1, "CE", "ab", null, null, null, Governor, A26, null), Ct);
+        Assert.Equal(ContestComparability.DifferentOffice, abOtherOffice.Comparability);
+        Assert.Contains("cargo ou unidade diferente", abOtherOffice.Note);
+        Assert.All(abOtherOffice.Features, f => Assert.Null(f.Value));
+        Assert.All(abOtherOffice.Features, f => Assert.Null(f.Category));
+        Assert.Equal(600L, abOtherOffice.Features.Single(f => f.MunicipalityTseCode == "11111").Details["aVotes"]);
+
         var winner = await service.MapAsync(new MapQuery(2026, 1, "CE", "winner", 7, null, null, null, null, null), Ct);
         Assert.All(winner.Features, f => Assert.Equal(A26.ToString(), f.Category));
         Assert.Equal(A26.ToString(), Assert.Single(winner.Legend).Category);

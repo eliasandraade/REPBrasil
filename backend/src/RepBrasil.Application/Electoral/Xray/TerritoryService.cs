@@ -453,14 +453,8 @@ public class TerritoryService(IElectoralXrayRepository repo)
                             ["comparability"] = state,
                         }, state, t.IbgeCode);
                     }).ToList();
-                    var note = comparability switch
-                    {
-                        ContestComparability.Comparable => "Variação de votos entre as duas candidaturas, só em territórios comparáveis.",
-                        ContestComparability.Unavailable =>
-                            "Comparação direta indisponível: uma das candidaturas não tem vínculo auditado com o Boletim de Urna; sem delta.",
-                        _ => "Disputas não comparáveis diretamente (cargo ou unidade diferente): valores lado a lado nos detalhes, sem delta.",
-                    };
-                    return Response(q, uf, mun, layer, level, to.OfficeCode, features, [], comparability, note, freshness);
+                    return Response(q, uf, mun, layer, level, to.OfficeCode, features, [], comparability,
+                        ContestNote(comparability, "Variação de votos entre as duas candidaturas, só em territórios comparáveis."), freshness);
                 }
             case "ab":
                 {
@@ -478,9 +472,14 @@ public class TerritoryService(IElectoralXrayRepository repo)
                         bValues.TryGetValue(k, out var bv);
                         var keyed = (av ?? bv)!;
                         var territory = keyed.Territory;
-                        var complete = av is not null && bv is not null && Comparability.IsComplete(av.Territory.State)
-                            && Comparability.IsComplete(bv.Territory.State);
-                        long? diff = complete ? av!.Territory.Votes - bv!.Territory.Votes : null;
+                        var both = av is not null && bv is not null;
+                        // local de votação de eleições diferentes: só com o mesmo conjunto de seções
+                        var sameMembers = level == "municipality" || (both && SameMembers(av!.Territory, bv!.Territory));
+                        var complete = both && sameMembers && Comparability.IsComplete(av!.Territory.State)
+                            && Comparability.IsComplete(bv!.Territory.State);
+                        // diferença só entre disputas comparáveis (mesmo cargo e mesma unidade); senão, votos lado a lado
+                        long? diff = complete && comparability == ContestComparability.Comparable
+                            ? av!.Territory.Votes - bv!.Territory.Votes : null;
                         var category = diff is null ? null : diff > 0 ? "a" : diff < 0 ? "b" : "tie";
                         return Feature(territory, diff, category, category switch { "a" => a.BallotName, "b" => b.BallotName, "tie" => "Empate", _ => null },
                             new Dictionary<string, object?>
@@ -491,11 +490,12 @@ public class TerritoryService(IElectoralXrayRepository repo)
                                 ["bState"] = bv?.Territory.State,
                                 ["aShare"] = av?.Territory.Share,
                                 ["bShare"] = bv?.Territory.Share,
-                            }, complete ? TerritoryComparability.Comparable : TerritoryComparability.CoverageOrSectionMissing, keyed.IbgeCode);
+                            }, AbState(complete, both, sameMembers), keyed.IbgeCode);
                     }).ToList();
                     return Response(q, uf, mun, layer, level, a.OfficeCode, features,
                         [new MapLegendItemDto("a", a.BallotName, 1), new MapLegendItemDto("b", b.BallotName, 2), new MapLegendItemDto("tie", "Empate", 3)],
-                        comparability, "Diferença de votos A − B por território (só onde as duas votações estão completas).", freshness);
+                        comparability, ContestNote(comparability, "Diferença de votos A − B por território (só onde as duas votações estão completas)."),
+                        freshness);
                 }
             default: // winner
                 {
@@ -569,6 +569,21 @@ public class TerritoryService(IElectoralXrayRepository repo)
                         "Candidatura com mais votos em cada território (sem cor partidária; paleta neutra por ordem da legenda).", freshness);
                 }
         }
+    }
+
+    /// <summary>Nota das camadas entre duas candidaturas: por que não há diferença quando as disputas não se comparam.</summary>
+    private static string ContestNote(string comparability, string comparableNote) => comparability switch
+    {
+        ContestComparability.Comparable => comparableNote,
+        ContestComparability.Unavailable =>
+            "Comparação direta indisponível: uma das candidaturas não tem vínculo auditado com o Boletim de Urna; votos lado a lado, sem diferença.",
+        _ => "Disputas não comparáveis diretamente (cargo ou unidade diferente): votos lado a lado nos detalhes, sem diferença.",
+    };
+
+    private static string AbState(bool complete, bool both, bool sameMembers)
+    {
+        if (complete) return TerritoryComparability.Comparable;
+        return both && !sameMembers ? TerritoryComparability.SectionCompositionChanged : TerritoryComparability.CoverageOrSectionMissing;
     }
 
     private static bool SameMembers(TerritoryValueDto a, TerritoryValueDto b) =>

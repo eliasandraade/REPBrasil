@@ -23,7 +23,7 @@ import { ComparisonView } from "@/components/elections/ComparisonView";
 import { TerritoryCandidates } from "@/components/elections/TerritoryCandidates";
 import { XrayTab } from "@/components/xray/XrayTab";
 import { useReducedMotion } from "@/lib/elections/reduced-motion";
-import { buildLayerView, CATEGORICAL } from "@/lib/elections/map-layers";
+import { buildLayerView, CATEGORICAL, layerSignature } from "@/lib/elections/map-layers";
 import { levelCount, MAX_COMPARE, parseSelection, signed, signedPercent, toggleSelection, votesText } from "@/lib/elections/xray";
 
 const ID = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -323,6 +323,26 @@ describe("camadas do mapa", () => {
     expect(growth.municipalities["2"].color).toBe(growth.legend[1].color);
     const decline = buildLayerView({ ...base, layer: "decline", features: [feature(1, -10)], legend: [] });
     expect(decline.legend.map((l) => l.label)).toEqual(["Queda", "Sem queda (estável ou crescimento)"]);
+  });
+
+  it("A × B entre disputas não comparáveis: motivo e votos lado a lado, sem saldo", () => {
+    const ab = buildLayerView({
+      ...base, layer: "ab", comparability: "different_office",
+      features: [{ ...feature(1, null), state: "comparable", details: { aVotes: 600, bVotes: 20 } }],
+      legend: [{ category: "a", label: "GOVERNADOR", rank: 1 }, { category: "b", label: "DEPUTADA", rank: 2 }],
+    });
+    expect(ab.municipalities["1"].text).toBe("cargo diferente · A 600 × B 20");
+    expect(ab.municipalities["1"].color).toBeNull();
+  });
+
+  it("assinatura do mapa muda com o texto do local (tooltip nunca fica velho)", () => {
+    const one = buildLayerView({
+      ...base, layer: "intensity", level: "place",
+      features: [{ ...feature(1, 10), key: "CE|1|1|100", latitude: -3.7, longitude: -38.5, details: {} }],
+      legend: [],
+    });
+    const other = { ...one, places: one.places.map((p) => ({ ...p, text: "outro texto" })) };
+    expect(layerSignature(one)).not.toBe(layerSignature(other));
   });
 
   it("contagem por nível com plural correto", () => {
