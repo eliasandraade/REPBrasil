@@ -21,6 +21,14 @@ ALTER TABLE open_data_source_file ADD CONSTRAINT open_data_source_file_kind_know
     'tse-open-data-campaign-fiscal-documents'
   ));
 
+-- Eleições municipais usam SG_UE municipal, portanto a unidade eleitoral não
+-- pode ficar limitada a char(2). O escopo passa a reconhecer explicitamente o
+-- nível municipal sem alterar as identidades já existentes de BR/UF.
+ALTER TABLE contest DROP CONSTRAINT IF EXISTS contest_scope_check;
+ALTER TABLE contest ALTER COLUMN electoral_unit TYPE text USING btrim(electoral_unit::text);
+ALTER TABLE contest ADD CONSTRAINT contest_scope_check
+  CHECK (scope IN ('federal', 'state', 'municipal'));
+
 -- Bens declarados ao TSE pertencem à candidatura daquele pleito, não à pessoa
 -- atemporalmente. Isso permite mostrar evolução patrimonial sem misturar eleições.
 CREATE TABLE IF NOT EXISTS candidacy_asset (
