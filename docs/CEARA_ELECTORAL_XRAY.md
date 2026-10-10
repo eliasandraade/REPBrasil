@@ -179,8 +179,10 @@ inteiros e UF de uma lista fechada.
 ## 8. Produção (Railway) — procedimento seguro
 
 1. Backup lógico do schema `electoral` e de `Persons`/`Politicians` antes de qualquer passo.
-2. Deploy do backend com as migrations 006–008 (aditivas; rollback falha explicitamente quando há
-   dados que seriam destruídos). A 008 cria os agregados derivados já populados com o CE 2026.
+2. Deploy do backend com as migrations 006–009 (aditivas; rollback falha explicitamente quando há
+   dados que seriam destruídos). A 008 cria os agregados derivados já populados com o CE 2026; a 009
+   põe o turno na chave de idempotência da importação de candidaturas (o mesmo arquivo oficial traz
+   os dois turnos).
 3. Conferir o baseline do CE 2026 (184 municípios, 205 zonas, 2.751.489 linhas de voto,
    35.438.081 votos, 742 candidaturas, 640 vínculos) — deve permanecer idêntico.
 4. `backfill-history --year 2026`; depois cadastro, candidaturas, BU, registros e contas de 2022 e

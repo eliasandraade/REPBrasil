@@ -447,8 +447,9 @@ def import_candidates(
             )
             cur.execute(
                 """SELECT id FROM ingestion_run WHERE source = %s AND status = 'succeeded' AND source_file_id = %s
-                     AND scope->>'units' = %s AND (scope->>'history_zip_sha256') IS NOT DISTINCT FROM %s::text""",
-                (SOURCE, source_id, scope["units"], scope["history_zip_sha256"]),
+                     AND scope->>'turn' = %s AND scope->>'units' = %s
+                     AND (scope->>'history_zip_sha256') IS NOT DISTINCT FROM %s::text""",
+                (SOURCE, source_id, str(turn), scope["units"], scope["history_zip_sha256"]),
             )
             done = cur.fetchone()
             if done:

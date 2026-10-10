@@ -229,13 +229,13 @@ def conn():
         yield c
 
 
-def run_import(conn, tmp_path, br, xx, history=(), sha="c", supersede=False, key=KEY):
+def run_import(conn, tmp_path, br, xx, history=(), sha="c", supersede=False, key=KEY, turn=1):
     tmp_path.mkdir(parents=True, exist_ok=True)
     br_rows, layout = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, br))
     xx_rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_XX.csv", CANDIDATES_COLUMNS, xx))
     hist, hist_layout = parse_history_file(write_csv(tmp_path / "historico_candidatura_2099_XX.csv", HISTORY_COLUMNS, list(history)))
     return import_candidates(
-        conn, year=2099, turn=1, units={"BR", "XX"}, candidates=br_rows + xx_rows,
+        conn, year=2099, turn=turn, units={"BR", "XX"}, candidates=br_rows + xx_rows,
         candidates_manifest=manifest("tse-open-data-candidates", sha), candidates_layout=layout,
         history=hist, history_manifest=manifest("tse-open-data-candidacy-history", "d"), history_layout=hist_layout,
         key=key, supersede=supersede,
@@ -362,4 +362,18 @@ def test_import_skips_rows_of_another_round_and_reports_them(conn, tmp_path):
     assert report["other_turn_rows"] == {"2": 1}
     assert conn.execute("SELECT count(*) FROM candidacy WHERE tse_candidate_id = 9002").fetchone()[0] == 1
     assert conn.execute("SELECT count(*) FROM contest WHERE tse_election_code = 999003").fetchone()[0] == 0
+
+
+@db
+def test_the_same_official_file_imports_each_turn_once(conn, tmp_path):
+    """Regressão (carga de 2022): o arquivo oficial traz os dois turnos; o 2º turno não é "já importado"."""
+    conn.execute("INSERT INTO election (year, round, election_date, tse_cycle) VALUES (2099, 2, '2099-01-15', 'ele2099')")
+    rows = [ALFA, BETA, BETA | RUNOFF]
+    assert run_import(conn, tmp_path / "t1", rows, [GAMA])["status"] == "succeeded"
+    second = run_import(conn, tmp_path / "t2", rows, [GAMA], turn=2)
+    assert (second["status"], second["candidacies"], second["other_turn_rows"]) == ("succeeded", 1, {"1": 3})
+    assert run_import(conn, tmp_path / "t2-again", rows, [GAMA], turn=2)["status"] == "already_imported"
+    # uma candidatura por turno (disputas diferentes), a mesma pessoa
+    assert conn.execute(
+        "SELECT count(*), count(DISTINCT person_id) FROM candidacy WHERE tse_candidate_id = 9002").fetchone() == (2, 1)
 
