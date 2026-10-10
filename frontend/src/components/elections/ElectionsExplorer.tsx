@@ -11,9 +11,15 @@ import { buildElectionsPath, levelOf, parentRoute, parseElectionsPath, type Expl
 import { useReducedMotion } from "@/motion/reduced-motion";
 import { cssEasing, duration } from "@/motion/tokens";
 import { buildZoneModel } from "@/lib/elections/zone-model";
+import { parseSelection, serializeSelection, toggleSelection, xrayApi } from "@/lib/elections/xray";
+import type { MapLayerKind } from "@/lib/elections/xray-types";
 import { CountryPanel, MunicipalityPanel, StatePanel, ZonePanel } from "./ExplorerPanels";
+import { CompareTray, MapLayerBar, useMapLayer, useSelectionNames, type LayerState } from "./ExplorerTools";
 import { SectionResults, type VoteTypeFilter } from "./SectionResults";
+import { TerritoryCandidates } from "./TerritoryCandidates";
 import { TerritoryMap, type MapPoint, type MapScope } from "./TerritoryMap";
+
+const LAYER_KINDS: MapLayerKind[] = ["intensity", "share", "winner", "growth", "decline", "ab"];
 
 const ibge = (code: number | null | undefined) => (code == null ? null : String(code));
 const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
@@ -183,20 +189,61 @@ export function ElectionsExplorer() {
     if (placeFilter) setPlaceFilter(null);
   }
 
-  const setParam = useCallback(
-    (key: string, value: string | null) => {
+  const setParams = useCallback(
+    (updates: Record<string, string | null>) => {
       const params = new URLSearchParams(search.toString());
-      if (value === null) params.delete(key);
-      else params.set(key, value);
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null) params.delete(key);
+        else params.set(key, value);
+      }
       const qs = params.toString();
       router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
     },
     [pathname, router, search],
   );
+  const setParam = useCallback((key: string, value: string | null) => setParams({ [key]: value }), [setParams]);
+
+  // Painel (território × candidaturas), seleção de comparação (máx. 5) e camada do mapa vivem na URL.
+  const panelMode = search.get("painel") === "candidaturas" ? "candidates" : "territory";
+  const selection = parseSelection(search.get("c"));
+  const [limitHit, setLimitHit] = useState(false);
+  const toggleCompare = (id: string) => {
+    const r = toggleSelection(selection, id);
+    setLimitHit(r.rejected);
+    if (!r.rejected) setParam("c", r.ids.length ? serializeSelection(r.ids) : null);
+  };
+  const layerParam = search.get("camada") as MapLayerKind | null;
+  const layerState: LayerState = {
+    layer: layerParam && LAYER_KINDS.includes(layerParam) ? layerParam : null,
+    office: Number(search.get("cargo")) || null,
+    candidacy: search.get("candidatura"),
+    base: search.get("base"),
+    a: search.get("a"),
+    b: search.get("b"),
+  };
+  const onLayerChange = (next: Partial<LayerState>) =>
+    setParams({
+      ...("layer" in next ? { camada: next.layer ?? null } : {}),
+      ...("office" in next ? { cargo: next.office ? String(next.office) : null } : {}),
+      ...("candidacy" in next ? { candidatura: next.candidacy ?? null } : {}),
+      ...("base" in next ? { base: next.base ?? null } : {}),
+      ...("a" in next ? { a: next.a ?? null } : {}),
+      ...("b" in next ? { b: next.b ?? null } : {}),
+    });
 
   const states = statesQ.data?.states ?? null;
   const stateRow = states?.find((s) => s.slug === uf) ?? null;
   const municipalities = munsQ.data?.municipalities ?? null;
+  const ufCode = stateRow?.uf ?? (uf ? uf.toUpperCase() : null);
+  const munTse = mun?.status === "available" ? mun.municipality.tseCode : null;
+  const names = useSelectionNames(selection, ufCode);
+  const officesQ = useQuery({
+    queryKey: ["el-offices", year, round, ufCode, munTse],
+    queryFn: () => xrayApi.candidates(year, round, ufCode!, { municipality: munTse, pageSize: 1 }),
+    enabled: !!parsed && !!ufCode && layerState.layer === "winner",
+    staleTime: 5 * 60_000,
+  });
+  const mapLayer = useMapLayer(year, round, ufCode, munTse, layerState);
 
   const scope: MapScope = useMemo(
     () => ({
@@ -276,6 +323,26 @@ export function ElectionsExplorer() {
         Falha de comunicação não é ausência de dados.
       </Notice>
     );
+  } else if (panelMode === "candidates" && ufCode && level !== "country") {
+    panel = (
+      <div>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+          {[stateRow?.name, mun?.municipality.name, route.zone != null ? zoneLabel(route.zone) : null].filter(Boolean).join(" · ")}
+        </p>
+        <h2 className="mb-3 text-lg font-bold leading-tight text-slate-100">Candidaturas no território</h2>
+        <TerritoryCandidates
+          year={route.year}
+          round={route.round}
+          uf={ufCode}
+          municipality={munTse}
+          zone={route.zone ?? null}
+          selection={selection}
+          limitHit={limitHit}
+          onToggleCompare={toggleCompare}
+          onShowOnMap={(id) => setParams({ camada: "intensity", candidatura: id })}
+        />
+      </div>
+    );
   } else if (level === "country") {
     panel = states ? <CountryPanel route={route} states={states} /> : <Skeleton />;
   } else if (level === "state") {
@@ -329,7 +396,28 @@ export function ElectionsExplorer() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(320px,420px)_1fr]">
           <aside className="rounded-xl border border-white/8 bg-card p-4" aria-label="Exploração territorial" data-testid="explorer-panel">
-            <PanelFrame level={panelLevel} frameKey={`${uf}/${canonical}/${route.zone}`} reduced={reduced}>
+            {level !== "country" && !notFound && (
+              <div role="tablist" aria-label="Conteúdo do painel" className="mb-3 flex gap-1 rounded-lg border border-white/8 bg-background/40 p-0.5 text-xs">
+                {(
+                  [
+                    ["territory", "Território"],
+                    ["candidates", "Candidaturas"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={panelMode === id}
+                    onClick={() => setParam("painel", id === "candidates" ? "candidaturas" : null)}
+                    className={`flex-1 rounded-md px-2 py-1 ${panelMode === id ? "bg-brand/15 text-brand" : "text-slate-400 hover:text-slate-200"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <PanelFrame level={panelLevel} frameKey={`${uf}/${canonical}/${route.zone}/${panelMode}`} reduced={reduced}>
               {panel}
             </PanelFrame>
           </aside>
@@ -351,18 +439,44 @@ export function ElectionsExplorer() {
                 />
               </div>
             ) : (
-              <TerritoryMap
-                level={level}
-                routeKey={pathname}
-                scope={scope}
-                points={level === "zone" ? points : []}
-                reduced={reduced}
-                onSelect={onMapSelect}
-                onSelectPlace={setPlaceFilter}
-              />
+              <div className="flex h-full flex-col">
+                {ufCode && level !== "country" && (
+                  <MapLayerBar
+                    state={layerState}
+                    onChange={onLayerChange}
+                    selection={selection}
+                    names={names}
+                    offices={officesQ.data?.offices ?? []}
+                    note={mapLayer.response?.note ?? null}
+                    loading={mapLayer.loading}
+                    error={mapLayer.error}
+                    disabled={false}
+                  />
+                )}
+                <div className="relative min-h-[320px] flex-1">
+                  <TerritoryMap
+                    level={level}
+                    routeKey={pathname}
+                    scope={scope}
+                    points={level === "zone" && !mapLayer.view ? points : []}
+                    reduced={reduced}
+                    onSelect={onMapSelect}
+                    onSelectPlace={setPlaceFilter}
+                    layer={level === "country" ? null : mapLayer.view}
+                  />
+                </div>
+              </div>
             )}
           </div>
         </div>
+
+        <CompareTray
+          selection={selection}
+          names={names}
+          uf={ufCode}
+          onRemove={toggleCompare}
+          onClear={() => setParam("c", null)}
+        />
 
         <p className="mt-4 text-[11px] text-slate-600">
           Fonte: Tribunal Superior Eleitoral (cadastro eleitoral e Boletins de Urna, Dados Abertos) e IBGE (malhas).
