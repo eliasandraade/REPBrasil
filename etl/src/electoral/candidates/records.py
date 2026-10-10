@@ -104,7 +104,8 @@ SOCIAL_COLUMNS_2022: tuple[str, ...] = tuple("NR_ORDEM" if c == "NR_ORDEM_REDE_S
 
 KINDS = ("asset", "complement", "social_network")
 
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# Quantificadores limitados e início de token: tempo linear (sem backtracking super-linear).
+_EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
 _CPF_LIKE = re.compile(r"(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)")
 _BLOCKED_HOSTS = ("whatsapp.com", "wa.me", "whats.app")
 
