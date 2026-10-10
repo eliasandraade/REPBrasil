@@ -64,6 +64,15 @@ para cargos federais):
 
 Votos de legenda pertencem ao partido, não a uma pessoa: nunca ligam a perfil.
 
+**Substituição de candidatura (CE 2026).** 8 votáveis ficaram `ambiguous`: o número passou da
+candidatura substituída para a substituta (ex.: Dep. Federal 4077, Dep. Estadual 40777, Governador 30,
+Presidente 28). A candidatura substituída aparece no arquivo de candidatos sem totalização
+(`DS_SIT_TOT_TURNO = #NULO`). Regra candidata, **ainda não aplicada** e sujeita a revisão: entre
+candidaturas com o mesmo número na disputa, considerar só as totalizadas; se restar exatamente uma e o
+nome de urna coincidir com o do BU, vincular com um método próprio (`contest_number_totalized`). Até
+lá, esses votos aparecem sem perfil — corretos, apenas sem vínculo. Os 3 casos `name_mismatch` são
+abreviações divergentes entre as duas fontes oficiais (ex.: `PROFª` × `PROF.`).
+
 ## Situação na eleição
 
 `elected` é derivado de `CD_SIT_TOT_TURNO` por tabela fixa: 1 Eleito, 2 Eleito por QP,

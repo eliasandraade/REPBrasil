@@ -187,14 +187,38 @@ public class ElectoralServicesTests
         var politician = Guid.NewGuid();
         var withVotes = new CandidacyRow
         {
-            Id = Guid.NewGuid(), TseCandidateId = 60002537654, CandidateNumber = 5533, BallotName = "CANDIDATO", PartyNumber = 55,
-            PartyAcronym = "PSD", Year = 2026, Round = 1, OfficeCode = 6, OfficeName = "DEPUTADO FEDERAL", Scope = "state",
-            ElectoralUnit = "CE", IdentityStatus = "resolved", PoliticianId = politician, HasVotes = true, SourceMember = "consulta_cand_2026_CE.csv", SourceLine = 2,
+            Id = Guid.NewGuid(),
+            TseCandidateId = 60002537654,
+            CandidateNumber = 5533,
+            BallotName = "CANDIDATO",
+            PartyNumber = 55,
+            PartyAcronym = "PSD",
+            Year = 2026,
+            Round = 1,
+            OfficeCode = 6,
+            OfficeName = "DEPUTADO FEDERAL",
+            Scope = "state",
+            ElectoralUnit = "CE",
+            IdentityStatus = "resolved",
+            PoliticianId = politician,
+            HasVotes = true,
+            SourceMember = "consulta_cand_2026_CE.csv",
+            SourceLine = 2,
         };
         var vice = new CandidacyRow
         {
-            Id = Guid.NewGuid(), TseCandidateId = 60002537655, CandidateNumber = 555, BallotName = "CANDIDATO", Year = 2026, Round = 1,
-            OfficeCode = 9, OfficeName = "1º SUPLENTE", Scope = "state", ElectoralUnit = "CE", IdentityStatus = "resolved", PoliticianId = politician,
+            Id = Guid.NewGuid(),
+            TseCandidateId = 60002537655,
+            CandidateNumber = 555,
+            BallotName = "CANDIDATO",
+            Year = 2026,
+            Round = 1,
+            OfficeCode = 9,
+            OfficeName = "1º SUPLENTE",
+            Scope = "state",
+            ElectoralUnit = "CE",
+            IdentityStatus = "resolved",
+            PoliticianId = politician,
         };
         repo.Candidacies.AddRange([withVotes, vice]);
         repo.CandidacyVotes[withVotes.Id] =

@@ -6,14 +6,26 @@ public class ResultsAssemblerTests
 {
     private static UrnOfficeRow Urn(int? turnout, int votesTotal, int? eligible = 100) => new()
     {
-        ResultId = 1, OfficeCode = 1, OfficeName = "Presidente", ElectionCode = 6257, Section = 381,
-        Eligible = eligible, Turnout = turnout, Abstentions = eligible - turnout, VotesTotal = votesTotal,
+        ResultId = 1,
+        OfficeCode = 1,
+        OfficeName = "Presidente",
+        ElectionCode = 6257,
+        Section = 381,
+        Eligible = eligible,
+        Turnout = turnout,
+        Abstentions = eligible - turnout,
+        VotesTotal = votesTotal,
     };
 
     private static VoteRow Vote(string kind, int number, int votes, int? party = null) => new()
     {
-        VoteKind = kind, Number = number, Votes = votes, Name = $"V{number}", PartyNumber = party,
-        TypeCode = 1, TypeDescription = kind,
+        VoteKind = kind,
+        Number = number,
+        Votes = votes,
+        Name = $"V{number}",
+        PartyNumber = party,
+        TypeCode = 1,
+        TypeDescription = kind,
     };
 
     [Fact]
@@ -103,7 +115,10 @@ public class ResultsAssemblerTests
     {
         var batch = new BatchRow
         {
-            BatchId = Guid.NewGuid(), ZipSha256 = "db72", CsvSha256 = "e626", OfficialChecksumAlgorithm = "sha512",
+            BatchId = Guid.NewGuid(),
+            ZipSha256 = "db72",
+            CsvSha256 = "e626",
+            OfficialChecksumAlgorithm = "sha512",
             WarningsJson = """[{"code":"polling_place_mismatch","section":381},{"code":"polling_place_mismatch","section":7}]""",
         };
         var p = ResultsAssembler.Provenance(batch, 381);
