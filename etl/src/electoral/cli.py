@@ -483,6 +483,18 @@ def _import_open_data_bu(args: argparse.Namespace) -> int:
     return 0
 
 
+def _polling_member(manifest: dict, year: int, uf: str) -> tuple[dict, bool]:
+    """(membro, nacional?): um CSV por UF (2026) ou um único CSV nacional (até 2024) — nunca os dois no mesmo ZIP."""
+    from .cadaster.sources import extract_member
+
+    names = {m["name"] for m in manifest["zip_members"]}
+    national = f"eleitorado_local_votacao_{year}.csv"
+    per_uf = [n for n in names if re.fullmatch(rf".*_{year}_{uf}\.csv", n)]
+    if per_uf and national in names:
+        raise SystemExit(f"ambiguous polling-place ZIP: both {per_uf} and {national}")
+    return extract_member(manifest, rf".*_{year}_{uf}\.csv" if per_uf else re.escape(national)), not per_uf
+
+
 def _cadaster(args: argparse.Namespace) -> int:
     from .cadaster.errors import CadasterMissing, TerritoryMissing
     from .cadaster.sources import (
@@ -543,17 +555,11 @@ def _cadaster(args: argparse.Namespace) -> int:
 
     manifest = load_manifest(args.directory or find_acquired(args.cadaster_dir, kind=KIND_POLLING_PLACES, year=args.year), kind=KIND_POLLING_PLACES)
     uf = args.uf.upper()
-    # Um CSV por UF (2026) ou um único CSV nacional (até 2024): nunca os dois no mesmo ZIP.
-    names = {m["name"] for m in manifest["zip_members"]}
-    national = f"eleitorado_local_votacao_{args.year}.csv"
-    per_uf = [n for n in names if re.fullmatch(rf".*_{args.year}_{uf}\.csv", n)]
-    if per_uf and national in names:
-        raise SystemExit(f"ambiguous polling-place ZIP: both {per_uf} and {national}")
-    member = extract_member(manifest, rf".*_{args.year}_{uf}\.csv" if per_uf else re.escape(national))
+    member, national = _polling_member(manifest, args.year, uf)
     layout = detect_layout(member["path"])
     municipalities = [str(m).zfill(5) for m in args.municipality] or None
     cadaster = parse_cadaster(
-        member["path"], year=args.year, turn=args.turn, uf=uf, municipalities=municipalities, national=not per_uf
+        member["path"], year=args.year, turn=args.turn, uf=uf, municipalities=municipalities, national=national
     )
     if args.dry_run:
         print(dumps({"status": "dry_run", "csv": {k: member[k] for k in ("name", "size", "sha256")},
