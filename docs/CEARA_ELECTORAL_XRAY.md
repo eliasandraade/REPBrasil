@@ -138,12 +138,17 @@ python -m src.electoral.candidates.cli import-records --year 2024 --uf CE --kind
 
 # prestação de contas (leitura remota por Range; só os CSVs da UF; nada vai para o disco)
 python -m src.electoral.finance.cli import --year 2024 --uf CE --dry-run
-python -m src.electoral.finance.cli import --year 2024 --uf CE
+python -m src.electoral.finance.cli import --year 2024 --uf CE --save-report
 
 # auditoria (fonte × banco, divergências classificadas)
 python -m src.electoral.cli audit-election --year 2024 --turn 1 --uf CE --bu-manifest ../data/raw/tse/bu/<sha> \
-  --candidates ../data/raw/tse/candidatos/2024/<sha> --municipal-uf CE --markdown ../docs/audits/ce-2024-1.md
+  --candidates ../data/raw/tse/candidatos/2024/<sha> --municipal-uf CE --save
 ```
+
+Os CLIs novos não aceitam caminho de saída: `--save`/`--save-report` gravam em diretórios fixos —
+JSON completo em `etl/artifacts/reports/` (ignorado pelo git) e o resumo da auditoria em
+`docs/audits/audit_<ano>_<UF>_t<turno>.md` (versionado) —, com nomes montados só com ano/turno
+inteiros e UF de uma lista fechada.
 
 ## 8. Produção (Railway) — procedimento seguro
 

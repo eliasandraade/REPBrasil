@@ -174,8 +174,10 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--candidates", type=Path, default=None, help="acquired candidates directory (consulta_cand)")
     audit.add_argument("--units", default="", help="SG_UE values used in the candidates import, e.g. CE,BR")
     audit.add_argument("--municipal-uf", action="append", default=[], help="municipal selector used in the candidates import")
-    audit.add_argument("--report", type=Path, default=None, help="full JSON report")
-    audit.add_argument("--markdown", type=Path, default=None, help="markdown summary (docs/audits)")
+    audit.add_argument(
+        "--save", action="store_true",
+        help="write the full JSON report to etl/artifacts/reports/ and the markdown summary to docs/audits/",
+    )
     audit.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
 
     derived = sub.add_parser(
@@ -367,27 +369,28 @@ def _audit(args: argparse.Namespace) -> int:
     from .candidates.store import select_candidacies
     from .open_data.acquire import load_manifest as load_bu_manifest
     from .open_data.layout import detect_csv_layout
-    from .paths import output_path
+    from .paths import AUDITS_DIR, REPORTS_DIR, report_file, unit_code, write_report
 
-    uf = args.uf.upper()
+    # Só valores validados seguem adiante (e nomeiam os arquivos de saída).
+    year, turn, uf = int(args.year), int(args.turn), unit_code(args.uf)
     bu_csv = None
     if args.bu_manifest is not None:
         manifest, bu_csv = load_bu_manifest(args.bu_manifest)
         scope = manifest.get("scope", {})
-        if (int(scope.get("year", -1)), int(scope.get("turn", -1)), str(scope.get("uf", "")).upper()) != (args.year, args.turn, uf):
-            raise SystemExit(f"BU manifest scope {scope} does not match {args.year}/{args.turn}/{uf}")
+        if (int(scope.get("year", -1)), int(scope.get("turn", -1)), str(scope.get("uf", "")).upper()) != (year, turn, uf):
+            raise SystemExit(f"BU manifest scope {scope} does not match {year}/{turn}/{uf}")
     counts = None
     other_elections = 0
     if args.candidates is not None:
-        units = {u.strip().upper() for u in args.units.split(",") if u.strip()}
-        municipal = {u.strip().upper() for u in args.municipal_uf if u.strip()}
+        units = {unit_code(u) for u in args.units.split(",") if u.strip()}
+        municipal = {unit_code(u) for u in args.municipal_uf if u.strip()}
         cand_manifest = load_cadaster_manifest(args.candidates, kind="tse-open-data-candidates")
         rows = []
         for unit in sorted(units | municipal):
-            member = extract_member(cand_manifest, rf"consulta_cand_{args.year}_{unit}\.csv")
+            member = extract_member(cand_manifest, rf"consulta_cand_{year}_{unit}\.csv")
             layout = detect_csv_layout(member["path"], columns=CANDIDATES_COLUMNS, profile_id=CANDIDATES_PROFILE_ID)
             rows.extend(parse_candidate(f, line, layout.columns, member["name"]) for line, f in iter_csv(member["path"], layout))
-        selected, _, other = select_candidacies(rows, year=args.year, turn=args.turn, units=units, municipal_ufs=municipal)
+        selected, _, other = select_candidacies(rows, year=year, turn=turn, units=units, municipal_ufs=municipal)
         counts = {}
         for r in selected:
             counts[r.office_code] = counts.get(r.office_code, 0) + 1
@@ -396,18 +399,15 @@ def _audit(args: argparse.Namespace) -> int:
     if not database_url:
         raise SystemExit("DATABASE_URL (or --database-url) is required")
     with electoral_db.connect(database_url, autocommit=True) as conn:
-        report = audit_election(conn, year=args.year, turn=args.turn, uf=uf, bu_csv=bu_csv,
+        report = audit_election(conn, year=year, turn=turn, uf=uf, bu_csv=bu_csv,
                                 candidate_counts=counts, other_election_rows=other_elections)
-    # Relatórios só dentro do repositório (caminho resolvido, sem "..").
-    if args.report:
-        report_path = output_path(args.report)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
-    if args.markdown:
-        markdown_path = output_path(args.markdown)
-        markdown_path.parent.mkdir(parents=True, exist_ok=True)
-        markdown_path.write_text(to_markdown(report), encoding="utf-8")
-    print(json.dumps({"status": report["status"], "summary": report["summary"], "cadaster": report["cadaster"]}, ensure_ascii=False))
+    saved = {}
+    if args.save:  # diretórios fixos; nomes só com ano, turno e UF validados
+        saved["report"] = str(write_report(report_file(REPORTS_DIR, "audit", year, uf, turn),
+                                           json.dumps(report, ensure_ascii=False, indent=2, default=str)))
+        saved["markdown"] = str(write_report(report_file(AUDITS_DIR, "audit", year, uf, turn, suffix=".md"), to_markdown(report)))
+    print(json.dumps({"status": report["status"], "summary": report["summary"], "cadaster": report["cadaster"], **saved},
+                     ensure_ascii=False))
     return 0 if report["status"] == "ok" else 5
 
 

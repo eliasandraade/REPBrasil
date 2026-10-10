@@ -3,6 +3,7 @@
     python -m src.electoral.finance.cli import --year 2024 --uf CE --dry-run
     python -m src.electoral.finance.cli import --year 2024 --uf CE
     python -m src.electoral.finance.cli import --year 2024 --uf CE --zip caminho/prestacao.zip   # arquivo local
+    python -m src.electoral.finance.cli import --year 2024 --uf CE --save-report   # etl/artifacts/reports/
 
 Remoto (padrão): só os membros da UF são lidos (HTTP Range presa à versão publicada); o ZIP inteiro
 é lido em streaming apenas para o SHA-256/SHA-512 de proveniência — nada vai para o disco.
@@ -27,7 +28,7 @@ from typing import Any
 from .. import db as electoral_db
 from ..cadaster.sources import CadasterResourceSpec, discover_resource
 from ..candidates import identity
-from ..paths import output_path
+from ..paths import REPORTS_DIR, report_file, unit_code, write_report
 from .parser import MEMBERS, FinanceRow, iter_member, parse_row
 from .remote import PinnedRangeFile, _client, head, stream_digests
 from .store import SOURCE, FinanceConflict, import_finance, select_rows
@@ -102,27 +103,26 @@ def build_parser() -> argparse.ArgumentParser:
     imp.add_argument("--supersede", action="store_true", help="apply a newer official file that changes stored records")
     imp.add_argument("--dry-run", action="store_true", help="parse and validate only (no zip digest, no database)")
     imp.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
-    imp.add_argument("--report", type=Path, default=None, help="full JSON report")
+    imp.add_argument("--save-report", action="store_true", help="write the full JSON report to etl/artifacts/reports/")
     return parser
 
 
-def _emit(path: Path | None, report: dict[str, Any]) -> None:
-    text = json.dumps(report, ensure_ascii=False, indent=2, default=str)
-    if path:
-        target = output_path(path)  # só dentro do repositório (caminho resolvido)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text + "\n", encoding="utf-8")
+def _emit(report: dict[str, Any], target: Path | None) -> None:
+    if target is not None:
+        write_report(target, json.dumps(report, ensure_ascii=False, indent=2, default=str))
     print(json.dumps({k: (len(v) if isinstance(v, list) else v) for k, v in report.items()}, ensure_ascii=False, indent=2, default=str))
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    uf = args.uf.upper()
+    # Só valores validados seguem adiante (e nomeiam o relatório, num diretório fixo).
+    year, uf = int(args.year), unit_code(args.uf)
+    target = report_file(REPORTS_DIR, "finance", year, uf) if args.save_report else None
     from ..http_client import TSEHttpClient
 
     client = TSEHttpClient()
     try:
-        resource = discover_resource(client, CadasterResourceSpec(SOURCE, dataset_for(args.year), RESOURCE_NAME))
+        resource = discover_resource(client, CadasterResourceSpec(SOURCE, dataset_for(year), RESOURCE_NAME))
     finally:
         client.close()
 
@@ -132,13 +132,13 @@ def main(argv: list[str] | None = None) -> int:
         sha512 = hashlib.sha512(data).hexdigest() if data is not None else None
         size = args.zip.stat().st_size
         with zipfile.ZipFile(args.zip) as zf:
-            rows, members = read_members(zf, args.year, uf)
+            rows, members = read_members(zf, year, uf)
     else:
         http = _client()
         try:
             version = head(resource.url, http)
             with zipfile.ZipFile(io.BufferedReader(PinnedRangeFile(version, http), buffer_size=1 << 20)) as zf:
-                rows, members = read_members(zf, args.year, uf)
+                rows, members = read_members(zf, year, uf)
             sha256, sha512 = (None, None) if args.dry_run else stream_digests(version, http)
             size = version.size
             # mesma versão do início ao fim (o If-Range/If-Match já falham se o arquivo mudar)
@@ -148,8 +148,8 @@ def main(argv: list[str] | None = None) -> int:
             http.close()
 
     if args.dry_run:
-        _emit(args.report, {"status": "dry_run", "url": resource.url, "zip_size": size, "members": members,
-                            **summarize(rows, args.year, uf)})
+        _emit({"status": "dry_run", "url": resource.url, "zip_size": size, "members": members,
+               **summarize(rows, year, uf)}, target)
         return 0
 
     manifest = {
@@ -167,11 +167,11 @@ def main(argv: list[str] | None = None) -> int:
     key = identity.load_key()
     try:
         with electoral_db.connect(database_url, autocommit=True) as conn:
-            report = import_finance(conn, year=args.year, uf=uf, rows=rows, manifest=manifest, key=key, supersede=args.supersede)
+            report = import_finance(conn, year=year, uf=uf, rows=rows, manifest=manifest, key=key, supersede=args.supersede)
     except FinanceConflict as exc:
-        _emit(args.report, {"status": "conflict", "detail": str(exc), "diff": exc.diff})
+        _emit({"status": "conflict", "detail": str(exc), "diff": exc.diff}, target)
         return 4
-    _emit(args.report, {**report, "members": members})
+    _emit({**report, "members": members}, target)
     return 0
 
 

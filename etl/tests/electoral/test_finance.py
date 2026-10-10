@@ -111,11 +111,24 @@ def test_unknown_header_fails_closed():
         list(iter_member(io.BytesIO(header.encode("latin-1")), REVENUE_COLUMNS, "receitas_candidatos_2098_XX.csv"))
 
 
-def test_cli_reports_are_written_only_inside_the_repository(tmp_path):
-    from src.electoral.paths import REPO_ROOT, output_path
+def test_cli_reports_go_to_fixed_directories_with_validated_names(tmp_path):
+    from src.electoral.paths import (
+        AUDITS_DIR,
+        REPO_ROOT,
+        REPORTS_DIR,
+        report_file,
+        unit_code,
+        write_report,
+    )
 
-    assert output_path(REPO_ROOT / "docs" / "audits" / "x.md") == (REPO_ROOT / "docs" / "audits" / "x.md").resolve()
-    with pytest.raises(SystemExit):
-        output_path(tmp_path / "fora.json", root=REPO_ROOT / "docs")
-    with pytest.raises(SystemExit):
-        output_path(REPO_ROOT / "docs" / ".." / ".." / "fora.json")
+    assert unit_code(" ce ") == "CE" and unit_code("br") == "BR"
+    for bad in ("../CE", "C/E", "CE.json", "XX", ""):
+        with pytest.raises(SystemExit):
+            unit_code(bad)
+    # argumentos da linha de comando nunca escolhem o diretório nem o nome livremente
+    assert {REPORTS_DIR.relative_to(REPO_ROOT).as_posix(), AUDITS_DIR.relative_to(REPO_ROOT).as_posix()} == {
+        "etl/artifacts/reports", "docs/audits"}
+    assert report_file(tmp_path, "finance", 2024, "ce") == tmp_path / "finance_2024_CE.json"
+    target = report_file(tmp_path / "audits", "audit", 2022, "CE", 2, suffix=".md")
+    assert target == tmp_path / "audits" / "audit_2022_CE_t2.md"
+    assert write_report(target, "# ok").read_text(encoding="utf-8") == "# ok\n"
