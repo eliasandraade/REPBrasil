@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
+using RepBrasil.API.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using RepBrasil.Application.Assets.DTOs;
 using RepBrasil.Application.Assets.Queries;
@@ -149,6 +151,7 @@ public class PoliticiansController : ControllerBase
     /// </summary>
     /// <summary>Raio X eleitoral do perfil: candidaturas, votação, chapa, bens, contas, histórico, evolução e insights.</summary>
     [HttpGet("{id:guid}/xray")]
+    [OutputCache(PolicyName = CachePolicies.PublicData)]
     [ProducesResponseType(typeof(XrayResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetXray(Guid id, CancellationToken ct)

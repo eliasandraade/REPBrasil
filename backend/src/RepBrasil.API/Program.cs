@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.Electoral;
 using RepBrasil.Application.ElectionResults.Queries;
@@ -12,6 +14,17 @@ using RepBrasil.Infrastructure.Persistence;
 using RepBrasil.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Logs estruturados (uma linha JSON por evento) fora do desenvolvimento.
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Logging.ClearProviders();
+    builder.Logging.AddJsonConsole(o =>
+    {
+        o.UseUtcTimestamp = true;
+        o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ ";
+    });
+}
 
 builder.Services.AddControllers();
 builder.Services.AddScoped<IPoliticianRepository, PoliticianRepository>();
@@ -44,25 +57,49 @@ builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<IOverviewRepository, OverviewRepository>();
 builder.Services.AddScoped<OverviewService>();
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+// Erros: ProblemDetails com id de rastreio; nunca mensagem interna nem pilha.
+builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
+    ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier);
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+
+// Limite técnico contra abuso (por IP de origem, nunca identidade comercial) e cache de respostas públicas.
+builder.Services.AddApiRateLimits(builder.Configuration);
+builder.Services.AddOutputCache(o =>
 {
-    c.SwaggerDoc("v1", new() { Title = "REPBrasil API", Version = "v1" });
+    o.SizeLimit = 128L * 1024 * 1024;
+    // Dados eleitorais oficiais mudam só em cargas do ETL: 5 min de defasagem são aceitáveis. Varia pela consulta
+    // inteira e pela origem (o CORS responde por origem) — nada de uma origem é servido a outra.
+    o.AddPolicy(CachePolicies.PublicData, b => b.Expire(TimeSpan.FromMinutes(5)).SetVaryByQuery("*").SetVaryByHeader("Origin"));
 });
+
+// Atrás do proxy do Railway: só o último salto de X-Forwarded-For/Proto é confiável (o que o proxy acrescenta).
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.ForwardLimit = 1;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
+// Swagger só em desenvolvimento ou com Swagger:Enabled=true (ex.: staging protegido). Nunca por padrão em produção.
+var swaggerEnabled = builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enabled");
+if (swaggerEnabled)
+{
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new() { Title = "REPBrasil API", Version = "v1" });
+        // Módulos diferentes têm DTOs homônimos (Assets.AssetItemDto × Electoral.AssetItemDto): id pelo módulo.
+        c.CustomSchemaIds(SwaggerSchemaIds.For);
+    });
+}
 
 var allowedOrigins = (builder.Configuration["AllowedOrigins"] ?? "http://localhost:3000")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+// A API pública é só leitura: o navegador só precisa de GET (o /migrate é chamada de servidor, sem CORS).
 builder.Services.AddCors(options =>
-{
-    options.AddPolicy("App", policy =>
-    {
-        policy
-            .WithOrigins(allowedOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
+    options.AddPolicy("App", policy => policy.WithOrigins(allowedOrigins).WithMethods("GET").WithHeaders("Accept", "Content-Type")));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
@@ -73,10 +110,20 @@ builder.WebHost.UseUrls($"http://+:{port}");
 
 var app = builder.Build();
 
-// Swagger active in staging — temporary, will be protected or removed before public launch
-app.UseSwagger();
-app.UseSwaggerUI();
+app.UseForwardedHeaders();
+// Cabeçalhos de segurança e CORS por fora do tratador de erro: a resposta de erro continua legível pelo frontend.
+app.UseSecurityHeaders();
 app.UseCors("App");
+app.UseExceptionHandler();
+app.UseRequestTiming();
+app.UseRateLimiter();
+app.UseOutputCache();
+
+if (swaggerEnabled)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 // UseHttpsRedirection omitted in Production — Railway terminates TLS at the proxy layer
 if (app.Environment.IsDevelopment())
@@ -86,12 +133,15 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 
-// Expose a manual migrate endpoint — call POST /migrate after deployment if needed.
-// Avoids blocking startup with a potentially slow DB connection at Railway.
+// Migração manual (POST /migrate) só com MigrateOnStartup=true E o token Migrate:Token no cabeçalho X-Migrate-Token.
+// Sem token configurado ou com token errado, o endpoint responde como se não existisse.
 if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
 {
-    app.MapPost("/migrate", async (ApplicationDbContext db, ILogger<Program> logger) =>
+    var migrateToken = builder.Configuration["Migrate:Token"];
+    app.MapPost("/migrate", async (HttpContext http, ApplicationDbContext db, ILogger<Program> logger) =>
     {
+        if (!HttpPipeline.SecretEquals(http.Request.Headers["X-Migrate-Token"], migrateToken))
+            return Results.NotFound();
         try
         {
             logger.LogInformation("Applying database migrations...");
@@ -102,9 +152,12 @@ if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringCompa
         catch (Exception ex)
         {
             logger.LogCritical(ex, "Migration failed.");
-            return Results.Problem(ex.Message, statusCode: 500);
+            return Results.Problem("Falha ao aplicar as migrations; veja os logs do serviço.", statusCode: 500);
         }
-    });
+    }).DisableRateLimiting();
 }
 
 app.Run();
+
+/// <summary>Visível para os testes de integração (WebApplicationFactory).</summary>
+public partial class Program;
