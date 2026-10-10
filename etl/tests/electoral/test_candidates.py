@@ -137,6 +137,30 @@ def test_parser_maps_sentinels_to_null_and_hides_the_document(tmp_path):
     assert identity.check_cpf(sem_doc.cpf_raw).status == identity.UNAVAILABLE
 
 
+def test_source_row_hash_is_computed_with_the_cpf_redacted(tmp_path):
+    """Nenhum material persistido permite verificar um CPF offline com SHA-256 não chaveado."""
+    import hashlib
+
+    from src.electoral.candidates.parser import CPF_REDACTION, candidate_row_hash
+    from src.electoral.open_data.parser import row_hash
+
+    doc_a, doc_b = cpf(111111111), cpf(222222222)
+    rows, layout = parse_file(write_csv(tmp_path / "consulta_cand_2099_XX.csv", CANDIDATES_COLUMNS,
+                                        [GAMA | {"NR_CPF_CANDIDATO": doc_a}, GAMA | {"NR_CPF_CANDIDATO": doc_b}]))
+    a, b = rows
+    # Linhas idênticas exceto pelo CPF ⇒ mesma impressão digital: o hash não carrega informação do CPF.
+    assert a.source_row_hash == b.source_row_hash
+    raw_a = [(GAMA | {"NR_CPF_CANDIDATO": doc_a})[c] for c in CANDIDATES_COLUMNS]
+    assert a.source_row_hash != row_hash(raw_a)  # não é o hash da linha bruta
+    redacted = [CPF_REDACTION if c == "NR_CPF_CANDIDATO" else v for c, v in zip(CANDIDATES_COLUMNS, raw_a, strict=True)]
+    assert a.source_row_hash == row_hash(redacted) == candidate_row_hash(raw_a, CANDIDATES_COLUMNS)
+    # Um atacante com um CPF candidato não consegue confirmá-lo contra o hash persistido.
+    for guess in (doc_a, doc_b):
+        assert row_hash([guess if c == "NR_CPF_CANDIDATO" else v for c, v in zip(CANDIDATES_COLUMNS, raw_a, strict=True)]) != a.source_row_hash
+        assert hashlib.sha256(guess.encode()).hexdigest() != a.source_row_hash
+    assert doc_a not in repr(a)
+
+
 def test_elected_is_undefined_for_runoff_and_federal_requires_br(tmp_path):
     rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, [ALFA, BETA]))
     assert [r.elected for r in rows] == [False, None]
@@ -283,3 +307,4 @@ def test_votables_link_by_contest_and_number_without_touching_votes(conn, tmp_pa
     assert linked == [(11, 9001), (22, 9002)]
     assert conn.execute("SELECT count(*), sum(votes) FROM section_office_vote").fetchone() == votes_before
     assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
+

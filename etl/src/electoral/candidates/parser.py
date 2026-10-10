@@ -2,7 +2,14 @@
 
 Sentinelas do TSE viram NULL, nunca zero nem texto inventado:
 `#NULO`, `#NE`, `NÃO DIVULGÁVEL` e códigos negativos (-1, -3, -4).
-Cada linha guarda o número físico da linha e o SHA-256 dos campos de origem.
+Cada linha guarda o número físico da linha e uma impressão digital REDIGIDA:
+
+- integridade integral do arquivo = SHA-256/SHA-512 do ZIP e SHA-256 do CSV, registrados em
+  `open_data_source_file`;
+- `candidacy.source_row_hash` = SHA-256 dos campos canônicos da linha com `NR_CPF_CANDIDATO`
+  substituído por `[REDACTED]` — proveniência da linha, sem material que permita confirmar um CPF
+  offline;
+- CPF = somente HMAC-SHA256 com chave secreta, para identidade (identity.py). Nunca gravado nem logado.
 """
 
 from __future__ import annotations
@@ -14,6 +21,15 @@ from pathlib import Path
 
 from ..open_data.layout import DetectedLayout, LayoutError
 from ..open_data.parser import row_hash
+
+CPF_COLUMN = "NR_CPF_CANDIDATO"
+CPF_REDACTION = "[REDACTED]"
+
+
+def candidate_row_hash(fields: list[str], columns: tuple[str, ...]) -> str:
+    """Impressão digital da linha de candidatura com o CPF redigido (nunca o hash da linha bruta)."""
+    return row_hash([CPF_REDACTION if c == CPF_COLUMN else v for c, v in zip(columns, fields, strict=True)])
+
 
 SENTINEL_TEXT = frozenset({"#NULO", "#NE", "NÃO DIVULGÁVEL", "NAO DIVULGAVEL", ""})
 
@@ -117,7 +133,7 @@ def parse_candidate(fields: list[str], line: int, columns: tuple[str, ...], memb
     return CandidateRow(
         source_member=member,
         line=line,
-        source_row_hash=row_hash(fields),
+        source_row_hash=candidate_row_hash(fields, columns),
         generated_at=f"{f['DT_GERACAO'].strip()} {f['HH_GERACAO'].strip()}",
         year=required_int(f["ANO_ELEICAO"], "ANO_ELEICAO", line),
         turn=required_int(f["NR_TURNO"], "NR_TURNO", line),
