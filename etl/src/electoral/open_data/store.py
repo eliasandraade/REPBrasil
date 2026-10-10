@@ -85,30 +85,33 @@ def _source_file_id(cur: psycopg.Cursor, prepared: PreparedImport) -> str:
 
 def _upsert_votables(cur: psycopg.Cursor, prepared: PreparedImport) -> dict[Any, int]:
     ids: dict[Any, int] = {}
+    uf = str(prepared.scope["uf"]).upper()
     for key, v in prepared.zone.votables.items():
         cur.execute(
             """
-            INSERT INTO votable (election_code, office_code, vote_kind, type_code, type_description, number, name,
+            INSERT INTO votable (uf, election_code, office_code, vote_kind, type_code, type_description, number, name,
                                  party_number, party_acronym, party_name)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (election_code, office_code, type_code, number) DO NOTHING
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (uf, election_code, office_code, type_code, number) DO NOTHING
             RETURNING id
             """,
-            (key.election_code, key.office_code, v.vote_kind, key.type_code, v.type_description, key.number,
+            (uf, key.election_code, key.office_code, v.vote_kind, key.type_code, v.type_description, key.number,
              v.name, v.party_number, v.party_acronym, v.party_name),
         )
         row = cur.fetchone()
         if row is None:
             cur.execute(
                 """SELECT id, vote_kind::text, type_description, name, party_number, party_acronym, party_name
-                   FROM votable WHERE election_code=%s AND office_code=%s AND type_code=%s AND number=%s""",
-                (key.election_code, key.office_code, key.type_code, key.number),
+                   FROM votable WHERE uf=%s AND election_code=%s AND office_code=%s AND type_code=%s AND number=%s""",
+                (uf, key.election_code, key.office_code, key.type_code, key.number),
             )
             existing = cur.fetchone()
             assert existing is not None
             expected = (v.vote_kind, v.type_description, v.name, v.party_number, v.party_acronym, v.party_name)
             if tuple(existing[1:]) != expected:
-                raise ConsistencyError(f"votable {key} already stored with different attributes {existing[1:]} vs {expected}")
+                raise ConsistencyError(
+                    f"votable {uf}/{key} already stored with different attributes {existing[1:]} vs {expected}"
+                )
             row = existing
         ids[key] = int(row[0])
     return ids
