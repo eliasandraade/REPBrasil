@@ -57,36 +57,35 @@ const linkRow = `${rowClass} mi-surface focus-ring hover:border-brand/30 hover:b
 
 // ─── Brasil → UFs ─────────────────────────────────────────────────────────────
 
-export function CountryPanel({ route, states }: { route: ExplorerRoute; states: StateItem[] }) {
+export function CountryPanel({ route, states }: Readonly<{ route: ExplorerRoute; states: StateItem[] }>) {
   const withResults = states.filter((s) => s.resultsAvailable);
+  const available = states.filter((s) => s.cadasterAvailable);
+  // UF sem cadastro não leva a lugar nenhum: fica numa frase, não numa lista de linhas apagadas
+  const missing = states.filter((s) => !s.cadasterAvailable);
   return (
     <div>
       <PanelTitle
         eyebrow="Brasil"
         title="Escolha uma UF"
-        sub={`${withResults.length} de ${states.length} UFs com resultados importados nesta etapa.`}
+        sub={`${withResults.length} de ${states.length} UFs com resultados importados nesta eleição.`}
       />
       <ul className="space-y-1.5" data-testid="state-list">
-        {states.map((s) => (
+        {available.map((s) => (
           <li key={s.uf}>
-            {s.cadasterAvailable ? (
-              <Link href={buildElectionsPath({ year: route.year, round: route.round, state: s.slug })} className={linkRow} data-state={s.uf}>
-                <span className="text-slate-200">
-                  {s.name} <span className="text-slate-600">· {s.uf}</span>
-                </span>
-                <AvailabilityBadge results={s.resultsAvailable} cadaster={s.cadasterAvailable} />
-              </Link>
-            ) : (
-              <div className={`${rowClass} cursor-default opacity-50`} aria-disabled="true">
-                <span className="text-slate-400">
-                  {s.name} <span className="text-slate-600">· {s.uf}</span>
-                </span>
-                <AvailabilityBadge results={false} cadaster={false} />
-              </div>
-            )}
+            <Link href={buildElectionsPath({ year: route.year, round: route.round, state: s.slug })} className={linkRow} data-state={s.uf}>
+              <span className="text-slate-200">
+                {s.name} <span className="text-slate-600">· {s.uf}</span>
+              </span>
+              <AvailabilityBadge results={s.resultsAvailable} cadaster={s.cadasterAvailable} />
+            </Link>
           </li>
         ))}
       </ul>
+      {missing.length > 0 && (
+        <p className="mt-3 text-xs leading-relaxed text-slate-600" data-testid="states-missing">
+          Ainda sem dados nesta eleição ({missing.length}): {missing.map((s) => s.name).join(", ")}.
+        </p>
+      )}
     </div>
   );
 }

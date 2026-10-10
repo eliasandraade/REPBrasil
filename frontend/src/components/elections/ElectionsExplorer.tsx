@@ -34,6 +34,41 @@ function Notice({ title, children, action }: { title: string; children?: React.R
   );
 }
 
+/**
+ * Troca de eleição sem perder o lugar: mantém UF e município; zona e seção mudam de uma eleição para outra e
+ * caem; cargo, camada e seleção também (candidaturas são de cada eleição).
+ */
+function ElectionSwitcher({ route }: Readonly<{ route: ExplorerRoute }>) {
+  const router = useRouter();
+  const search = useSearchParams();
+  const { data } = useQuery({ queryKey: ["el-elections"], queryFn: electionsApi.elections, staleTime: 10 * 60_000 });
+  const elections = data?.elections ?? [];
+  const current = `${route.year}-${route.round}`;
+  if (elections.length < 2 || !elections.some((e) => `${e.year}-${e.round}` === current)) return null;
+  return (
+    <label className="flex items-center gap-2 text-xs text-slate-500">
+      Eleição
+      <select
+        value={current}
+        onChange={(e) => {
+          const [year, round] = e.target.value.split("-").map(Number);
+          const painel = search.get("painel");
+          const path = buildElectionsPath({ year, round, state: route.state, municipality: route.municipality });
+          router.push(painel ? `${path}?painel=${encodeURIComponent(painel)}` : path, { scroll: false });
+        }}
+        className="focus-ring rounded-md border border-white/10 bg-card px-2 py-1 text-xs text-slate-200"
+        data-testid="election-switcher"
+      >
+        {elections.map((e) => (
+          <option key={`${e.year}-${e.round}`} value={`${e.year}-${e.round}`}>
+            {e.year} · {e.round}º turno
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 /** Esqueleto do painel: título + linhas com a altura das linhas reais. */
 function Skeleton() {
   return (
@@ -119,11 +154,17 @@ export function ElectionsExplorer() {
   const uf = parsed?.state ?? null;
   const munKey = parsed?.municipality ?? null;
 
-  const statesQ = useQuery({ queryKey: ["el-states", year, round], queryFn: () => electionsApi.states(year, round), enabled: !!parsed });
+  const statesQ = useQuery({
+    queryKey: ["el-states", year, round],
+    queryFn: () => electionsApi.states(year, round),
+    enabled: !!parsed,
+    retry: (n, e) => !isNotFound(e) && n < 1,
+  });
   const munsQ = useQuery({
     queryKey: ["el-muns", year, round, uf],
     queryFn: () => electionsApi.municipalities(year, round, uf!),
     enabled: !!parsed && !!uf,
+    retry: (n, e) => !isNotFound(e) && n < 1,
   });
   const munQ = useQuery({
     queryKey: ["el-mun", year, round, uf, munKey],
@@ -380,7 +421,8 @@ export function ElectionsExplorer() {
   return (
     <main className="min-h-screen bg-background px-4 py-6 sm:px-6" data-level={level}>
       <div className="mx-auto max-w-7xl">
-        <nav aria-label="Navegação territorial" className="mb-4 flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="breadcrumb">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <nav aria-label="Navegação territorial" className="flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="breadcrumb">
           <Link href="/eleicoes" className="focus-ring rounded hover:text-slate-300">
             Eleições
           </Link>
@@ -399,6 +441,8 @@ export function ElectionsExplorer() {
             </span>
           ))}
         </nav>
+        <ElectionSwitcher route={route} />
+        </div>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(320px,420px)_1fr]">
           <aside className="rounded-xl border border-white/8 bg-card p-4" aria-label="Exploração territorial" data-testid="explorer-panel">
