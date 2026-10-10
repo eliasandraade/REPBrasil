@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "@/motion/motion.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
 
@@ -26,9 +27,16 @@ export const metadata: Metadata = {
   },
 };
 
+// Marca `html.js` antes da primeira pintura: estados iniciais de revelação só
+// existem com JS ativo (sem JS, todo o conteúdo fica visível de imediato).
+const JS_MARKER = "document.documentElement.classList.add('js')";
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: JS_MARKER }} />
+      </head>
       <body>
         <Providers>
           <AppShell>{children}</AppShell>

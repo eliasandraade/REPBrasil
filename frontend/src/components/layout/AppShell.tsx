@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { TransitionLink } from "@/motion/navigation";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex items-center px-5 py-5 border-b border-white/[0.05]">
-        <Link href="/" onClick={onLinkClick}>
+        <TransitionLink href="/" onClick={onLinkClick} className="focus-ring rounded">
           <Image
             src="/logo.svg"
             alt="REPBrasil"
@@ -118,7 +118,7 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
             className="h-9 w-auto"
             priority
           />
-        </Link>
+        </TransitionLink>
       </div>
 
       {/* Navigation */}
@@ -132,22 +132,21 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
               {section.items.map(({ href, label, Icon, exact }) => {
                 const active = isActive(href, exact);
                 return (
-                  <Link
+                  <TransitionLink
                     key={href}
                     href={href}
                     onClick={onLinkClick}
-                    className={`relative flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors duration-100
+                    aria-current={active ? "page" : undefined}
+                    className={`nav-item focus-ring relative flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium
                       ${active
                         ? "bg-brand/10 text-brand"
                         : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
                       }`}
                   >
-                    {active && (
-                      <span className="absolute inset-y-0 left-0 w-[3px] rounded-r-full bg-brand" />
-                    )}
+                    <span aria-hidden="true" className="nav-marker absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-brand" />
                     <Icon className="h-[18px] w-[18px] flex-shrink-0" />
                     <span>{label}</span>
-                  </Link>
+                  </TransitionLink>
                 );
               })}
             </div>
@@ -168,26 +167,47 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(false);
+
+  // Drawer: foco entra ao abrir e volta ao botão ao fechar; Esc fecha.
+  useEffect(() => {
+    if (mobileOpen) {
+      drawerRef.current?.querySelector<HTMLElement>("a[aria-current], a")?.focus();
+    } else if (wasOpen.current) {
+      toggleRef.current?.focus();
+    }
+    wasOpen.current = mobileOpen;
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop static sidebar */}
-      <aside className="hidden w-56 flex-shrink-0 flex-col border-r border-white/[0.06] bg-sidebar lg:flex">
+      <aside className="vt-app-nav hidden w-56 flex-shrink-0 flex-col border-r border-white/[0.06] bg-sidebar lg:flex">
         <Sidebar pathname={pathname} />
       </aside>
 
-      {/* Mobile backdrop */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+      {/* Mobile backdrop (sempre montado: a opacidade transiciona, o clique só existe aberto) */}
+      <div
+        aria-hidden="true"
+        data-open={mobileOpen}
+        className="drawer-backdrop fixed inset-0 z-40 bg-black/60 lg:hidden"
+        onClick={() => setMobileOpen(false)}
+      />
 
       {/* Mobile drawer */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-white/[0.06] bg-sidebar transition-transform duration-300 ease-in-out lg:hidden
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        id="mobile-nav"
+        ref={drawerRef}
+        data-open={mobileOpen}
+        inert={!mobileOpen}
+        aria-label="Navegação"
+        className="drawer fixed inset-y-0 left-0 z-50 w-64 border-r border-white/[0.06] bg-sidebar lg:hidden"
       >
         <Sidebar pathname={pathname} onLinkClick={() => setMobileOpen(false)} />
       </div>
@@ -195,15 +215,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main content */}
       <div className="flex min-w-0 flex-1 flex-col overflow-auto">
         {/* Mobile topbar */}
-        <div className="sticky top-0 z-30 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/[0.06] bg-sidebar px-4 lg:hidden">
+        <div className="vt-app-topbar sticky top-0 z-30 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/[0.06] bg-sidebar px-4 lg:hidden">
           <button
+            ref={toggleRef}
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200"
+            className="focus-ring rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200"
             aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
           >
             {mobileOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
-          <Link href="/">
+          <TransitionLink href="/" className="focus-ring rounded">
             <Image
               src="/symbol.svg"
               alt="REPBrasil"
@@ -211,10 +234,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               height={28}
               className="h-7 w-auto"
             />
-          </Link>
+          </TransitionLink>
         </div>
 
-        {children}
+        <div data-route-frame className="flex min-w-0 flex-1 flex-col">
+          {children}
+        </div>
       </div>
     </div>
   );
