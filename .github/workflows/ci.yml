@@ -150,6 +150,6 @@ jobs:
       - name: Install (lockfile only; the project itself is imported from the checkout)
         run: uv sync --extra dev --frozen --no-install-project --no-build
       - name: Lint (electoral layer)
-        run: uv run --frozen --no-sync --no-build ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py
+        run: uv run --frozen --no-sync --no-build ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
       - name: Test (DB tests skip without database)
         run: uv run --frozen --no-sync --no-build pytest -q

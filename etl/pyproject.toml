@@ -45,6 +45,7 @@ ignore = []
 "src/electoral/**" = ["E501"]
 "tests/electoral/**" = ["E501"]
 "scripts/audit_electoral_cross_db.py" = ["E501"]
+"scripts/electoral_invariants.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
