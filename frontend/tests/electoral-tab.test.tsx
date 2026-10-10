@@ -152,6 +152,24 @@ describe("Raio X do perfil", () => {
     expect(within(documents).getByRole("link", { name: "DivulgaCandContas" }).getAttribute("href")).toBe("https://divulgacandcontas.tse.jus.br/");
   });
 
+  it("candidatura federal desce do município à seção levando a UF da linha", async () => {
+    const president = candidacy(1, {
+      contest: { year: 2022, round: 2, electionCode: 545, officeCode: 1, officeName: "PRESIDENTE", unit: { scope: "federal", code: "BR", name: "Brasil", uf: null } },
+    });
+    const fetchMock = stubFetch(xrayRoutes({ ...XRAY, candidacies: [president], evolution: [], assetsEvolution: [] }));
+    render(
+      <QueryClientProvider client={client()}>
+        <XrayTab politicianId="pol-1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Fortaleza" }));
+    fireEvent.click(screen.getByRole("button", { name: "Seção" }));
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([url]) => String(url));
+      expect(urls.some((u) => u.includes("level=section") && u.includes("uf=CE") && u.includes("municipality=13897"))).toBe(true);
+    });
+  });
+
   it("seleção de comparação respeita o máximo de 5 candidaturas", async () => {
     const many = { ...XRAY, candidacies: [1, 2, 5, 6, 7, 8].map((n) => candidacy(n)) };
     stubFetch(xrayRoutes(many));

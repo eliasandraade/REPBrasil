@@ -57,16 +57,29 @@ function territoryLabel(t: TerritoryValue, level: TerritoryLevel): string {
   return t.municipalityName ?? t.municipalityTseCode ?? t.uf;
 }
 
+/** Município escolhido no detalhe, com a UF da linha: candidatura federal (Presidente) não tem UF própria. */
+interface PickedMunicipality {
+  code: string;
+  uf: string | null;
+}
+
 function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const [level, setLevel] = useState<TerritoryLevel>("municipality");
-  const [municipality, setMunicipality] = useState<string | null>(c.contest.unit.scope === "municipal" ? c.contest.unit.code : null);
+  const [municipality, setMunicipality] = useState<PickedMunicipality | null>(
+    c.contest.unit.scope === "municipal" ? { code: c.contest.unit.code, uf: c.contest.unit.uf } : null,
+  );
   const needsMunicipality = level === "section" || level === "place";
   const q = useQuery({
-    queryKey: ["xray-territory", c.candidacyId, level, municipality],
-    queryFn: () => xrayApi.territory(c.candidacyId, level, { municipality }),
+    queryKey: ["xray-territory", c.candidacyId, level, municipality?.code],
+    queryFn: () => xrayApi.territory(c.candidacyId, level, { uf: municipality?.uf, municipality: municipality?.code }),
     enabled: !needsMunicipality || !!municipality,
     staleTime: 60_000,
   });
+  const drill = (t: TerritoryValue) => {
+    if (!t.municipalityTseCode) return;
+    setMunicipality({ code: t.municipalityTseCode, uf: t.uf });
+    setLevel("zone");
+  };
   const levels: TerritoryLevel[] = ["municipality", "zone", "section", "place"];
   const max = Math.max(1, ...(q.data?.territories ?? []).map((t) => t.votes ?? 0));
   return (
@@ -114,7 +127,7 @@ function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="w-6 flex-shrink-0 text-right font-mono text-[10px] text-slate-600">{i + 1}</span>
                     {level === "municipality" && t.municipalityTseCode ? (
-                      <button type="button" onClick={() => { setMunicipality(t.municipalityTseCode); setLevel("zone"); }} className="truncate text-left text-slate-200 hover:text-brand" title="Detalhar zonas, seções e locais">
+                      <button type="button" onClick={() => drill(t)} className="truncate text-left text-slate-200 hover:text-brand" title="Detalhar zonas, seções e locais">
                         {territoryLabel(t, level)}
                       </button>
                     ) : (
