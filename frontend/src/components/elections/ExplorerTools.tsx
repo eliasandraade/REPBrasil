@@ -65,7 +65,7 @@ export function MapLayerBar({
   loading,
   error,
   disabled,
-}: {
+}: Readonly<{
   state: LayerState;
   onChange: (next: Partial<LayerState>) => void;
   selection: string[];
@@ -75,7 +75,7 @@ export function MapLayerBar({
   loading: boolean;
   error: boolean;
   disabled: boolean;
-}) {
+}>) {
   const select = "rounded-md border border-white/10 bg-background px-2 py-1 text-xs text-slate-200 focus:border-brand/40 focus:outline-none";
   const options = (value: string | null, onPick: (v: string | null) => void, label: string) => (
     <select aria-label={label} className={select} value={value ?? ""} onChange={(e) => onPick(e.target.value || null)}>
@@ -156,13 +156,13 @@ export function CompareTray({
   uf,
   onRemove,
   onClear,
-}: {
+}: Readonly<{
   selection: string[];
   names: Map<string, string>;
   uf: string | null;
   onRemove: (id: string) => void;
   onClear: () => void;
-}) {
+}>) {
   if (selection.length === 0) return null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-brand/20 bg-card px-3 py-2 text-xs" data-testid="compare-tray">

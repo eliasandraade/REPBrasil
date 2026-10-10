@@ -29,14 +29,35 @@ const COMPLEMENT_LABELS: Record<string, string> = {
   substitute_order: "Ordem de suplência",
 };
 
+/** Chaves estáveis a partir dos dados (repetições numeradas), nunca pela posição na lista. */
+function withKeys<T>(items: T[], keyOf: (item: T) => string): Array<[string, T]> {
+  const seen = new Map<string, number>();
+  return items.map((item) => {
+    const base = keyOf(item);
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return [n === 1 ? base : `${base}#${n}`, item];
+  });
+}
+
+function plain(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
+
+function sectionText(t: TerritoryValue): string {
+  const extra = t.sectionMembers && t.sectionMembers.length > 1 ? ` (+${t.sectionMembers.length - 1} agregada)` : "";
+  return `Zona ${t.zone} · seção ${t.section}${extra}`;
+}
+
 function territoryLabel(t: TerritoryValue, level: TerritoryLevel): string {
   if (level === "zone") return `${t.municipalityName ?? t.municipalityTseCode} · zona ${t.zone}`;
-  if (level === "section") return `Zona ${t.zone} · seção ${t.section}${t.sectionMembers && t.sectionMembers.length > 1 ? ` (+${t.sectionMembers.length - 1} agregada)` : ""}`;
-  if (level === "place") return `${t.placeName ? displayName(t.placeName) : `Local ${t.placeCode}`} · zona ${t.zone}`;
+  if (level === "section") return sectionText(t);
+  if (level === "place") return `${t.placeName ? displayName(t.placeName) : "Local " + t.placeCode} · zona ${t.zone}`;
   return t.municipalityName ?? t.municipalityTseCode ?? t.uf;
 }
 
-function TerritoryPanel({ c }: { c: XrayCandidacy }) {
+function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const [level, setLevel] = useState<TerritoryLevel>("municipality");
   const [municipality, setMunicipality] = useState<string | null>(c.contest.unit.scope === "municipal" ? c.contest.unit.code : null);
   const needsMunicipality = level === "section" || level === "place";
@@ -51,7 +72,8 @@ function TerritoryPanel({ c }: { c: XrayCandidacy }) {
   return (
     <div data-testid="xray-territory">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Nível territorial" className="flex flex-wrap gap-1">
+        <fieldset className="flex flex-wrap gap-1">
+          <legend className="sr-only">Nível territorial</legend>
           {levels.map((l) => (
             <button
               key={l}
@@ -63,7 +85,7 @@ function TerritoryPanel({ c }: { c: XrayCandidacy }) {
               {LEVEL_LABEL[l]}
             </button>
           ))}
-        </div>
+        </fieldset>
         {municipality && c.contest.unit.scope !== "municipal" && (
           <button type="button" onClick={() => { setMunicipality(null); setLevel("municipality"); }} className="text-[11px] text-brand hover:underline">
             Todos os municípios
@@ -130,7 +152,7 @@ function TerritoryPanel({ c }: { c: XrayCandidacy }) {
   );
 }
 
-function AssetsPanel({ c }: { c: XrayCandidacy }) {
+function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const q = useQuery({ queryKey: ["xray-assets", c.candidacyId], queryFn: () => xrayApi.assets(c.candidacyId), staleTime: 60_000 });
   if (q.isLoading) return <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando bens" />;
   if (q.isError || !q.data) return <p className="text-xs text-slate-400">Não foi possível carregar os bens declarados.</p>;
@@ -144,8 +166,8 @@ function AssetsPanel({ c }: { c: XrayCandidacy }) {
       </div>
       {a.diff.length > 0 ? (
         <ul className="max-h-[360px] space-y-1 overflow-y-auto pr-1">
-          {a.diff.map((d, i) => (
-            <li key={i} className="flex items-start justify-between gap-2 rounded-md border border-white/5 bg-card px-2.5 py-1.5 text-xs" data-diff={d.status}>
+          {withKeys(a.diff, (d) => `${d.status}|${d.typeCode}|${d.description}|${d.fromValue}|${d.toValue}`).map(([key, d]) => (
+            <li key={key} className="flex items-start justify-between gap-2 rounded-md border border-white/5 bg-card px-2.5 py-1.5 text-xs" data-diff={d.status}>
               <span className="min-w-0">
                 <span className={`mr-1.5 rounded px-1 py-px text-[9px] uppercase ${d.status === "added" ? "bg-brand/10 text-brand" : d.status === "removed" ? "bg-amber-400/10 text-amber-300" : "bg-white/5 text-slate-400"}`}>
                   {d.status === "added" ? `só em ${a.year}` : d.status === "removed" ? `só em ${a.compareToYear}` : "nas duas"}
@@ -162,8 +184,8 @@ function AssetsPanel({ c }: { c: XrayCandidacy }) {
         </ul>
       ) : (
         <ul className="max-h-[360px] space-y-1 overflow-y-auto pr-1">
-          {a.items.map((item, i) => (
-            <li key={i} className="flex items-start justify-between gap-2 rounded-md border border-white/5 bg-card px-2.5 py-1.5 text-xs">
+          {withKeys(a.items, (item) => `${item.typeCode}|${item.description}|${item.value}`).map(([key, item]) => (
+            <li key={key} className="flex items-start justify-between gap-2 rounded-md border border-white/5 bg-card px-2.5 py-1.5 text-xs">
               <span className="min-w-0">
                 <span className="text-slate-300">{item.type ?? "Bem"}</span>
                 {item.description && <span className="block truncate text-[11px] text-slate-500">{item.description}</span>}
@@ -178,7 +200,7 @@ function AssetsPanel({ c }: { c: XrayCandidacy }) {
   );
 }
 
-function FinancePanel({ c }: { c: XrayCandidacy }) {
+function FinancePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const q = useQuery({ queryKey: ["xray-finance", c.candidacyId], queryFn: () => xrayApi.finance(c.candidacyId), staleTime: 60_000 });
   if (q.isLoading) return <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando prestação de contas" />;
   if (q.isError || !q.data) return <p className="text-xs text-slate-400">Não foi possível carregar a prestação de contas.</p>;
@@ -210,8 +232,8 @@ function FinancePanel({ c }: { c: XrayCandidacy }) {
             <div key={block.title} className="mb-3">
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">{block.title}</p>
               <ul className="space-y-1">
-                {block.rows.map((r, i) => (
-                  <li key={i} className="flex justify-between gap-2 text-xs">
+                {withKeys(block.rows, (r) => `${r.kind}|${r.name}|${r.cnpj}|${r.amount}`).map(([key, r]) => (
+                  <li key={key} className="flex justify-between gap-2 text-xs">
                     <span className="truncate text-slate-300">
                       {r.name ? displayName(r.name) : "Não identificado"}
                       {r.cnpj && <span className="ml-1 font-mono text-[10px] text-slate-600">CNPJ {r.cnpj}</span>}
@@ -229,7 +251,7 @@ function FinancePanel({ c }: { c: XrayCandidacy }) {
   );
 }
 
-function RecordsPanel({ c }: { c: XrayCandidacy }) {
+function RecordsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const complement = c.records.complement;
   return (
     <div data-testid="xray-records" className="space-y-3">
@@ -256,7 +278,7 @@ function RecordsPanel({ c }: { c: XrayCandidacy }) {
               <div key={key} className="flex justify-between gap-2 border-b border-white/5 py-0.5 text-xs">
                 <dt className="text-slate-500">{label}</dt>
                 <dd className="text-right text-slate-300">
-                  {key === "max_campaign_spending" ? money(Number(complement[key])) : String(complement[key])}
+                  {key === "max_campaign_spending" ? money(Number(complement[key])) : plain(complement[key])}
                 </dd>
               </div>
             ),
@@ -273,7 +295,7 @@ function RecordsPanel({ c }: { c: XrayCandidacy }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="rounded-lg border border-white/8 bg-card p-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
@@ -283,7 +305,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /** Detalhe de uma candidatura no Raio X: território, bens, contas e registros oficiais. */
-export function CandidacyDetail({ c }: { c: XrayCandidacy }) {
+export function CandidacyDetail({ c }: Readonly<{ c: XrayCandidacy }>) {
   const [tab, setTab] = useState<DetailTab>("territory");
   const tabs: Array<{ id: DetailTab; label: string }> = [
     { id: "territory", label: "Território" },

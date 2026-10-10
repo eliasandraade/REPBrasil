@@ -31,7 +31,7 @@ function territoryLabel(t: CompareTerritory, level: TerritoryLevel): string {
   if (level === "municipality") return t.municipalityName ?? t.municipalityTseCode ?? t.uf;
   if (level === "zone") return `${t.municipalityName} · zona ${t.zone}`;
   if (level === "section") return `Zona ${t.zone} · seção ${t.section}`;
-  return `${t.placeName ? displayName(t.placeName) : `Local ${t.placeCode}`} · zona ${t.zone}`;
+  return `${t.placeName ? displayName(t.placeName) : "Local " + t.placeCode} · zona ${t.zone}`;
 }
 
 /**
@@ -105,7 +105,8 @@ export function ComparisonView() {
           </p>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-1.5" role="group" aria-label="Nível territorial">
+        <fieldset className="mt-4 flex flex-wrap items-center gap-1.5">
+          <legend className="sr-only">Nível territorial</legend>
           {LEVELS.map((l) => (
             <button
               key={l}
@@ -126,7 +127,7 @@ export function ComparisonView() {
               </button>
             </span>
           )}
-        </div>
+        </fieldset>
 
         {ids.length === 0 && <p className="mt-6 text-sm text-slate-400">Nenhuma candidatura selecionada. Marque &ldquo;comparar&rdquo; no explorador ou no Raio X.</p>}
         {needsMunicipality && <p className="mt-6 text-sm text-slate-400">Seção e local de votação exigem um município: escolha-o pelo nível Município.</p>}
@@ -149,13 +150,13 @@ function ComparisonBody({
   level,
   onDrill,
   onRemove,
-}: {
+}: Readonly<{
   data: ComparisonResponse;
   columns: ComparisonResponse["candidacies"];
   level: TerritoryLevel;
   onDrill: (t: CompareTerritory) => void;
   onRemove: (id: string) => void;
-}) {
+}>) {
   const subjectName = (i: number) => data.subjects[i]?.name ?? `Sujeito ${i + 1}`;
   const byCandidacy = new Map(data.candidacies.map((c) => [c.candidacyId, c]));
   const canDrill = level === "state" || level === "municipality" || level === "zone";
@@ -270,8 +271,8 @@ function ComparisonBody({
             <div className="rounded-lg border border-white/8 bg-card p-3" data-testid="compare-overtakes">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Superações</p>
               <ul className="space-y-1 text-xs text-slate-300">
-                {data.overtakes.map((o, i) => (
-                  <li key={i}>
+                {data.overtakes.map((o) => (
+                  <li key={`${o.subject}-${o.overtakenSubject}-${o.fromElection}-${o.toElection}`}>
                     {subjectName(o.subject)} passou à frente de {subjectName(o.overtakenSubject)} em {o.territories}{" "}
                     {LEVEL_LABEL[level].toLowerCase()}(s) de {electionLabel(data.elections[o.fromElection].year, data.elections[o.fromElection].round)} para{" "}
                     {electionLabel(data.elections[o.toElection].year, data.elections[o.toElection].round)}.
@@ -284,8 +285,8 @@ function ComparisonBody({
             <div className="rounded-lg border border-white/8 bg-card p-3" data-testid="compare-extremes">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Maiores variações</p>
               <ul className="space-y-1 text-xs text-slate-300">
-                {data.extremes.map((x, i) => (
-                  <li key={i}>
+                {data.extremes.map((x) => (
+                  <li key={`${x.subject}-${x.kind}-${x.key}-${x.fromCandidacyId}-${x.toCandidacyId}`}>
                     {x.kind === "growth" ? "▲" : "▼"} {subjectName(x.subject)}: {x.label} — {signed(x.deltaVotes)} votos ({signedPercent(x.deltaPercent)})
                   </li>
                 ))}

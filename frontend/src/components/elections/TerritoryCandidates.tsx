@@ -34,7 +34,7 @@ const SORTS: Array<{ id: Sort; label: string }> = [
  * Território → candidaturas: todas as candidaturas de disputas que alcançam o território (federal, estadual e as
  * municipais do município), com votos NO território. Filtros e ordenação são da API; nenhum número é calculado aqui.
  */
-export function TerritoryCandidates(props: TerritoryCandidatesProps) {
+export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
   const { year, round, uf, municipality, zone } = props;
   const [office, setOffice] = useState<number | null>(null);
   const [party, setParty] = useState<string | null>(null);

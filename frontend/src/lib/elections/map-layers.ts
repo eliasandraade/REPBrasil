@@ -27,7 +27,7 @@ const TIE = "#94a3b8";
 export const CATEGORICAL = ["#38bdf8", "#a78bfa", "#f472b6", "#facc15", "#34d399", "#fb923c", "#e879f9", "#94a3b8"];
 
 function hex(c: string): [number, number, number] {
-  const n = parseInt(c.slice(1), 16);
+  const n = Number.parseInt(c.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 

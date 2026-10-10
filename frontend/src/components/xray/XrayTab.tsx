@@ -22,13 +22,18 @@ import { InsightList } from "./InsightList";
 
 const ROLE_LABEL = { vice: "Vice", first_substitute: "1º suplente", second_substitute: "2º suplente" } as const;
 
-function Badge({ children, tone = "muted" }: { children: React.ReactNode; tone?: "brand" | "muted" | "warn" }) {
-  const cls =
-    tone === "brand" ? "border-brand/30 bg-brand/10 text-brand" : tone === "warn" ? "border-amber-400/30 bg-amber-400/10 text-amber-300" : "border-white/10 bg-white/5 text-slate-400";
+const BADGE_TONES = {
+  brand: "border-brand/30 bg-brand/10 text-brand",
+  warn: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  muted: "border-white/10 bg-white/5 text-slate-400",
+} as const;
+
+function Badge({ children, tone = "muted" }: Readonly<{ children: React.ReactNode; tone?: keyof typeof BADGE_TONES }>) {
+  const cls = BADGE_TONES[tone];
   return <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>{children}</span>;
 }
 
-function TotalsLine({ c }: { c: XrayCandidacy }) {
+function TotalsLine({ c }: Readonly<{ c: XrayCandidacy }>) {
   const t = c.totals;
   if (c.ticket) {
     return (
@@ -78,13 +83,13 @@ function CandidacyCard({
   compared,
   onSelect,
   onCompare,
-}: {
+}: Readonly<{
   c: XrayCandidacy;
   selected: boolean;
   compared: boolean;
   onSelect: () => void;
   onCompare: () => void;
-}) {
+}>) {
   return (
     <article
       className={`rounded-lg border p-4 ${selected ? "border-brand/40 bg-card-elevated/70" : "border-white/8 bg-card-elevated/40"}`}
@@ -132,7 +137,7 @@ function CandidacyCard({
   );
 }
 
-function EvolutionList({ data }: { data: XrayResponse }) {
+function EvolutionList({ data }: Readonly<{ data: XrayResponse }>) {
   const byId = useMemo(() => new Map(data.candidacies.map((c) => [c.candidacyId, c])), [data]);
   if (data.evolution.length === 0 && data.assetsEvolution.length === 0) return null;
   return (
@@ -190,7 +195,7 @@ function EvolutionList({ data }: { data: XrayResponse }) {
  * Raio X eleitoral do perfil: todas as candidaturas oficiais da pessoa (identidade canônica), votação com estado
  * explícito (nunca zero inventado), chapa de vice/suplente, evolução, bens, contas, registros e histórico oficial.
  */
-export function XrayTab({ politicianId }: { politicianId: string }) {
+export function XrayTab({ politicianId }: Readonly<{ politicianId: string }>) {
   const q = useQuery({ queryKey: ["xray", politicianId], queryFn: () => xrayApi.xray(politicianId), staleTime: 60_000 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [compare, setCompare] = useState<string[] | null>(null);

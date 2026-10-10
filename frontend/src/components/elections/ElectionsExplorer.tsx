@@ -19,7 +19,7 @@ import { SectionResults, type VoteTypeFilter } from "./SectionResults";
 import { TerritoryCandidates } from "./TerritoryCandidates";
 import { TerritoryMap, type MapPoint, type MapScope } from "./TerritoryMap";
 
-const LAYER_KINDS: MapLayerKind[] = ["intensity", "share", "winner", "growth", "decline", "ab"];
+const LAYER_KINDS: ReadonlySet<MapLayerKind> = new Set(["intensity", "share", "winner", "growth", "decline", "ab"]);
 
 const ibge = (code: number | null | undefined) => (code == null ? null : String(code));
 const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
@@ -214,7 +214,7 @@ export function ElectionsExplorer() {
   };
   const layerParam = search.get("camada") as MapLayerKind | null;
   const layerState: LayerState = {
-    layer: layerParam && LAYER_KINDS.includes(layerParam) ? layerParam : null,
+    layer: layerParam && LAYER_KINDS.has(layerParam) ? layerParam : null,
     office: Number(search.get("cargo")) || null,
     candidacy: search.get("candidatura"),
     base: search.get("base"),
