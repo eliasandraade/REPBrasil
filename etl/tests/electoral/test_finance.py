@@ -109,3 +109,13 @@ def test_unknown_header_fails_closed():
     header = ";".join(f'"{c}"' for c in REVENUE_COLUMNS[:-1]) + "\r\n"
     with pytest.raises(LayoutError):
         list(iter_member(io.BytesIO(header.encode("latin-1")), REVENUE_COLUMNS, "receitas_candidatos_2098_XX.csv"))
+
+
+def test_cli_reports_are_written_only_inside_the_repository(tmp_path):
+    from src.electoral.paths import REPO_ROOT, output_path
+
+    assert output_path(REPO_ROOT / "docs" / "audits" / "x.md") == (REPO_ROOT / "docs" / "audits" / "x.md").resolve()
+    with pytest.raises(SystemExit):
+        output_path(tmp_path / "fora.json", root=REPO_ROOT / "docs")
+    with pytest.raises(SystemExit):
+        output_path(REPO_ROOT / "docs" / ".." / ".." / "fora.json")

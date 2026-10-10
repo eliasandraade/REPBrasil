@@ -367,6 +367,7 @@ def _audit(args: argparse.Namespace) -> int:
     from .candidates.store import select_candidacies
     from .open_data.acquire import load_manifest as load_bu_manifest
     from .open_data.layout import detect_csv_layout
+    from .paths import output_path
 
     uf = args.uf.upper()
     bu_csv = None
@@ -397,12 +398,15 @@ def _audit(args: argparse.Namespace) -> int:
     with electoral_db.connect(database_url, autocommit=True) as conn:
         report = audit_election(conn, year=args.year, turn=args.turn, uf=uf, bu_csv=bu_csv,
                                 candidate_counts=counts, other_election_rows=other_elections)
+    # Relatórios só dentro do repositório (caminho resolvido, sem "..").
     if args.report:
-        args.report.parent.mkdir(parents=True, exist_ok=True)
-        args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+        report_path = output_path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
     if args.markdown:
-        args.markdown.parent.mkdir(parents=True, exist_ok=True)
-        args.markdown.write_text(to_markdown(report), encoding="utf-8")
+        markdown_path = output_path(args.markdown)
+        markdown_path.parent.mkdir(parents=True, exist_ok=True)
+        markdown_path.write_text(to_markdown(report), encoding="utf-8")
     print(json.dumps({"status": report["status"], "summary": report["summary"], "cadaster": report["cadaster"]}, ensure_ascii=False))
     return 0 if report["status"] == "ok" else 5
 

@@ -27,6 +27,7 @@ from typing import Any
 from .. import db as electoral_db
 from ..cadaster.sources import CadasterResourceSpec, discover_resource
 from ..candidates import identity
+from ..paths import output_path
 from .parser import MEMBERS, FinanceRow, iter_member, parse_row
 from .remote import PinnedRangeFile, _client, head, stream_digests
 from .store import SOURCE, FinanceConflict, import_finance, select_rows
@@ -108,8 +109,9 @@ def build_parser() -> argparse.ArgumentParser:
 def _emit(path: Path | None, report: dict[str, Any]) -> None:
     text = json.dumps(report, ensure_ascii=False, indent=2, default=str)
     if path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text + "\n", encoding="utf-8")
+        target = output_path(path)  # só dentro do repositório (caminho resolvido)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text + "\n", encoding="utf-8")
     print(json.dumps({k: (len(v) if isinstance(v, list) else v) for k, v in report.items()}, ensure_ascii=False, indent=2, default=str))
 
 
