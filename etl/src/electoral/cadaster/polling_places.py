@@ -26,9 +26,9 @@ from __future__ import annotations
 import csv
 import hashlib
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..open_data.layout import DetectedLayout, detect_csv_layout
@@ -183,6 +183,33 @@ def _iso_date(raw: str, line: int) -> str:
     return f"{m[3]}-{m[2]}-{m[1]}"
 
 
+def _resolve_coordinates(
+    result: dict[str, MunicipalityCadaster],
+    published: dict[tuple[str, int, str], set[tuple[float, float]]],
+    unpublished: Counter[tuple[str, int, str]],
+) -> list[dict[str, object]]:
+    """Coordenadas de cada local a partir das linhas das suas seções.
+
+    Uma única coordenada publicada vale para o local, mesmo que outras linhas não a publiquem (-1);
+    coordenadas publicadas diferentes para o mesmo local ⇒ nenhuma (não se escolhe uma). Ambos os
+    casos geram aviso; nada é inventado.
+    """
+    warnings: list[dict[str, object]] = []
+    for (municipality, zone_n, place_code), coordinates in sorted(published.items()):
+        zone = result[municipality].zones[zone_n]
+        where = {"municipality": municipality, "zone": zone_n, "polling_place": place_code}
+        if len(coordinates) > 1:
+            warnings.append({"code": "polling_place_coordinates_conflict", **where,
+                             "coordinates": [list(c) for c in sorted(coordinates)]})
+            continue
+        ((lat, lon),) = coordinates
+        zone.places[place_code] = replace(zone.places[place_code], latitude=lat, longitude=lon)
+        if unpublished[(municipality, zone_n, place_code)]:
+            warnings.append({"code": "polling_place_coordinates_partial", **where,
+                             "rows_without_coordinates": unpublished[(municipality, zone_n, place_code)]})
+    return warnings
+
+
 def parse_cadaster(
     csv_path: Path,
     *,
@@ -206,6 +233,9 @@ def parse_cadaster(
     generated: Counter[str] = Counter()
     warnings: list[dict[str, object]] = []
     rows_read = rows_matching = rows_other_uf = 0
+    # Coordenadas publicadas por local (município, zona, local); resolvidas depois de ler todas as linhas.
+    published: dict[tuple[str, int, str], set[tuple[float, float]]] = defaultdict(set)
+    unpublished: Counter[tuple[str, int, str]] = Counter()
     i = _IDX
     with csv_path.open("r", encoding=layout.encoding, newline="") as fh:
         reader = csv.reader(fh, delimiter=layout.delimiter, quotechar=layout.quotechar)
@@ -291,9 +321,14 @@ def parse_cadaster(
             if mun is None:
                 mun = result[municipality] = MunicipalityCadaster(municipality, (_text(fields[i["NM_MUNICIPIO"]]) or ""))
             zone = mun.zones.setdefault(zone_n, ZoneCadaster(zone_n))
-            existing = zone.places.setdefault(place_code, place)
-            if existing != place:
+            # Identidade do local: todos os atributos, exceto as coordenadas (algumas linhas não as publicam).
+            existing = zone.places.setdefault(place_code, replace(place, latitude=None, longitude=None))
+            if existing != replace(place, latitude=None, longitude=None):
                 raise CadasterError(f"line {line}: polling place {zone_n}/{place_code} has conflicting attributes across rows")
+            if lat is None or lon is None:
+                unpublished[(municipality, zone_n, place_code)] += 1
+            else:
+                published[(municipality, zone_n, place_code)].add((lat, lon))
             if section_n in zone.sections:
                 raise CadasterError(f"line {line}: duplicate section {municipality}/{zone_n}/{section_n} (line {zone.sections[section_n].line})")
             zone.sections[section_n] = SectionRecord(
@@ -318,6 +353,7 @@ def parse_cadaster(
         raise CadasterError(f"no rows for {uf} turn {turn} in {csv_path.name}")
     if len(dates) != 1 or len(generated) != 1:
         raise CadasterError(f"mixed election dates {sorted(dates)} or generation timestamps {sorted(generated)} in one turn")
+    warnings.extend(_resolve_coordinates(result, published, unpublished))
 
     for mun in result.values():
         for zone in mun.zones.values():

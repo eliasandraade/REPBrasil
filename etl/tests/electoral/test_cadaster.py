@@ -127,6 +127,24 @@ def test_out_of_range_coordinates_are_dropped_with_a_warning(tmp_path):
     assert c.warnings and c.warnings[0]["code"] == "invalid_coordinates"
 
 
+def test_place_coordinates_published_in_only_some_rows_are_resolved_without_guessing(tmp_path):
+    """Caso real (CE 2024): só uma das linhas de seção do local publica a coordenada; as outras trazem -1."""
+    official = '"-4,0000001";"-39,0000001"'
+    partial = cadaster(write(tmp_path, POLLING_TEXT.replace(official, '"-1";"-1"', 1)))
+    place = partial.municipality(99999).zones[9].places["9001"]  # type: ignore[union-attr]
+    assert (place.latitude, place.longitude) == (-4.0000001, -39.0000001)
+    assert [w["code"] for w in partial.warnings if w.get("polling_place") == "9001"] == ["polling_place_coordinates_partial"]
+    # duas coordenadas publicadas diferentes para o mesmo local: nenhuma é escolhida
+    conflict = cadaster(write(tmp_path, POLLING_TEXT.replace(official, '"-4,5";"-39,5"', 1)))
+    assert conflict.municipality(99999).zones[9].places["9001"].latitude is None  # type: ignore[union-attr]
+    (warning,) = [w for w in conflict.warnings if w["code"] == "polling_place_coordinates_conflict"]
+    assert warning["coordinates"] == [[-4.5, -39.5], [-4.0000001, -39.0000001]]
+    # outro atributo de identidade divergente continua bloqueando (não é o mesmo local)
+    renamed = write(tmp_path, POLLING_TEXT.replace('"ESCOLA FICTÍCIA UM"', '"ESCOLA FICTÍCIA UM ANEXO"', 1))
+    with pytest.raises(CadasterError, match="polling place 9/9001 has conflicting attributes"):
+        cadaster(renamed)
+
+
 def test_municipality_filter_and_missing_municipality(tmp_path):
     c = cadaster(municipalities=["99998"])
     assert list(c.municipalities) == ["99998"]
