@@ -31,7 +31,7 @@ def _derived_snapshot(cur, scope: LakeScope) -> dict[str, dict[str, int]]:
     cur.execute(
         """
         SELECT votable_rows, votable_votes, zone_rows, zone_votes
-          FROM derived_archive_scope
+          FROM electoral_archive.derived_archive_scope
          WHERE year=%s AND turn=%s AND uf=%s
         """,
         (scope.year, scope.turn, scope.uf),
@@ -42,13 +42,15 @@ def _derived_snapshot(cur, scope: LakeScope) -> dict[str, dict[str, int]]:
 
     cur.execute(
         """SELECT count(*)::bigint, COALESCE(sum(votes),0)::bigint
-             FROM votable_zone_votes_archive WHERE year=%s AND turn=%s AND uf=%s""",
+             FROM electoral_archive.votable_zone_votes
+            WHERE year=%s AND turn=%s AND uf=%s""",
         (scope.year, scope.turn, scope.uf),
     )
     votable_rows, votable_votes = cur.fetchone()
     cur.execute(
         """SELECT count(*)::bigint, COALESCE(sum(votes_total),0)::bigint
-             FROM zone_office_totals_archive WHERE year=%s AND turn=%s AND uf=%s""",
+             FROM electoral_archive.zone_office_totals
+            WHERE year=%s AND turn=%s AND uf=%s""",
         (scope.year, scope.turn, scope.uf),
     )
     zone_rows, zone_votes = cur.fetchone()
@@ -86,12 +88,12 @@ def main() -> int:
     if parquet != manifest["totals"]:
         raise SystemExit(f"manifest/parquet totals differ: manifest={manifest['totals']} parquet={parquet}")
 
-    with electoral_db.connect(database_url) as conn:
+    with electoral_db.connect(database_url, autocommit=True) as conn:
         database = database_totals(conn, scope)
         if database != parquet:
             raise SystemExit(f"database/parquet totals differ: database={database} parquet={parquet}")
         with conn.transaction(), conn.cursor() as cur:
-            cur.execute("SELECT to_regclass('derived_archive_scope')")
+            cur.execute("SELECT to_regclass('electoral_archive.derived_archive_scope')")
             if cur.fetchone()[0] is None:
                 raise SystemExit("refusing prune: hybrid serving schema missing")
             derived_snapshot = _derived_snapshot(cur, scope)
@@ -112,8 +114,6 @@ def main() -> int:
             cur.execute("DELETE FROM ingestion_run WHERE id = ANY(%s::uuid[])", (run_ids,))
             deleted_runs = cur.rowcount
 
-        conn.commit()
-        conn.autocommit = True
         derived: dict[str, object] = refresh_derived(conn)
 
     print(
