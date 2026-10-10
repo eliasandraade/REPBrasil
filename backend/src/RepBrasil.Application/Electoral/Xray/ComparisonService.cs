@@ -365,8 +365,8 @@ public class ComparisonService(IElectoralXrayRepository repo)
             var a = cands.First(c => c.Row.Id == p.First);
             var b = cands.First(c => c.Row.Id == p.Second);
             if (a.Subject == b.Subject || a.Election == b.Election)
-                insights.Add(InsightEngine.NotComparable($"{a.Row.BallotName} ({a.Contest.OfficeName} {E(a.Election)})",
-                    $"{b.Row.BallotName} ({b.Contest.OfficeName} {E(b.Election)})", p.Comparability));
+                insights.Add(InsightEngine.NotComparable($"{Fmt.Name(a.Row.BallotName)} ({Fmt.Name(a.Contest.OfficeName)} {E(a.Election)})",
+                    $"{Fmt.Name(b.Row.BallotName)} ({Fmt.Name(b.Contest.OfficeName)} {E(b.Election)})", p.Comparability));
         }
         return insights;
     }

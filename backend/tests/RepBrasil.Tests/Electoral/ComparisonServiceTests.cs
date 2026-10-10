@@ -151,7 +151,8 @@ public class ComparisonServiceTests
         Assert.Equal(ContestComparability.DifferentOffice, step.Comparability);
         Assert.Null(step.DeltaVotes);
         Assert.Equal(ContestComparability.DifferentOffice, Assert.Single(r.Pairs).Comparability);
-        Assert.Contains(r.Insights, i => i.Code == "contest_not_comparable");
+        var notComparable = r.Insights.Single(i => i.Code == "contest_not_comparable");
+        Assert.StartsWith("Candidato D (Deputado Federal 2022) e Candidato D (Senador 2026) disputaram cargos diferentes", notComparable.Text);
     }
 
     [Fact]
