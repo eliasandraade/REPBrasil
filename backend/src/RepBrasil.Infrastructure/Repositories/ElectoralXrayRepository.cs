@@ -239,7 +239,7 @@ public class ElectoralXrayRepository(ApplicationDbContext db) : IElectoralXrayRe
             SELECT r.id AS "ResultId", r.year AS "Year", r.turn AS "Round", r.office_code AS "OfficeCode", r.uf::text AS "Uf",
                    r.municipality_tse_code::text AS "MunicipalityTseCode", r.municipality_name AS "MunicipalityName",
                    r.zone AS "Zone", r.section AS "Section",
-                   ARRAY(SELECT DISTINCT x FROM unnest(array_prepend(r.section, COALESCE(r.aggregated_sections, '{}'::integer[]))) x
+                   ARRAY(SELECT DISTINCT x FROM unnest(array_prepend(r.section, COALESCE(r.aggregated_sections, ARRAY[]::integer[]))) x
                           ORDER BY x) AS "SectionMembers",
                    r.polling_place_code::text AS "PollingPlaceCode", r.eligible AS "Eligible", r.turnout AS "Turnout",
                    -- a urna existe: soma vazia de votos válidos é zero real
