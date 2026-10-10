@@ -29,6 +29,14 @@ ALTER TABLE contest ALTER COLUMN electoral_unit TYPE text USING btrim(electoral_
 ALTER TABLE contest ADD CONSTRAINT contest_scope_check
   CHECK (scope IN ('federal', 'state', 'municipal'));
 
+-- Cargos municipais oficiais do TSE. 004 já inclui os cargos de vice e
+-- suplência das eleições gerais; estes três completam o ciclo municipal.
+INSERT INTO office(code, name, sort_order) VALUES
+  (11, 'Prefeito', 20),
+  (12, 'Vice-Prefeito', 21),
+  (13, 'Vereador', 22)
+ON CONFLICT DO NOTHING;
+
 -- Bens declarados ao TSE pertencem à candidatura daquele pleito, não à pessoa
 -- atemporalmente. Isso permite mostrar evolução patrimonial sem misturar eleições.
 CREATE TABLE IF NOT EXISTS candidacy_asset (
