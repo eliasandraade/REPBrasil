@@ -13,11 +13,12 @@ if str(ROOT) not in sys.path:
 from src.electoral import db as electoral_db
 from src.electoral.derived import refresh_derived
 from src.electoral.lake import LakeScope, database_totals, lake_root_from_env, load_manifest, parquet_totals
+from src.electoral.lake_results import database_result_totals, load_result_manifest, parquet_result_totals
 
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Delete one archived BU scope only after Parquet and persistent derived snapshots are verified."
+        description="Delete one archived BU scope only after vote Parquet, result metadata and derived snapshots are verified."
     )
     p.add_argument("--year", type=int, required=True)
     p.add_argument("--turn", type=int, required=True)
@@ -83,15 +84,34 @@ def main() -> int:
     if not database_url:
         raise SystemExit("DATABASE_URL is required")
     root = (args.root or lake_root_from_env()).resolve()
-    manifest = load_manifest(root, scope)
-    parquet = parquet_totals(root, scope)
-    if parquet != manifest["totals"]:
-        raise SystemExit(f"manifest/parquet totals differ: manifest={manifest['totals']} parquet={parquet}")
+
+    vote_manifest = load_manifest(root, scope)
+    vote_parquet = parquet_totals(root, scope)
+    if vote_parquet != vote_manifest["totals"]:
+        raise SystemExit(
+            f"vote manifest/parquet totals differ: manifest={vote_manifest['totals']} parquet={vote_parquet}"
+        )
+
+    result_manifest = load_result_manifest(root, scope)
+    result_parquet = parquet_result_totals(root, scope)
+    if result_parquet != result_manifest["totals"]:
+        raise SystemExit(
+            f"result manifest/parquet totals differ: manifest={result_manifest['totals']} parquet={result_parquet}"
+        )
+    if result_parquet["municipalities"] != vote_parquet["municipalities"] or result_parquet["votes"] != vote_parquet["votes"]:
+        raise SystemExit(
+            f"vote/result archives disagree: votes={vote_parquet} results={result_parquet}"
+        )
 
     with electoral_db.connect(database_url, autocommit=True) as conn:
-        database = database_totals(conn, scope)
-        if database != parquet:
-            raise SystemExit(f"database/parquet totals differ: database={database} parquet={parquet}")
+        database_votes = database_totals(conn, scope)
+        if database_votes != vote_parquet:
+            raise SystemExit(f"database/vote parquet totals differ: database={database_votes} parquet={vote_parquet}")
+        database_results = database_result_totals(conn, scope)
+        if database_results != result_parquet:
+            raise SystemExit(
+                f"database/result parquet totals differ: database={database_results} parquet={result_parquet}"
+            )
         with conn.transaction(), conn.cursor() as cur:
             cur.execute("SELECT to_regclass('electoral_archive.derived_archive_scope')")
             if cur.fetchone()[0] is None:
@@ -121,7 +141,8 @@ def main() -> int:
             {
                 "status": "pruned",
                 "scope": {"year": scope.year, "turn": scope.turn, "uf": scope.uf},
-                "archived": parquet,
+                "votesArchive": vote_parquet,
+                "resultsArchive": result_parquet,
                 "derivedSnapshot": derived_snapshot,
                 "deletedRuns": deleted_runs,
                 "derived": derived,
