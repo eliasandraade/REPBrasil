@@ -7,7 +7,7 @@ import shutil
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,7 @@ class LakeScope:
     turn: int
     uf: str
 
-    def normalized(self) -> "LakeScope":
+    def normalized(self) -> LakeScope:
         uf = self.uf.strip().upper()
         if len(uf) != 2:
             raise LakeError(f"invalid UF: {self.uf!r}")
@@ -237,7 +237,7 @@ def archive_scope(
 
         manifest = {
             "schema_version": LAKE_SCHEMA_VERSION,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "scope": {"year": s.year, "turn": s.turn, "uf": s.uf},
             "totals": actual,
             "files": files,
