@@ -30,6 +30,17 @@ DROP TABLE IF EXISTS candidacy_finance_record;
 DROP TABLE IF EXISTS candidacy_source_record;
 DROP TABLE IF EXISTS candidacy_asset;
 
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM contest WHERE scope = 'municipal' OR length(btrim(electoral_unit)) > 2) THEN
+    RAISE EXCEPTION 'cannot downgrade candidacy xray: municipal contests require variable-length electoral_unit';
+  END IF;
+END $$;
+
+ALTER TABLE contest DROP CONSTRAINT IF EXISTS contest_scope_check;
+ALTER TABLE contest ALTER COLUMN electoral_unit TYPE char(2) USING btrim(electoral_unit)::char(2);
+ALTER TABLE contest ADD CONSTRAINT contest_scope_check CHECK (scope IN ('federal', 'state'));
+
 ALTER TABLE open_data_source_file DROP CONSTRAINT IF EXISTS open_data_source_file_kind_known;
 ALTER TABLE open_data_source_file ADD CONSTRAINT open_data_source_file_kind_known
   CHECK (kind IN ('tse-open-data-bu', 'tse-open-data-polling-places', 'tse-open-data-municipality-codes',
