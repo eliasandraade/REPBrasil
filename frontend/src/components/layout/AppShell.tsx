@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { SearchProvider, SearchTrigger } from "@/components/search/GlobalSearch";
 import { TransitionLink } from "@/motion/navigation";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -17,11 +18,11 @@ function HomeIcon({ className }: { className?: string }) {
   );
 }
 
-function SearchIcon({ className }: { className?: string }) {
+function UserIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   );
 }
@@ -81,7 +82,7 @@ const NAV_SECTIONS = [
     label: "Geral",
     items: [
       { href: "/", label: "Início", Icon: HomeIcon, exact: true },
-      { href: "/politicos", label: "Buscar Políticos", Icon: SearchIcon, exact: false },
+      { href: "/politicos", label: "Políticos", Icon: UserIcon, exact: false },
       { href: "/eleicoes", label: "Eleições", Icon: BallotIcon, exact: false },
       { href: "/manifesto", label: "Manifesto", Icon: BookOpenIcon, exact: false },
     ],
@@ -112,6 +113,11 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
         <TransitionLink href="/" onClick={onLinkClick} className="focus-ring rounded" aria-label="REPBrasil — início">
           <BrandMark />
         </TransitionLink>
+      </div>
+
+      {/* Busca global (abre o diálogo; atalho "/" ou Ctrl+K) */}
+      <div className="px-3 pt-4">
+        <SearchTrigger />
       </div>
 
       {/* Navigation */}
@@ -157,7 +163,7 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
-export function AppShell({ children }: { children: ReactNode }) {
+function ShellLayout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -224,6 +230,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TransitionLink href="/" className="focus-ring rounded" aria-label="REPBrasil — início">
             <BrandMark compact />
           </TransitionLink>
+          <div className="ml-auto">
+            <SearchTrigger compact />
+          </div>
         </div>
 
         <div data-route-frame className="flex min-w-0 flex-1 flex-col">
@@ -231,5 +240,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <SearchProvider>
+      <ShellLayout>{children}</ShellLayout>
+    </SearchProvider>
   );
 }

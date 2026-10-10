@@ -13,8 +13,8 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`);
+export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, init);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, `API error ${res.status}: ${path}${body ? ` — ${body}` : ""}`);
