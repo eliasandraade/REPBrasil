@@ -51,4 +51,12 @@ export function displayName(name: string | null | undefined): string {
     .join(" ");
 }
 
+/** Resultado oficial do TSE ("ELEITO POR QP") em caixa de frase, mantendo a sigla: "Eleito por QP". */
+export function outcomeLabel(outcome: string | null | undefined): string {
+  if (!outcome) return UNAVAILABLE;
+  if (outcome !== outcome.toUpperCase()) return outcome;
+  const lower = outcome.toLowerCase().replace(/\bqp\b/g, "QP");
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
 export const shortHash = (hash: string | null | undefined) => (hash ? `${hash.slice(0, 12)}…` : UNAVAILABLE);

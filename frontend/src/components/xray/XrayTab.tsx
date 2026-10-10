@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { displayName, formatCount, formatPercent, UNAVAILABLE } from "@/lib/elections/format";
+import { displayName, formatCount, formatPercent, outcomeLabel, UNAVAILABLE } from "@/lib/elections/format";
 import {
   CELL_STATE_LABEL,
   CONTEST_COMPARABILITY_LABEL,
@@ -110,8 +110,8 @@ function CandidacyCard({
           </p>
         </div>
         <div className="flex flex-wrap gap-1">
-          {c.roundOutcome && <Badge tone={c.elected ? "brand" : "muted"}>{displayName(c.roundOutcome)}</Badge>}
-          {c.candidacyStatus && <Badge>{displayName(c.candidacyStatus)}</Badge>}
+          {c.roundOutcome && <Badge tone={c.elected ? "brand" : "muted"}>{outcomeLabel(c.roundOutcome)}</Badge>}
+          {c.candidacyStatus && <Badge>{outcomeLabel(c.candidacyStatus)}</Badge>}
           {c.identityStatus === "resolved_tse_link" && <Badge>vínculo oficial TSE</Badge>}
         </div>
       </div>
@@ -284,7 +284,7 @@ export function XrayTab({ politicianId }: Readonly<{ politicianId: string }>) {
                       {h.partyAcronym && ` · ${h.partyAcronym}`}
                     </span>
                     <span className="text-slate-500">
-                      {h.outcome ? displayName(h.outcome) : UNAVAILABLE} · {h.imported ? "importada" : "não importada nesta base"}
+                      {outcomeLabel(h.outcome)} · {h.imported ? "importada" : "não importada nesta base"}
                     </span>
                   </li>
                 ))}

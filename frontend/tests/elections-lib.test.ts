@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayName, formatCount, formatPercent, pad3, sourceDate, UNAVAILABLE } from "@/lib/elections/format";
+import { displayName, formatCount, formatPercent, outcomeLabel, pad3, sourceDate, UNAVAILABLE } from "@/lib/elections/format";
 import { buildElectionsPath, levelOf, parentRoute, parseElectionsPath, shouldAutoSelectZone } from "@/lib/elections/route";
 import { buildZoneModel, searchPlaces } from "@/lib/elections/zone-model";
 import { zoneDetail } from "./fixtures";
@@ -43,6 +43,11 @@ describe("formatação: ausente nunca vira zero", () => {
   it("apresentação não muda identidade", () => {
     expect(displayName("LUIZ GASTÃO DA SILVA")).toBe("Luiz Gastão da Silva");
     expect(displayName("Já Formatado")).toBe("Já Formatado");
+    // resultado oficial: caixa de frase com a sigla preservada (nunca "Eleito Por Qp")
+    expect(outcomeLabel("ELEITO POR QP")).toBe("Eleito por QP");
+    expect(outcomeLabel("NÃO ELEITO")).toBe("Não eleito");
+    expect(outcomeLabel("2º TURNO")).toBe("2º turno");
+    expect(outcomeLabel(null)).toBe(UNAVAILABLE);
     expect(pad3(29)).toBe("029");
     expect(sourceDate("05/10/2026 14:03:00")).toBe("05/10/2026 14:03");
   });

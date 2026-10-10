@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { displayName, formatCount, formatPercent } from "@/lib/elections/format";
+import { displayName, formatCount, formatPercent, outcomeLabel } from "@/lib/elections/format";
 import { CELL_STATE_LABEL, MAX_COMPARE, xrayApi, type CandidatesFilters } from "@/lib/elections/xray";
 
 type Sort = NonNullable<CandidatesFilters["sort"]>;
@@ -184,7 +184,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
                     {displayName(c.contest.officeName)}
                     {c.contest.unit.scope === "municipal" ? ` · ${c.contest.unit.name}` : ""} · nº {c.number}
                     {c.party?.acronym ? ` · ${c.party.acronym}` : ""}
-                    {c.roundOutcome ? ` · ${displayName(c.roundOutcome)}` : ""}
+                    {c.roundOutcome ? ` · ${outcomeLabel(c.roundOutcome)}` : ""}
                   </p>
                 </div>
                 <div className="flex-shrink-0 text-right">
