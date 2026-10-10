@@ -116,7 +116,8 @@ def test_cpf_classification_never_guesses():
 
 def test_document_hash_is_keyed_and_the_key_is_mandatory():
     doc = cpf(123456789)
-    assert identity.document_hash(KEY, doc) == identity.document_hash(KEY, doc)
+    first, second = identity.document_hash(KEY, doc), identity.document_hash(KEY, doc)
+    assert first == second  # determinístico por chave
     assert identity.document_hash(KEY, doc) != identity.document_hash(b"z" * 32, doc)
     assert doc not in identity.document_hash(KEY, doc)
     with pytest.raises(identity.IdentityKeyMissing):

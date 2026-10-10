@@ -96,7 +96,8 @@ export function TerritoryMap(props: Props) {
       return;
     }
     let cancelled = false;
-    (async () => {
+    // Erros de carga já viram status "error"; a promise não tem consumidor.
+    void (async () => {
       let geo: TerritoryGeo;
       try {
         geo = await loadTerritoryGeo();

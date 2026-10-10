@@ -28,8 +28,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: "8.0.x"
       - name: Restore
@@ -63,38 +63,41 @@ jobs:
       ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
       PSQL: psql -h localhost -U repbrasil -d repbrasil_ci_test -v ON_ERROR_STOP=1 -At
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: "8.0.x"
-      - name: Install dotnet-ef
-        run: dotnet tool install --global dotnet-ef --version 8.0.15
+      - name: Restore local tools (dotnet-ef pinned in backend/.config/dotnet-tools.json)
+        working-directory: backend
+        run: dotnet tool restore
       - name: Build API (migrations startup project)
         working-directory: backend
-        run: dotnet build -c Release
+        run: |
+          dotnet restore
+          dotnet build --no-restore -c Release
       - name: Migrations up from zero
         working-directory: backend
-        run: dotnet ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+        run: dotnet tool run dotnet-ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
       - name: Check schema (21 electoral tables + PostGIS)
         run: |
           test "$($PSQL -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='electoral'")" = "21"
           $PSQL -c "SELECT extversion FROM pg_extension WHERE extname='postgis'" | grep -q .
       - name: Migrations down to AddMandate
         working-directory: backend
-        run: dotnet ef database update AddMandate --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+        run: dotnet tool run dotnet-ef database update AddMandate --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
       - name: Check rollback
         run: |
           test "$($PSQL -c "SELECT count(*) FROM information_schema.schemata WHERE schema_name='electoral'")" = "0"
           test "$($PSQL -c "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\"")" = "20260518020514_AddMandate"
       - name: Migrations up again
         working-directory: backend
-        run: dotnet ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+        run: dotnet tool run dotnet-ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
       - name: .NET database tests (synthetic data, rolled back)
         working-directory: backend
         env:
           REPBRASIL_ELECTORAL_TEST_DB: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
         run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral"
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.12"
       - name: ETL database tests (synthetic fixtures)
@@ -104,8 +107,8 @@ jobs:
           # Chave FICTÍCIA de teste (>= 32 bytes). Nunca usar fora do CI.
           REPBRASIL_PERSON_DOCUMENT_KEY: ci-only-fictitious-test-key-0123456789abcdef
         run: |
-          uv sync --extra dev --frozen
-          uv run pytest -q tests/electoral
+          uv sync --extra dev --frozen --no-install-project
+          uv run --frozen --no-sync pytest -q tests/electoral
 
   frontend:
     name: Frontend (Node 22)
@@ -114,14 +117,14 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -140,13 +143,13 @@ jobs:
       run:
         working-directory: etl
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.12"
-      - name: Install
-        run: uv sync --extra dev --frozen
+      - name: Install (lockfile only; the project itself is imported from the checkout)
+        run: uv sync --extra dev --frozen --no-install-project
       - name: Lint (electoral layer)
-        run: uv run ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py
+        run: uv run --frozen --no-sync ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py
       - name: Test (DB tests skip without database)
-        run: uv run pytest -q
+        run: uv run --frozen --no-sync pytest -q
