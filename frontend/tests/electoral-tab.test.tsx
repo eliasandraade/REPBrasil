@@ -473,6 +473,63 @@ describe("comparação", () => {
     expect(screen.getByTestId("insight-list").textContent).toContain("passou à frente");
   });
 
+  it("CSV da matriz: estado no lugar de zero, vírgula decimal, ';' e BOM; A × B só com duas da mesma eleição", async () => {
+    const { comparisonCsv } = await import("@/lib/elections/compare-csv");
+    const columns = [...COMPARE.candidacies];
+    const sem = { ...COMPARE.territories[1], cells: [{ ...COMPARE.territories[1].cells[0], votes: null, share: null, state: "no_coverage" as const }] };
+    const csv = comparisonCsv({ ...COMPARE, territories: [COMPARE.territories[0], sem] }, columns, "section");
+    const lines = csv.split("\r\n");
+    expect(csv.charCodeAt(0)).toBe(0xfeff); // BOM: o Excel abre em UTF-8
+    expect(lines[0]).toContain("Seção;Candidata A (Deputado Estadual 2022) — votos;Candidata A (Deputado Estadual 2022) — % dos válidos");
+    expect(lines[1]).toBe("Zona 1 · seção 100;10;10;20;20;20;20;15;15;comparável");
+    expect(lines[2]).toContain("sem Boletim de Urna"); // ausência não vira 0
+    expect(lines[2]).toContain("sem candidatura");
+
+    nav.search = `c=${[1, 3].map(ID).join(",")}&uf=CE&nivel=municipality`;
+    stubFetch(() => ({ ...COMPARE, level: "municipality", candidacies: [COMPARE.candidacies[0], COMPARE.candidacies[2]], territories: [] }));
+    const { unmount } = render(
+      <QueryClientProvider client={client()}>
+        <ComparisonView />
+      </QueryClientProvider>,
+    );
+    await screen.findByTestId("compare-actions");
+    expect(screen.queryByRole("link", { name: "Ver A × B no mapa →" })).toBeNull(); // eleições diferentes
+    unmount();
+    nav.search = `c=${[1, 2].map(ID).join(",")}&uf=CE&nivel=municipality`;
+    stubFetch(() => ({ ...COMPARE, level: "municipality", candidacies: [COMPARE.candidacies[0], COMPARE.candidacies[1]], territories: [] }));
+    render(
+      <QueryClientProvider client={client()}>
+        <ComparisonView />
+      </QueryClientProvider>,
+    );
+    const map = await screen.findByRole("link", { name: "Ver A × B no mapa →" });
+    expect(map.getAttribute("href")).toBe(`/eleicoes/2022/1/ce?camada=ab&a=${ID(1)}&b=${ID(2)}`);
+    expect(screen.getAllByText(/entre as selecionadas/)).toHaveLength(2);
+  });
+
+  it("comparação vazia: explica e monta aqui mesmo (busca a pessoa, escolhe a candidatura, URL atualizada)", async () => {
+    nav.search = "";
+    stubFetch((url) => {
+      if (url.includes("/api/v1/search")) {
+        return { query: "candidata", filter: { year: null, round: null, officeCode: null, officeName: null }, order: ["politicians"], territories: [], parties: [], elections: [],
+          politicians: [{ id: "pol-1", name: "Candidata Fictícia", ballotName: "Candidata", slug: "candidata", rank: 1, candidacy: null }] };
+      }
+      return XRAY;
+    });
+    render(
+      <QueryClientProvider client={client()}>
+        <ComparisonView />
+      </QueryClientProvider>,
+    );
+    const empty = screen.getByTestId("compare-empty");
+    expect(empty.textContent).toContain("Escolha até 5 candidaturas");
+    fireEvent.change(within(empty).getByRole("searchbox"), { target: { value: "candidata" } });
+    fireEvent.click(await within(empty).findByRole("button", { name: "Candidata" }, { timeout: 3000 }));
+    const add = await within(empty).findAllByRole("button", { name: "Adicionar" });
+    fireEvent.click(add[0]);
+    expect(nav.replace).toHaveBeenCalledWith(`/eleicoes/comparar?c=${ID(1)}&uf=CE`, { scroll: false });
+  });
+
   it("mais de 5 candidaturas na URL: alerta e só as 5 primeiras vão à API", async () => {
     nav.search = `c=${[1, 2, 3, 4, 5, 6].map(ID).join(",")}&uf=CE&nivel=municipality`;
     const fetchFn = stubFetch(() => ({ ...COMPARE, level: "municipality", territories: [] }));

@@ -23,16 +23,46 @@ import {
 } from "@/lib/elections/xray";
 import type { CompareTerritory, ComparisonResponse, TerritoryLevel } from "@/lib/elections/xray-types";
 import { InsightList } from "@/components/xray/InsightList";
+import { compareTerritoryLabel } from "@/lib/elections/compare-csv";
+import { AddCandidacy, CompareActions } from "./CompareTools";
 
 const LEVELS: TerritoryLevel[] = ["state", "municipality", "zone", "section", "place"];
 const SUBJECT_COLORS = ["#38bdf8", "#a78bfa", "#f472b6", "#facc15", "#34d399"];
 
-function territoryLabel(t: CompareTerritory, level: TerritoryLevel): string {
-  if (level === "state") return t.uf;
-  if (level === "municipality") return t.municipalityName ?? t.municipalityTseCode ?? t.uf;
-  if (level === "zone") return `${t.municipalityName} · zona ${t.zone}`;
-  if (level === "section") return `Zona ${t.zone} · seção ${t.section}`;
-  return `${t.placeName ? displayName(t.placeName) : "Local " + t.placeCode} · zona ${t.zone}`;
+const territoryLabel = compareTerritoryLabel;
+
+/** As definições vêm da API com chave técnica; aqui, o nome em português. */
+const DEFINITION_LABEL: Record<string, string> = {
+  subject: "Pessoa",
+  comparable: "Território comparável",
+  section_composition_changed: "Composição da seção mudou",
+  coverage_or_section_missing: "Sem cobertura",
+  overtake: "Superação",
+  leader: "Mais votada no território",
+};
+const definitionLabel = (key: string) => DEFINITION_LABEL[key] ?? key.replaceAll("_", " ");
+
+/** Comparação vazia: o que é, como montar aqui mesmo e por onde mais dá para chegar. */
+function EmptyComparison({ onAdd }: Readonly<{ onAdd: (candidacyId: string, uf: string | null) => void }>) {
+  return (
+    <div className="mt-6 grid gap-4 md:grid-cols-2" data-testid="compare-empty">
+      <div className="rounded-xl border border-white/8 bg-card p-5 text-sm text-slate-400">
+        <p className="font-medium text-slate-200">Escolha até {MAX_COMPARE} candidaturas</p>
+        <p className="mt-2">
+          Da mesma eleição (quem teve mais votos em cada lugar) ou de eleições diferentes (como a votação de alguém mudou). Município, zona,
+          seção e local de votação, lado a lado.
+        </p>
+        <p className="mt-2">
+          Também dá para marcar &ldquo;comparar&rdquo; na lista de candidaturas do{" "}
+          <Link href="/eleicoes" className="text-brand hover:underline">
+            explorador de eleições
+          </Link>{" "}
+          ou no histórico eleitoral de um perfil.
+        </p>
+      </div>
+      <AddCandidacy selected={[]} onAdd={onAdd} />
+    </div>
+  );
 }
 
 /**
@@ -78,6 +108,12 @@ export function ComparisonView() {
         : [],
     [data],
   );
+
+  const add = (candidacyId: string, candidacyUf: string | null) =>
+    set({
+      c: serializeSelection([...ids, candidacyId]),
+      ...(search.get("uf") || !candidacyUf ? {} : { uf: candidacyUf }),
+    });
 
   const drill = (t: CompareTerritory) => {
     if (level === "state") set({ nivel: "municipality", municipio: null, zona: null });
@@ -130,7 +166,7 @@ export function ComparisonView() {
           )}
         </fieldset>
 
-        {ids.length === 0 && <p className="mt-6 text-sm text-slate-400">Nenhuma candidatura selecionada. Marque &ldquo;comparar&rdquo; no explorador ou no Raio X.</p>}
+        {ids.length === 0 && <EmptyComparison onAdd={add} />}
         {needsMunicipality && <p className="mt-6 text-sm text-slate-400">Seção e local de votação exigem um município: escolha-o pelo nível Município.</p>}
         {q.isLoading && <div className="skeleton mt-6 h-40 rounded-xl" aria-busy="true" aria-label="Carregando comparação" />}
         {q.isError && (
@@ -139,7 +175,25 @@ export function ComparisonView() {
           </p>
         )}
 
-        {data && <ComparisonBody data={data} columns={columns} level={level} onDrill={drill} onRemove={(id) => set({ c: serializeSelection(ids.filter((x) => x !== id)) || null })} />}
+        {data && (
+          <>
+            <div className="mt-4">
+              <CompareActions data={data} columns={columns} level={level} uf={uf} />
+            </div>
+            <ComparisonBody
+              data={data}
+              columns={columns}
+              level={level}
+              onDrill={drill}
+              onRemove={(id) => set({ c: serializeSelection(ids.filter((x) => x !== id)) || null })}
+            />
+          </>
+        )}
+        {ids.length > 0 && ids.length < MAX_COMPARE && (
+          <div className="mt-4 max-w-xl">
+            <AddCandidacy selected={ids} onAdd={add} />
+          </div>
+        )}
       </div>
     </main>
   );
@@ -159,6 +213,17 @@ function ComparisonBody({
   onRemove: (id: string) => void;
 }>) {
   const subjectName = (i: number) => data.subjects[i]?.name ?? `Sujeito ${i + 1}`;
+  // posição entre as selecionadas da mesma eleição (só quem tem votos apurados)
+  const position = new Map<string, number>();
+  for (const c of columns) {
+    if (c.votes === null) continue;
+    const ahead = columns.filter(
+      (o) => o.votes !== null && o.contest.year === c.contest.year && o.contest.round === c.contest.round && o.votes > c.votes!,
+    ).length;
+    position.set(c.candidacyId, ahead + 1);
+  }
+  const contestsOf = (c: ComparisonResponse["candidacies"][number]) =>
+    columns.filter((o) => o.contest.year === c.contest.year && o.contest.round === c.contest.round && o.votes !== null).length;
   const byCandidacy = new Map(data.candidacies.map((c) => [c.candidacyId, c]));
   const canDrill = level === "state" || level === "municipality" || level === "zone";
   return (
@@ -170,7 +235,12 @@ function ComparisonBody({
             <p className="flex items-center gap-1.5 font-semibold text-slate-200">
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: SUBJECT_COLORS[c.subject % SUBJECT_COLORS.length] }} />
               {displayName(c.ballotName)}
-              <button type="button" aria-label="Remover da comparação" onClick={() => onRemove(c.candidacyId)} className="ml-1 text-slate-500 hover:text-slate-200">
+              <button
+                type="button"
+                aria-label={`Remover ${displayName(c.ballotName)} da comparação`}
+                onClick={() => onRemove(c.candidacyId)}
+                className="focus-ring ml-1 rounded px-1 text-slate-500 hover:text-slate-200"
+              >
                 ×
               </button>
             </p>
@@ -181,6 +251,9 @@ function ComparisonBody({
             <p className="text-slate-300">
               {c.votes === null ? CELL_STATE_LABEL[c.state] : `${formatCount(c.votes)} votos`}
               {c.share !== null && <span className="text-slate-500"> · {formatPercent(c.share)}</span>}
+              {position.has(c.candidacyId) && contestsOf(c) > 1 && (
+                <span className="text-slate-500"> · {position.get(c.candidacyId)}º entre as selecionadas</span>
+              )}
             </p>
           </div>
         ))}
@@ -204,7 +277,7 @@ function ComparisonBody({
         <table className="w-full min-w-[640px] text-left text-xs">
           <thead className="border-b border-white/8 text-[10px] uppercase tracking-wider text-slate-500">
             <tr>
-              <th className="px-3 py-2">{LEVEL_LABEL[level]}</th>
+              <th className="sticky left-0 z-10 bg-card px-3 py-2">{LEVEL_LABEL[level]}</th>
               {columns.map((c) => (
                 <th key={c.candidacyId} className="px-3 py-2 text-right">
                   <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: SUBJECT_COLORS[c.subject % SUBJECT_COLORS.length] }} />
@@ -218,7 +291,7 @@ function ComparisonBody({
           <tbody>
             {data.territories.map((t) => (
               <tr key={t.key} className="border-b border-white/5 align-top" data-comparability={t.comparability}>
-                <td className="px-3 py-1.5 text-slate-200">
+                <td className="sticky left-0 z-10 bg-card px-3 py-1.5 text-slate-200">
                   {canDrill ? (
                     <button type="button" onClick={() => onDrill(t)} className="text-left hover:text-brand">
                       {territoryLabel(t, level)}
@@ -298,11 +371,11 @@ function ComparisonBody({
       )}
 
       <details className="rounded-lg border border-white/8 bg-card p-3 text-xs text-slate-400">
-        <summary className="cursor-pointer text-slate-300">Definições</summary>
+        <summary className="cursor-pointer text-slate-300">Como ler esta comparação</summary>
         <dl className="mt-2 space-y-1">
           {Object.entries(data.definitions).map(([k, v]) => (
             <div key={k}>
-              <dt className="font-mono text-[10px] text-slate-500">{k}</dt>
+              <dt className="text-[11px] font-medium text-slate-300">{definitionLabel(k)}</dt>
               <dd>{v}</dd>
             </div>
           ))}
