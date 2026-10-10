@@ -652,8 +652,10 @@ def backfill_history(
 
 
 # Versão da regra de vínculo (parte da idempotência do lote): 1 = disputa + número;
-# 2 = + desempate pelo complementar oficial "inserido na urna" e nome conferido sem pontuação.
-LINK_RULES = 2
+# 2 = + desempate pelo complementar oficial "inserido na urna" e nome conferido sem pontuação;
+# 3 = + substituição depois da carga das urnas (as duas constam como inseridas): vale a única que o
+#     complementar não marca como substituída (ST_SUBSTITUIDO = N).
+LINK_RULES = 3
 _ORDINALS = str.maketrans("", "", "ªº")
 _NOT_ALNUM = re.compile(r"[^0-9A-Z]+")
 
@@ -668,43 +670,56 @@ def _fold(name: str | None) -> str:
     return " ".join(_NOT_ALNUM.sub(" ", plain).split())
 
 
+# Complementar oficial mais recente da candidatura: "inserido na urna" e "substituída".
+_COMPLEMENT_FLAGS = """
+    SELECT c.id, c.ballot_name, rc.payload->>'inserted_in_urn', rc.payload->>'substituted'
+      FROM candidacy c JOIN contest k ON k.id = c.contest_id
+      LEFT JOIN LATERAL (SELECT r.payload FROM candidacy_source_record r
+                          WHERE r.candidacy_id = c.id AND r.record_kind = 'complement'
+                          ORDER BY r.id DESC LIMIT 1) rc ON true"""
+
+
 def _link_matches(cur: psycopg.Cursor, election_id: str, uf: str, votable: tuple) -> list[tuple]:
-    """(candidatura, nome de urna, inserido na urna) das candidaturas da disputa com o número do votável."""
+    """(candidatura, nome de urna, inserido na urna, substituída) das candidaturas da disputa com o número
+    do votável."""
     _, election_code, office_code, number, _, municipality = votable
     if municipality is not None:
         # Cargo municipal: só a disputa daquele município (nunca a UF inteira).
         cur.execute(
-            """SELECT c.id, c.ballot_name,
-                      (SELECT r.payload->>'inserted_in_urn' FROM candidacy_source_record r
-                        WHERE r.candidacy_id = c.id AND r.record_kind = 'complement' ORDER BY r.id DESC LIMIT 1)
-                 FROM candidacy c JOIN contest k ON k.id = c.contest_id
-                WHERE k.election_id = %s AND k.tse_election_code = %s AND k.office_code = %s
-                  AND k.scope = 'municipal' AND k.uf = %s AND k.electoral_unit = %s
-                  AND c.candidate_number = %s""",
+            _COMPLEMENT_FLAGS
+            + """ WHERE k.election_id = %s AND k.tse_election_code = %s AND k.office_code = %s
+                    AND k.scope = 'municipal' AND k.uf = %s AND k.electoral_unit = %s
+                    AND c.candidate_number = %s""",
             (election_id, election_code, office_code, uf, municipality.strip(), number),
         )
     else:
         cur.execute(
-            """SELECT c.id, c.ballot_name,
-                      (SELECT r.payload->>'inserted_in_urn' FROM candidacy_source_record r
-                        WHERE r.candidacy_id = c.id AND r.record_kind = 'complement' ORDER BY r.id DESC LIMIT 1)
-                 FROM candidacy c JOIN contest k ON k.id = c.contest_id
-                WHERE k.election_id = %s AND k.tse_election_code = %s AND k.office_code = %s
-                  AND k.scope IN ('federal', 'state') AND k.electoral_unit IN (%s, 'BR')
-                  AND c.candidate_number = %s""",
+            _COMPLEMENT_FLAGS
+            + """ WHERE k.election_id = %s AND k.tse_election_code = %s AND k.office_code = %s
+                    AND k.scope IN ('federal', 'state') AND k.electoral_unit IN (%s, 'BR')
+                    AND c.candidate_number = %s""",
             (election_id, election_code, office_code, uf, number),
         )
     return cur.fetchall()
 
 
+def _flag(value: str | None) -> str:
+    return (value or "").strip().upper()
+
+
 def _pick_candidacy(matches: list[tuple]) -> tuple[tuple | None, str | None]:
     """(candidatura, método): uma única pela disputa + número; várias (substituição de candidatura,
-    mesmo número) só quando exatamente uma foi inserida na urna segundo o complementar oficial."""
+    mesmo número) só quando exatamente uma foi inserida na urna segundo o complementar oficial; se a
+    substituição veio depois da carga das urnas (ex.: falecimento) e as duas constam como inseridas,
+    só quando exatamente uma NÃO foi substituída. O nome de urna ainda é conferido depois."""
     if len(matches) == 1:
         return matches[0], "contest_number"
-    inserted = [m for m in matches if (m[2] or "").strip().upper() == "SIM"]
+    inserted = [m for m in matches if _flag(m[2]) == "SIM"]
     if len(inserted) == 1:
         return inserted[0], "contest_number_inserted_in_urn"
+    standing = [m for m in inserted if _flag(m[3]) == "N"]
+    if len(inserted) > 1 and len(standing) == 1:
+        return standing[0], "contest_number_substitution"
     return None, None
 
 
@@ -713,15 +728,15 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
 
     Chave determinística: CD_ELEICAO + cargo + número, na disputa da UF ou federal ('BR');
     para cargos municipais, na disputa do MUNICÍPIO do votável (SG_UE = código TSE).
-    Nenhuma candidatura ⇒ sem vínculo; várias ⇒ só se exatamente uma foi inserida na urna
-    (complementar oficial), senão sem vínculo. Nome de urna divergente entre o BU e o arquivo de
-    candidatos ⇒ sem vínculo (conflito entre fontes registrado para revisão). Nenhuma tabela de
-    votos é alterada.
+    Nenhuma candidatura ⇒ sem vínculo; várias ⇒ só pelos sinalizadores oficiais do complementar
+    (inserida na urna; não substituída), senão sem vínculo. Nome de urna divergente entre o BU e o
+    arquivo de candidatos ⇒ sem vínculo (conflito entre fontes registrado para revisão). Nenhuma
+    tabela de votos é alterada.
     """
     uf = uf.upper()
     report: dict[str, Any] = {"status": "succeeded", "year": year, "turn": turn, "uf": uf, "votables": 0,
-                              "linked": 0, "already_linked": 0, "resolved_by_inserted_in_urn": 0, "unmatched": [],
-                              "ambiguous": [], "name_mismatch": []}
+                              "linked": 0, "already_linked": 0, "resolved_by_inserted_in_urn": 0,
+                              "resolved_by_substitution": 0, "unmatched": [], "ambiguous": [], "name_mismatch": []}
     with conn.transaction(), conn.cursor() as cur:
         _check_schema(cur)
         election_id = _election_id(cur, year, turn)
@@ -773,7 +788,7 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
             if chosen is None:
                 report["ambiguous"].append({**ref, "candidacies": [str(m[0]) for m in matches]})
                 continue
-            candidacy_id, ballot_name, _ = chosen
+            candidacy_id, ballot_name = chosen[0], chosen[1]
             if _fold(ballot_name) != _fold(name):
                 report["name_mismatch"].append({**ref, "candidacy_id": str(candidacy_id), "ballot_name": ballot_name})
                 continue
@@ -792,8 +807,10 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
                 (votable_id, uf, candidacy_id, method, run_id),
             )
             report["linked"] += 1
-            if method != "contest_number":
+            if method == "contest_number_inserted_in_urn":
                 report["resolved_by_inserted_in_urn"] += 1
+            elif method == "contest_number_substitution":
+                report["resolved_by_substitution"] += 1
         stats = {k: (len(v) if isinstance(v, list) else v) for k, v in report.items()}
         cur.execute(
             _RUN_SUCCEEDED,

@@ -402,3 +402,47 @@ def test_substitution_is_linked_by_the_official_inserted_in_urn_flag_and_names_i
     assert methods == {9001: "contest_number", 9002: "contest_number", 9101: "contest_number_inserted_in_urn",
                        9102: "contest_number"}
     assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
+
+
+def _complement(conn, flags: dict[int, tuple[str, str]]) -> None:
+    """Complementar oficial fictício: SQ → (inserido na urna, substituída)."""
+    for sq, (inserted, substituted) in flags.items():
+        conn.execute(
+            """INSERT INTO candidacy_source_record (candidacy_id, record_kind, payload, source_file_id, ingestion_run_id,
+                                                   source_member, source_line, source_row_hash)
+               SELECT id, 'complement', jsonb_build_object('inserted_in_urn', %s::text, 'substituted', %s::text),
+                      source_file_id, ingestion_run_id, 'consulta_cand_complementar_2099_XX.csv', 2, repeat('b', 64)
+                 FROM candidacy WHERE tse_candidate_id = %s""",
+            (inserted, substituted, sq),
+        )
+
+
+@db
+def test_substitution_after_urn_loading_is_linked_by_the_official_substituted_flag(conn, tmp_path):
+    """Titular falecido depois da carga das urnas: as duas constam como inseridas; vale a não substituída."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    deceased = state(9104, 1111, "TITULAR FALECIDA", "DEPUTADA TITULAR", cpf(100000005))
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, deceased])
+    _complement(conn, {9101: ("SIM", "N"), 9104: ("SIM", "S")})
+    report = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert (report["resolved_by_substitution"], report["ambiguous"], report["name_mismatch"]) == (1, [], [])
+    method = conn.execute(
+        """SELECT vc.method FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id
+            WHERE c.tse_candidate_id = 9101""").fetchone()
+    assert method == ("contest_number_substitution",)
+
+
+@db
+def test_substitution_flag_never_overrides_a_ballot_name_conflict(conn, tmp_path):
+    """Os sinalizadores apontam a candidatura; o nome de urna do BU ainda precisa conferir (senão, sem vínculo)."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    other = state(9104, 1111, "OUTRA PESSOA", "OUTRO NOME DE URNA", cpf(100000005))
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, other])
+    _complement(conn, {9101: ("SIM", "S"), 9104: ("SIM", "N")})  # o BU traz o nome da 9101
+    report = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert report["resolved_by_substitution"] == 0
+    assert [m["ballot_name"] for m in report["name_mismatch"]] == ["OUTRO NOME DE URNA"]
+    linked = conn.execute(
+        """SELECT count(*) FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id
+            WHERE c.tse_candidate_id IN (9101, 9104)""").fetchone()
+    assert linked == (0,)
