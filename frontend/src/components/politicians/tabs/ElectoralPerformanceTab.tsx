@@ -138,7 +138,7 @@ export function ElectoralPerformanceTab({ politicianId }: { politicianId: string
             ))}
           </div>
         </div>
-        <p className="sr-only" role="status">Carregando desempenho eleitoral</p>
+        <output className="sr-only">Carregando desempenho eleitoral</output>
       </div>
     );
   if (isError)

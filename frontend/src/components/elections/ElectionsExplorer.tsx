@@ -75,7 +75,7 @@ function useDepthEntrance(level: string, key: string, reduced: boolean) {
   return ref;
 }
 
-function PanelFrame({ level, frameKey, reduced, children }: { level: string; frameKey: string; reduced: boolean; children: React.ReactNode }) {
+function PanelFrame({ level, frameKey, reduced, children }: Readonly<{ level: string; frameKey: string; reduced: boolean; children: React.ReactNode }>) {
   const ref = useDepthEntrance(level, frameKey, reduced);
   return (
     <div ref={ref as React.RefObject<HTMLDivElement>} data-panel-level={level}>

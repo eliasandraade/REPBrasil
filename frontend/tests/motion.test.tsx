@@ -141,6 +141,20 @@ describe("revelação na leitura", () => {
     expect(observe).not.toHaveBeenCalled();
   });
 
+  it("desmontado antes de revelar, o elemento deixa de ser observado (sem reter nós)", () => {
+    const observe = vi.fn();
+    const unobserve = vi.fn();
+    vi.stubGlobal("IntersectionObserver", vi.fn(() => ({ observe, unobserve, disconnect: vi.fn() })));
+    vi.resetModules();
+    return import("@/motion/reveal").then(({ Reveal: FreshReveal }) => {
+      const { unmount } = render(<FreshReveal data-testid="r">texto</FreshReveal>);
+      const el = screen.getByTestId("r");
+      expect(observe).toHaveBeenCalledWith(el);
+      unmount();
+      expect(unobserve).toHaveBeenCalledWith(el);
+    });
+  });
+
   it("sem IntersectionObserver o conteúdo também nasce revelado", () => {
     vi.stubGlobal("IntersectionObserver", undefined);
     render(<Reveal data-testid="r">texto</Reveal>);
@@ -193,6 +207,51 @@ describe("transições de rota", () => {
     expect(nav.push).toHaveBeenCalledWith("/politico/1", { scroll: undefined });
   });
 
+  it("navegações consecutivas: a anterior é liberada e não apaga a direção da nova; pular a anterior não gera rejeição sem tratamento", async () => {
+    const callbacks: Array<Promise<void>> = [];
+    const readies: Array<Promise<void>> = [];
+    const finishes: Array<() => void> = [];
+    (document as { startViewTransition?: unknown }).startViewTransition = vi.fn((cb: () => Promise<void>) => {
+      const done = cb();
+      callbacks.push(done);
+      // A transição anterior é pulada: ready rejeita com AbortError (como no navegador).
+      const ready = callbacks.length === 1 ? Promise.reject(new DOMException("skipped", "AbortError")) : Promise.resolve();
+      readies.push(ready);
+      let finish!: () => void;
+      const finished = new Promise<void>((r) => (finish = r));
+      finishes.push(finish);
+      return { finished, ready, updateCallbackDone: done, skipTransition: vi.fn() };
+    });
+    const unhandled = vi.fn();
+    window.addEventListener("unhandledrejection", unhandled);
+    window.history.replaceState(null, "", "/");
+    render(
+      <NavigationProvider>
+        <TransitionLink href="/politicos">busca</TransitionLink>
+        <TransitionLink href="/manifesto">manifesto</TransitionLink>
+      </NavigationProvider>,
+    );
+    fireEvent.click(screen.getByText("busca"));
+    expect(document.documentElement.dataset.navDirection).toBe("deeper");
+    window.history.replaceState(null, "", "/politicos");
+    fireEvent.click(screen.getByText("manifesto"));
+    // A primeira foi liberada imediatamente (não espera o teto de 1,2 s).
+    await expect(callbacks[0]).resolves.toBeUndefined();
+    expect(document.documentElement.dataset.navDirection).toBe("lateral");
+    // A primeira termina depois: não pode apagar a direção da segunda.
+    finishes[0]();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.documentElement.dataset.navDirection).toBe("lateral");
+    finishes[1]();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.documentElement.dataset.navDirection).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(unhandled).not.toHaveBeenCalled();
+    window.removeEventListener("unhandledrejection", unhandled);
+  });
+
   it("clique com modificador abre como link comum (nova aba)", () => {
     fireEvent.click(link(), { ctrlKey: true });
     expect(nav.push).not.toHaveBeenCalled();
@@ -209,12 +268,13 @@ describe("home", () => {
     expect(screen.queryByText("2.007")).toBeNull();
   });
 
-  it("a explicação de cada número é alcançável por teclado", () => {
+  it("a explicação de cada número é alcançável por teclado (botão real, cartão não focável)", () => {
     render(<HomePage />);
-    const card = screen.getByText("Políticos indexados").closest("[tabindex]")!;
-    const hint = document.getElementById(card.getAttribute("aria-describedby")!)!;
+    const button = screen.getByRole("button", { name: "Sobre: Políticos indexados" });
+    const hint = document.getElementById(button.getAttribute("aria-describedby")!)!;
     expect(hint.getAttribute("role")).toBe("tooltip");
     expect(hint.textContent).toContain("1.000 políticos");
+    expect(document.querySelector("[aria-label='Números da plataforma'] div[tabindex]")).toBeNull();
   });
 });
 
@@ -269,10 +329,18 @@ describe("perfil", () => {
     const tablist = screen.getByRole("tablist");
     const tabs = within(tablist).getAllByRole("tab");
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
-    fireEvent.keyDown(tablist, { key: "ArrowRight" });
-    expect(within(tablist).getByRole("tab", { name: "Eleições" }).getAttribute("aria-selected")).toBe("true");
-    fireEvent.keyDown(tablist, { key: "End" });
+    fireEvent.keyDown(tabs[0], { key: "ArrowRight" });
+    const eleicoes = within(tablist).getByRole("tab", { name: "Eleições" });
+    expect(eleicoes.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(eleicoes);
+    fireEvent.keyDown(eleicoes, { key: "End" });
     expect(within(tablist).getByRole("tab", { name: "Score" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(tabs[0], { key: "ArrowLeft" });
+    expect(within(tablist).getByRole("tab", { name: "Score" }).getAttribute("aria-selected")).toBe("true");
+    // Só a aba selecionada entra na ordem de tabulação.
+    expect(within(tablist).getAllByRole("tab").filter((t) => t.tabIndex === 0)).toHaveLength(1);
     expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(within(tablist).getByRole("tab", { name: "Score" }).id);
   });
 

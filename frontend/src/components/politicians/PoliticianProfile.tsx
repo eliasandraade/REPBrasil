@@ -40,43 +40,52 @@ export const IDENTITY_VT = {
   name: { viewTransitionName: "vt-name" } as CSSProperties,
 };
 
+/** Corpo do cartão por estado: consultar, falhar e não encontrar são afirmações diferentes. */
+function SummaryValue({ state, value, sub }: Readonly<{ state: LoadState; value: string; sub?: string }>) {
+  if (state === "pending")
+    return (
+      <>
+        <div className="skeleton my-1 h-5 w-16" aria-hidden="true" />
+        <p className="mt-0.5 text-xs text-slate-600">consultando…</p>
+      </>
+    );
+  if (state === "error")
+    return (
+      <>
+        <p className="truncate text-lg font-bold text-slate-500">—</p>
+        <p className="mt-0.5 text-xs text-slate-600">indisponível no momento</p>
+      </>
+    );
+  return (
+    <>
+      <p className="value-arrive truncate text-lg font-bold text-slate-100">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}
+    </>
+  );
+}
+
 function SummaryCard({
   label,
   state,
   value,
   sub,
-}: {
+}: Readonly<{
   label: string;
   state: LoadState;
   value: string;
   sub?: string;
-}) {
+}>) {
   return (
     <div className="rounded-lg border border-white/8 bg-card p-4" aria-busy={state === "pending"}>
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
         {label}
       </p>
-      {state === "pending" ? (
-        <>
-          <div className="skeleton my-1 h-5 w-16" aria-hidden="true" />
-          <p className="mt-0.5 text-xs text-slate-600">consultando…</p>
-        </>
-      ) : state === "error" ? (
-        <>
-          <p className="truncate text-lg font-bold text-slate-500">—</p>
-          <p className="mt-0.5 text-xs text-slate-600">indisponível no momento</p>
-        </>
-      ) : (
-        <>
-          <p className="value-arrive truncate text-lg font-bold text-slate-100">{value}</p>
-          {sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}
-        </>
-      )}
+      <SummaryValue state={state} value={value} sub={sub} />
     </div>
   );
 }
 
-export function InitialAvatar({ name }: { name: string }) {
+export function InitialAvatar({ name }: Readonly<{ name: string }>) {
   return (
     <div
       style={IDENTITY_VT.avatar}
@@ -103,7 +112,7 @@ export function PoliticianProfile({
   sources,
   score,
   status = { elections: "ready", assets: "ready", sources: "ready" },
-}: PoliticianProfileProps) {
+}: Readonly<PoliticianProfileProps>) {
   const [activeTab, setActiveTab] = useState<TabId>(() => initialTab(!!politician.camaraId));
 
   const TABS: TabDef<TabId>[] = [

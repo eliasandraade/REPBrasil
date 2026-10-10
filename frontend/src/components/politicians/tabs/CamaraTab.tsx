@@ -31,7 +31,7 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
             ))}
           </div>
         </div>
-        <p className="sr-only" role="status">Carregando dados da Câmara</p>
+        <output className="sr-only">Carregando dados da Câmara</output>
       </div>
     );
   }

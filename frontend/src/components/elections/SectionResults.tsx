@@ -178,7 +178,7 @@ export function SectionResults({
             </li>
           ))}
         </ul>
-        <p className="sr-only" role="status">Carregando resultado da {sectionLabel(section)}</p>
+        <output className="sr-only">Carregando resultado da {sectionLabel(section)}</output>
       </section>
     );
   }

@@ -67,9 +67,9 @@ export function SearchInput({
         aria-busy={pending}
       />
       <div aria-hidden="true" className={`absolute inset-x-3 bottom-0 ${pending ? "query-trace" : "h-px"}`} data-testid="search-pending" data-pending={pending} />
-      <span className="sr-only" role="status" aria-live="polite">
+      <output className="sr-only" aria-live="polite">
         {pending ? "Preparando consulta" : ""}
-      </span>
+      </output>
     </div>
   );
 }

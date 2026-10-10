@@ -38,7 +38,7 @@ function BackToSearch() {
  * ocupa o cabeçalho — é onde a transição compartilhada pousa. Nenhum outro dado
  * é antecipado: cargo, partido, números e abas aguardam a fonte.
  */
-function LoadingState({ id }: { id: string }) {
+function LoadingState({ id }: Readonly<{ id: string }>) {
   const hint = identityHint(id);
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6" aria-busy="true">
@@ -83,13 +83,17 @@ function LoadingState({ id }: { id: string }) {
             </div>
           </div>
         </div>
-        <p className="sr-only" role="status">Carregando perfil</p>
+        <output className="sr-only">Carregando perfil</output>
       </div>
     </main>
   );
 }
 
-const stateOf = (q: UseQueryResult<unknown>): LoadState => (q.isError ? "error" : q.isPending ? "pending" : "ready");
+function stateOf(q: UseQueryResult<unknown>): LoadState {
+  if (q.isError) return "error";
+  if (q.isPending) return "pending";
+  return "ready";
+}
 
 export default function PoliticoPage() {
   const params = useParams<{ id: string }>();

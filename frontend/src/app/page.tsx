@@ -113,7 +113,7 @@ function ScoreIcon() {
   );
 }
 
-function ArrowIcon({ size = 14 }: { size?: number }) {
+function ArrowIcon({ size = 14 }: Readonly<{ size?: number }>) {
   return (
     <svg className="mi-arrow" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M5 12h14" />
@@ -153,7 +153,7 @@ export default function HomePage() {
           <ul className="mb-6 flex flex-wrap items-center justify-center gap-2" aria-label="Procedência dos dados">
             <li className="hero-stamp inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-medium text-brand" style={order(0)}>
               <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
-              Produto da Andrade Systems
+              <span>Produto da Andrade Systems</span>
             </li>
             <li className="hero-stamp inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400" style={order(1)}>
               Dados Públicos Oficiais · TSE

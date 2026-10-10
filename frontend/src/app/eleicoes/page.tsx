@@ -58,7 +58,7 @@ export default function ElectionsPage() {
                 </p>
               </div>
               <span className="flex items-center gap-1 text-sm font-semibold text-brand">
-                Explorar
+                <span>Explorar</span>
                 <span aria-hidden="true" className="mi-arrow inline-block">→</span>
               </span>
             </Link>

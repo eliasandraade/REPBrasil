@@ -146,10 +146,10 @@ function PoliticosContent() {
 
         {isLoading && (
           <div aria-busy="true">
-            <p className="mb-4 flex items-center gap-2 text-xs text-slate-500" role="status">
+            <output className="mb-4 flex items-center gap-2 text-xs text-slate-500">
               <span className="query-trace w-10" aria-hidden="true" />
-              Consultando a base{q ? ` por "${q}"` : ""}…
-            </p>
+              <span>Consultando a base{q ? ` por "${q}"` : ""}…</span>
+            </output>
             <ResultSkeleton />
           </div>
         )}
