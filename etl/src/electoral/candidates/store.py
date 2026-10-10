@@ -117,14 +117,20 @@ def _election_id(cur: psycopg.Cursor, year: int, turn: int) -> str:
     return _election(cur, year, turn)[0]
 
 
+def _contest_uf(r: CandidateRow) -> str | None:
+    """UF da disputa: nenhuma para a federal (BR); a própria UE na estadual; SG_UF na municipal."""
+    if r.scope == "federal":
+        return None
+    return r.electoral_unit if r.scope == "state" else r.uf
+
+
 def _contest_ids(cur: psycopg.Cursor, election_id: str, rows: Iterable[CandidateRow]) -> dict[tuple, str]:
     ids: dict[tuple, str] = {}
     for r in rows:
         key = (r.election_code, r.office_code, r.electoral_unit)
         if key in ids:
             continue
-        # UF da disputa: nenhuma para a federal (BR); a própria UE na estadual; SG_UF na municipal.
-        contest_uf = None if r.scope == "federal" else (r.electoral_unit if r.scope == "state" else r.uf)
+        contest_uf = _contest_uf(r)
         cur.execute(
             """INSERT INTO contest (election_id, tse_election_code, tse_election_description, office_code,
                                     office_name, scope, electoral_unit, uf)
@@ -723,6 +729,48 @@ def _pick_candidacy(matches: list[tuple]) -> tuple[tuple | None, str | None]:
     return None, None
 
 
+# Contador do relatório para cada método de desempate (disputa + número simples não tem contador próprio).
+_RESOLVED_BY = {"contest_number_inserted_in_urn": "resolved_by_inserted_in_urn",
+                "contest_number_substitution": "resolved_by_substitution"}
+
+
+def _link_votable(cur: psycopg.Cursor, election_id: str, uf: str, run_id: str, votable: tuple,
+                  report: dict[str, Any]) -> None:
+    """Vincula um votável do BU à candidatura oficial, ou registra no relatório por que não."""
+    votable_id, election_code, office_code, number, name, municipality = votable
+    matches = _link_matches(cur, election_id, uf, votable)
+    ref = {"votable_id": votable_id, "election_code": election_code, "office_code": office_code,
+           "number": number, "name": name, "municipality_tse_code": municipality}
+    if not matches:
+        report["unmatched"].append(ref)
+        return
+    chosen, method = _pick_candidacy(matches)
+    if chosen is None:
+        report["ambiguous"].append({**ref, "candidacies": [str(m[0]) for m in matches]})
+        return
+    candidacy_id, ballot_name = chosen[0], chosen[1]
+    if _fold(ballot_name) != _fold(name):
+        report["name_mismatch"].append({**ref, "candidacy_id": str(candidacy_id), "ballot_name": ballot_name})
+        return
+    cur.execute("SELECT candidacy_id FROM votable_candidacy WHERE votable_id = %s AND uf = %s", (votable_id, uf))
+    stored = cur.fetchone()
+    if stored is not None:
+        if str(stored[0]) != str(candidacy_id):
+            raise CandidatesError(
+                f"votable {votable_id}/{uf} already linked to candidacy {stored[0]}, now resolves to {candidacy_id}"
+            )
+        report["already_linked"] += 1
+        return
+    cur.execute(
+        """INSERT INTO votable_candidacy (votable_id, uf, candidacy_id, method, ingestion_run_id)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (votable_id, uf, candidacy_id, method, run_id),
+    )
+    report["linked"] += 1
+    if method in _RESOLVED_BY:
+        report[_RESOLVED_BY[method]] += 1
+
+
 def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) -> dict[str, Any]:
     """Liga votáveis nominais do BU (urnas da UF) às candidaturas oficiais.
 
@@ -777,40 +825,7 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
         votables = cur.fetchall()
         report["votables"] = len(votables)
         for votable in votables:
-            votable_id, election_code, office_code, number, name, municipality = votable
-            matches = _link_matches(cur, election_id, uf, votable)
-            ref = {"votable_id": votable_id, "election_code": election_code, "office_code": office_code,
-                   "number": number, "name": name, "municipality_tse_code": municipality}
-            if not matches:
-                report["unmatched"].append(ref)
-                continue
-            chosen, method = _pick_candidacy(matches)
-            if chosen is None:
-                report["ambiguous"].append({**ref, "candidacies": [str(m[0]) for m in matches]})
-                continue
-            candidacy_id, ballot_name = chosen[0], chosen[1]
-            if _fold(ballot_name) != _fold(name):
-                report["name_mismatch"].append({**ref, "candidacy_id": str(candidacy_id), "ballot_name": ballot_name})
-                continue
-            cur.execute("SELECT candidacy_id FROM votable_candidacy WHERE votable_id = %s AND uf = %s", (votable_id, uf))
-            stored = cur.fetchone()
-            if stored is not None:
-                if str(stored[0]) != str(candidacy_id):
-                    raise CandidatesError(
-                        f"votable {votable_id}/{uf} already linked to candidacy {stored[0]}, now resolves to {candidacy_id}"
-                    )
-                report["already_linked"] += 1
-                continue
-            cur.execute(
-                """INSERT INTO votable_candidacy (votable_id, uf, candidacy_id, method, ingestion_run_id)
-                   VALUES (%s, %s, %s, %s, %s)""",
-                (votable_id, uf, candidacy_id, method, run_id),
-            )
-            report["linked"] += 1
-            if method == "contest_number_inserted_in_urn":
-                report["resolved_by_inserted_in_urn"] += 1
-            elif method == "contest_number_substitution":
-                report["resolved_by_substitution"] += 1
+            _link_votable(cur, election_id, uf, run_id, votable, report)
         stats = {k: (len(v) if isinstance(v, list) else v) for k, v in report.items()}
         cur.execute(
             _RUN_SUCCEEDED,

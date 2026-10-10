@@ -113,6 +113,36 @@ def _emit(report: dict[str, Any], target: Path | None) -> None:
     print(json.dumps({k: (len(v) if isinstance(v, list) else v) for k, v in report.items()}, ensure_ascii=False, indent=2, default=str))
 
 
+# (linhas da UF, membros lidos, tamanho do ZIP, SHA-256, SHA-512) — sem digests no dry-run
+_Read = tuple[list[FinanceRow], list[dict[str, Any]], int, str | None, str | None]
+
+
+def _read_local(path: Path, year: int, uf: str, dry_run: bool) -> _Read:
+    """Cópia local do ZIP oficial."""
+    data = None if dry_run else path.read_bytes()
+    sha256 = hashlib.sha256(data).hexdigest() if data is not None else None
+    sha512 = hashlib.sha512(data).hexdigest() if data is not None else None
+    with zipfile.ZipFile(path) as zf:
+        rows, members = read_members(zf, year, uf)
+    return rows, members, path.stat().st_size, sha256, sha512
+
+
+def _read_remote(url: str, year: int, uf: str, dry_run: bool) -> _Read:
+    """ZIP oficial lido por Range (só os membros da UF), digests em streaming e versão conferida no fim."""
+    http = _client()
+    try:
+        version = head(url, http)
+        with zipfile.ZipFile(io.BufferedReader(PinnedRangeFile(version, http), buffer_size=1 << 20)) as zf:
+            rows, members = read_members(zf, year, uf)
+        sha256, sha512 = (None, None) if dry_run else stream_digests(version, http)
+        # mesma versão do início ao fim (o If-Range/If-Match já falham se o arquivo mudar)
+        if head(url, http) != version:
+            raise SystemExit("official ZIP changed during acquisition; nothing imported")
+        return rows, members, version.size, sha256, sha512
+    finally:
+        http.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     # Só valores validados seguem adiante (e nomeiam o relatório, num diretório fixo).
@@ -127,25 +157,9 @@ def main(argv: list[str] | None = None) -> int:
         client.close()
 
     if args.zip is not None:
-        data = args.zip.read_bytes() if not args.dry_run else None
-        sha256 = hashlib.sha256(data).hexdigest() if data is not None else None
-        sha512 = hashlib.sha512(data).hexdigest() if data is not None else None
-        size = args.zip.stat().st_size
-        with zipfile.ZipFile(args.zip) as zf:
-            rows, members = read_members(zf, year, uf)
+        rows, members, size, sha256, sha512 = _read_local(args.zip, year, uf, args.dry_run)
     else:
-        http = _client()
-        try:
-            version = head(resource.url, http)
-            with zipfile.ZipFile(io.BufferedReader(PinnedRangeFile(version, http), buffer_size=1 << 20)) as zf:
-                rows, members = read_members(zf, year, uf)
-            sha256, sha512 = (None, None) if args.dry_run else stream_digests(version, http)
-            size = version.size
-            # mesma versão do início ao fim (o If-Range/If-Match já falham se o arquivo mudar)
-            if head(resource.url, http) != version:
-                raise SystemExit("official ZIP changed during acquisition; nothing imported")
-        finally:
-            http.close()
+        rows, members, size, sha256, sha512 = _read_remote(resource.url, year, uf, args.dry_run)
 
     if args.dry_run:
         _emit({"status": "dry_run", "url": resource.url, "zip_size": size, "members": members,
