@@ -72,8 +72,11 @@ def test_audit_classifies_divergences_and_only_reads(conn):
     assert report["summary"] == {"expected": 2, "ambiguous": 0, "source_divergence": 1, "missing": 3, "integrity_error": 0}
     assert conn.execute("SELECT count(*), sum(votes) FROM section_office_vote").fetchone() == before
 
+    assert report["links_by_method"] == {"contest_number": 3}  # DELTA: nome divergente, sem vínculo
+
     md = to_markdown(report)
     assert "Status: **ok**" in md
+    assert "Vínculos votável → candidatura gravados: contest_number 3 (total 3)" in md
     # ausência de um tipo de voto aparece como "—" dos dois lados, nunca como zero
     assert "| 1 | 3 / 3 | 8 / 8 | 121 / 121 | — / — | 3 / 3 | 2 / 2 |" in md
     assert "| 6 | 3 / 2 | 1 |" in md  # candidaturas: fonte / banco | com vínculo ao BU

@@ -201,6 +201,19 @@ def _check_link(conn: psycopg.Connection, year: int, turn: int, uf: str, out: Di
     return {k: stats.get(k) for k in keys if k in stats}
 
 
+def _links_by_method(conn: psycopg.Connection, year: int, turn: int, uf: str) -> dict[str, int]:
+    """Vínculos votável → candidatura gravados para a eleição na UF, por método (todos os lotes)."""
+    rows = conn.execute(
+        """SELECT vc.method, count(*) FROM votable_candidacy vc
+             JOIN candidacy c ON c.id = vc.candidacy_id JOIN contest k ON k.id = c.contest_id
+             JOIN election e ON e.id = k.election_id
+            WHERE e.year = %s AND e.round = %s AND vc.uf = %s
+            GROUP BY vc.method ORDER BY vc.method""",
+        (year, turn, uf),
+    ).fetchall()
+    return {method: int(count) for method, count in rows}
+
+
 def audit_election(
     conn: psycopg.Connection,
     *,
@@ -237,6 +250,7 @@ def audit_election(
     link = _check_link(conn, year, turn, uf, divergences)
     if link is not None:
         report["link"] = link
+    report["links_by_method"] = _links_by_method(conn, year, turn, uf)
 
     report["divergences"] = divergences
     report["summary"] = {k: len(v) for k, v in divergences.items()}
@@ -266,8 +280,12 @@ def to_markdown(report: dict[str, Any]) -> str:
     lines += ["", "| Cargo | Candidaturas (fonte/banco) | Com vínculo ao BU |", "|---|---|---|"]
     for office, row in report["candidacies_by_office"].items():
         lines.append(f"| {office} | {row.get('source', '—')} / {row.get('db', 0)} | {row.get('linked_to_bu', 0)} |")
+    if report.get("links_by_method"):
+        by_method = report["links_by_method"]
+        lines += ["", "Vínculos votável → candidatura gravados: "
+                  + ", ".join(f"{k} {v}" for k, v in by_method.items()) + f" (total {sum(by_method.values())})"]
     if report.get("link"):
-        lines += ["", "Vínculo votável → candidatura: " + ", ".join(f"{k} {v}" for k, v in report["link"].items())]
+        lines += ["", "Último lote de vínculo: " + ", ".join(f"{k} {v}" for k, v in report["link"].items())]
     lines += ["", "## Divergências classificadas", ""]
     for kind, items in report["divergences"].items():
         lines.append(f"### {kind} ({len(items)})")
