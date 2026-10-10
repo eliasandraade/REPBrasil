@@ -145,6 +145,29 @@ python -m src.electoral.cli audit-election --year 2024 --turn 1 --uf CE --bu-man
   --candidates ../data/raw/tse/candidatos/2024/<sha> --municipal-uf CE --save
 ```
 
+### 7.1 Validação prévia com os arquivos oficiais (dry-run, sem banco)
+
+Os arquivos oficiais do CE de 2022 e 2024 já adquiridos foram lidos pelos mesmos parsers da importação,
+em modo `--dry-run` (nada é gravado). Números da fonte, não do banco:
+
+| Arquivo oficial | Resultado |
+|---|---|
+| Cadastro 2022 (CSV nacional), CE | 1º e 2º turnos: 184 municípios, 205 zonas, 24.837 seções (22.796 principais + 2.041 agregadas); 472.019 linhas de outras UFs puladas e contadas |
+| Cadastro 2024 (CSV nacional), CE | 1º turno: 184 municípios, 205 zonas, 25.467 seções (23.357 + 2.110); 2º turno: só Fortaleza e Caucaia (20 zonas, 6.218 seções) |
+| BU 2022/1, município 13030 zona 30 | 161 urnas; Presidente, Governador, Senador, Dep. Federal e Dep. Estadual com 36.725 votos = comparecimento em cada cargo |
+| BU 2022/2, mesma zona | só Presidente (eleição 545): 37.023 votos = comparecimento |
+| BU 2024/1, Fortaleza zona 1 | 344 urnas; Prefeito e Vereador (eleição 619) com 100.573 votos = comparecimento; 693 votáveis nominais |
+| BU 2024/2, Fortaleza zona 1 | Prefeito (eleição 620): 100.174 votos = comparecimento; 2 candidaturas |
+| Candidatos 2022 (CE + BR) | 1º turno: 1.044 candidaturas em 9 disputas (com vices e suplentes), 1.043 com CPF válido; 2º turno: 4 |
+| Candidatos 2024 (todos os municípios do CE) | 1º turno: 13.213 candidaturas em 552 disputas (184 × 3 cargos), nenhuma com CPF publicado; 2º turno: 8; 21 linhas de 5 eleições suplementares separadas |
+| Bens, complementares e redes 2022/2024 | layouts oficiais reconhecidos; 2024: 23.231 bens (8.557 candidaturas), 15.135 links de redes (296 contatos pessoais descartados) |
+
+Cada turno de candidaturas tem uma única data de eleição, igual à do cadastro (a importação recusa
+datas divergentes). Essa validação encontrou e corrigiu dois problemas antes da carga: o dry-run do BU
+não lia o cadastro nacional de 2022/2024, e um local de votação de 2024 (município 15970, zona 55,
+local 1384) publica a coordenada em só uma das suas linhas — agora a coordenada publicada vale para o
+local, com aviso, e coordenadas publicadas divergentes deixam o local sem coordenada.
+
 Os CLIs novos não aceitam caminho de saída: `--save`/`--save-report` gravam em diretórios fixos —
 JSON completo em `etl/artifacts/reports/` (ignorado pelo git) e o resumo da auditoria em
 `docs/audits/audit_<ano>_<UF>_t<turno>.md` (versionado) —, com nomes montados só com ano/turno
