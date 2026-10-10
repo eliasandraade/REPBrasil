@@ -126,7 +126,7 @@ function CandidacyCard({
         {!c.ticket && (
           <label className="flex cursor-pointer items-center gap-1">
             <input type="checkbox" checked={compared} onChange={onCompare} className="accent-[#0dd48e]" />
-            comparar
+            <span>comparar</span>
           </label>
         )}
       </div>

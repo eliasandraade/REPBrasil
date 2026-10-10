@@ -30,6 +30,11 @@ const SORTS: Array<{ id: Sort; label: string }> = [
   { id: "office", label: "Cargo" },
 ];
 
+function electedOption(elected: boolean | null): string {
+  if (elected === null) return "";
+  return elected ? "1" : "0";
+}
+
 /**
  * Território → candidaturas: todas as candidaturas de disputas que alcançam o território (federal, estadual e as
  * municipais do município), com votos NO território. Filtros e ordenação são da API; nenhum número é calculado aqui.
@@ -116,7 +121,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
         <select
           aria-label="Eleito"
           className={select}
-          value={elected === null ? "" : elected ? "1" : "0"}
+          value={electedOption(elected)}
           onChange={(e) => setElected(e.target.value === "" ? null : e.target.value === "1")}
         >
           <option value="">Eleitos e não eleitos</option>
@@ -192,7 +197,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
               <div className="mt-1 flex items-center gap-3 text-[11px]">
                 <label className="flex cursor-pointer items-center gap-1 text-slate-400">
                   <input type="checkbox" checked={compared} onChange={() => props.onToggleCompare(c.candidacyId)} className="accent-[#0dd48e]" />
-                  comparar
+                  <span>comparar</span>
                 </label>
                 {c.votes !== null && (
                   <button type="button" onClick={() => props.onShowOnMap(c.candidacyId)} className="text-brand hover:underline">

@@ -24,7 +24,7 @@ import { TerritoryCandidates } from "@/components/elections/TerritoryCandidates"
 import { XrayTab } from "@/components/xray/XrayTab";
 import { useReducedMotion } from "@/lib/elections/reduced-motion";
 import { buildLayerView, CATEGORICAL } from "@/lib/elections/map-layers";
-import { MAX_COMPARE, parseSelection, toggleSelection, votesText } from "@/lib/elections/xray";
+import { MAX_COMPARE, parseSelection, signed, signedPercent, toggleSelection, votesText } from "@/lib/elections/xray";
 
 const ID = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const FRESH = { stale: false, refreshedAt: "2026-10-10T00:00:00Z", note: "ok" };
@@ -260,6 +260,35 @@ describe("camadas do mapa", () => {
     expect(growth.municipalities["1"].text).toBe("+10 votos (+100%)");
     expect(growth.municipalities["2"].text).toBe("−5 votos (−25%)");
     expect(growth.municipalities["1"].color).not.toBe(growth.municipalities["2"].color);
+  });
+
+  it("sem delta: o tooltip diz o motivo em português e mostra os dois valores lado a lado", () => {
+    const changed = buildLayerView({
+      ...base, layer: "growth",
+      features: [{ ...feature(1, null), details: { deltaVotes: null, comparability: "section_composition_changed", fromVotes: 5, toVotes: 7 } }],
+      legend: [],
+    });
+    expect(changed.municipalities["1"].text).toBe("composição da seção mudou · 5 → 7 votos");
+    expect(changed.municipalities["1"].color).toBeNull();
+    // disputas de cargos diferentes: o motivo é da disputa, mesmo onde o território seria comparável
+    const otherOffice = buildLayerView({
+      ...base, layer: "decline", comparability: "different_office",
+      features: [{ ...feature(1, null), details: { deltaVotes: null, comparability: "comparable", fromVotes: 40000, toVotes: 45000 } }],
+      legend: [],
+    });
+    expect(otherOffice.municipalities["1"].text).toBe("cargo diferente · 40.000 → 45.000 votos");
+    const missing = buildLayerView({
+      ...base, layer: "growth",
+      features: [{ ...feature(1, null), details: { deltaVotes: null, comparability: "coverage_or_section_missing", fromVotes: null, toVotes: 7 } }],
+      legend: [],
+    });
+    expect(missing.municipalities["1"].text).toBe("sem cobertura ou seção inexistente");
+  });
+
+  it("variações sempre com sinal explícito", () => {
+    expect([signed(10), signed(-5), signed(0), signedPercent(12.5), signedPercent(-25), signedPercent(0)]).toEqual([
+      "+10", "−5", "0", "+12,5%", "−25%", "0%",
+    ]);
   });
 });
 

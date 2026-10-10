@@ -154,16 +154,20 @@ export function votesText(votes: number | null, state: CellState): string {
   return votes.toLocaleString("pt-BR");
 }
 
+function withSign(n: number, abs: string): string {
+  if (n > 0) return `+${abs}`;
+  if (n < 0) return `−${abs}`;
+  return abs;
+}
+
 export function signed(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return UNAVAILABLE;
-  const abs = Math.abs(n).toLocaleString("pt-BR");
-  return n > 0 ? `+${abs}` : n < 0 ? `−${abs}` : "0";
+  return withSign(n, Math.abs(n).toLocaleString("pt-BR"));
 }
 
 export function signedPercent(p: number | null | undefined): string {
   if (p === null || p === undefined || !Number.isFinite(p)) return UNAVAILABLE;
-  const abs = Math.abs(p).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
-  return p > 0 ? `+${abs}%` : p < 0 ? `−${abs}%` : "0%";
+  return `${withSign(p, Math.abs(p).toLocaleString("pt-BR", { maximumFractionDigits: 2 }))}%`;
 }
 
 export function money(v: number | null | undefined): string {

@@ -90,6 +90,14 @@ function webglAvailable() {
   }
 }
 
+/** Assinatura estável da camada temática (muda só quando cores ou feições mudam). */
+function layerSignature(layer: MapLayerView | null | undefined): string {
+  if (!layer) return "";
+  const municipalities = Object.entries(layer.municipalities).map(([k, v]) => k + ":" + v.color);
+  const places = layer.places.map((p) => p.key + ":" + p.color);
+  return [layer.kind, layer.level, municipalities.join(","), places.join(",")].join("|");
+}
+
 export function TerritoryMap(props: Props) {
   const container = useRef<HTMLDivElement>(null);
   const tooltip = useRef<HTMLDivElement>(null);
@@ -228,7 +236,7 @@ export function TerritoryMap(props: Props) {
           const selectable = (e: MapLayerMouseEvent) => e.features?.find((f) => interactive(target).has(Number(f.id)));
           map.on("mousemove", layer, (e) => {
             const feature = e.features?.[0];
-            if (!feature || feature.id == null) {
+            if (feature?.id == null) {
               setHover(null);
               hideTooltip();
               return;
@@ -294,9 +302,7 @@ export function TerritoryMap(props: Props) {
   }, [status, scopeKey, props.level]);
 
   // Camada temática: cor por município (feature-state) e pontos por local de votação.
-  const layerKey = props.layer
-    ? `${props.layer.kind}|${props.layer.level}|${Object.entries(props.layer.municipalities).map(([k, v]) => `${k}:${v.color}`).join(",")}|${props.layer.places.map((p) => `${p.key}:${p.color}`).join(",")}`
-    : "";
+  const layerKey = layerSignature(props.layer);
   useEffect(() => {
     const map = mapRef.current;
     if (status !== "ready" || !map) return;

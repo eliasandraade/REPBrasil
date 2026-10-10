@@ -1,6 +1,6 @@
 import { formatCount, formatPercent } from "./format";
-import { signed, signedPercent } from "./xray";
-import type { MapFeature, MapLayerKind, MapLayerResponse } from "./xray-types";
+import { CELL_STATE_LABEL, comparabilityLabel, signed, signedPercent } from "./xray";
+import type { CellState, MapFeature, MapLayerKind, MapLayerResponse } from "./xray-types";
 
 /**
  * Camadas temáticas do mapa. Os VALORES vêm da API; aqui só se escolhe a cor. Paleta neutra do REPBrasil:
@@ -61,92 +61,138 @@ export interface MapLayerView {
   note: string;
 }
 
-function valueText(kind: MapLayerKind, f: MapFeature): string {
-  const d = f.details as Record<string, number | null | undefined>;
-  switch (kind) {
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+function stateText(state: string): string {
+  return state === "value" ? "sem valor" : (CELL_STATE_LABEL[state as CellState] ?? "sem valor");
+}
+
+// ── Texto do tooltip, por camada ────────────────────────────────────────────
+
+function intensityText(f: MapFeature): string {
+  if (f.value === null) return stateText(f.state);
+  const share = num(f.details.share);
+  return share === null ? `${formatCount(f.value)} votos` : `${formatCount(f.value)} votos · ${formatPercent(share)}`;
+}
+
+function shareText(f: MapFeature): string {
+  if (f.value === null) return stateText(f.state);
+  return `${formatPercent(f.value)} dos válidos · ${formatCount(num(f.details.votes))} votos`;
+}
+
+function winnerText(f: MapFeature): string {
+  if (!f.categoryLabel) return "sem resultado";
+  const margin = num(f.details.marginVotes);
+  const head = `${f.categoryLabel} · ${formatPercent(f.value)}`;
+  return margin === null ? head : `${head} · margem ${formatCount(margin)}`;
+}
+
+/** Com delta: variação. Sem delta: o motivo (disputa ou território) e, se existirem, os dois valores lado a lado. */
+function deltaText(r: MapLayerResponse, f: MapFeature): string {
+  const delta = num(f.details.deltaVotes);
+  if (delta !== null) return `${signed(delta)} votos (${signedPercent(num(f.details.deltaPercent))})`;
+  const territory = f.details.comparability;
+  let reason = typeof territory === "string" ? comparabilityLabel(territory) : "sem comparação";
+  if (r.comparability && r.comparability !== "comparable_contest") reason = comparabilityLabel(r.comparability);
+  const from = num(f.details.fromVotes);
+  const to = num(f.details.toVotes);
+  return from === null || to === null ? reason : `${reason} · ${formatCount(from)} → ${formatCount(to)} votos`;
+}
+
+function abText(f: MapFeature): string {
+  if (f.value === null) return "sem comparação completa";
+  return `A ${formatCount(num(f.details.aVotes))} × B ${formatCount(num(f.details.bVotes))} (${signed(f.value)})`;
+}
+
+function valueText(r: MapLayerResponse, f: MapFeature): string {
+  switch (r.layer) {
     case "intensity":
-      return f.value === null ? stateText(f.state) : `${formatCount(f.value)} votos${d.share != null ? ` · ${formatPercent(d.share)}` : ""}`;
+      return intensityText(f);
     case "share":
-      return f.value === null ? stateText(f.state) : `${formatPercent(f.value)} dos válidos · ${formatCount(d.votes ?? null)} votos`;
+      return shareText(f);
     case "winner":
-      return f.categoryLabel ? `${f.categoryLabel} · ${formatPercent(f.value)}${d.marginVotes != null ? ` · margem ${formatCount(d.marginVotes)}` : ""}` : "sem resultado";
+      return winnerText(f);
     case "growth":
     case "decline":
-      return d.deltaVotes == null ? String(f.details.comparability ?? "sem comparação") : `${signed(d.deltaVotes)} votos (${signedPercent(d.deltaPercent ?? null)})`;
+      return deltaText(r, f);
     case "ab":
-      return f.value === null ? "sem comparação completa" : `A ${formatCount(d.aVotes ?? null)} × B ${formatCount(d.bVotes ?? null)} (${signed(f.value)})`;
+      return abText(f);
   }
 }
 
-function stateText(state: string): string {
-  const labels: Record<string, string> = {
-    no_coverage: "sem Boletim de Urna",
-    outside_contest: "fora da disputa",
-    partial_coverage: "cobertura parcial",
-    unlinked: "sem vínculo auditado",
-    not_on_ballot: "fora da urna",
-  };
-  return labels[state] ?? "sem valor";
+// ── Cor, por camada ─────────────────────────────────────────────────────────
+
+interface Scale {
+  max: number;
+  maxAbs: number;
+  legendIndex: Map<string, number>;
+}
+
+function winnerColor(f: MapFeature, legendIndex: Map<string, number>): string | null {
+  if (!f.category) return null;
+  const i = f.category === "tie" ? undefined : legendIndex.get(f.category);
+  return i === undefined ? TIE : CATEGORICAL[i % CATEGORICAL.length];
+}
+
+function abColor(f: MapFeature, value: number, maxAbs: number): string {
+  const strength = 0.35 + 0.65 * (maxAbs > 0 ? Math.abs(value) / maxAbs : 0);
+  if (f.category === "a") return mix(NEUTRAL, A_COLOR, strength);
+  if (f.category === "b") return mix(NEUTRAL, B_COLOR, strength);
+  return TIE;
+}
+
+function deltaColor(value: number, maxAbs: number): string {
+  if (value === 0) return mix(NEUTRAL, TIE, 0.3);
+  const strength = 0.3 + 0.7 * (maxAbs > 0 ? Math.abs(value) / maxAbs : 0);
+  return mix(NEUTRAL, value > 0 ? HIGH : NEGATIVE, strength);
+}
+
+function colorOf(r: MapLayerResponse, f: MapFeature, scale: Scale): string | null {
+  if (r.layer === "winner") return winnerColor(f, scale.legendIndex);
+  if (f.value === null) return null;
+  if (r.layer === "ab") return abColor(f, f.value, scale.maxAbs);
+  if (r.layer === "growth" || r.layer === "decline") return deltaColor(f.value, scale.maxAbs);
+  return scale.max > 0 ? mix(LOW, HIGH, f.value / scale.max) : LOW;
+}
+
+function legendOf(r: MapLayerResponse): LegendEntry[] {
+  if (r.layer === "winner") return r.legend.map((l, i) => ({ key: l.category, label: l.label, color: CATEGORICAL[i % CATEGORICAL.length] }));
+  if (r.layer === "ab") {
+    const name = (category: string) => r.legend.find((l) => l.category === category)?.label ?? category.toUpperCase();
+    return [
+      { key: "a", label: `A: ${name("a")}`, color: A_COLOR },
+      { key: "b", label: `B: ${name("b")}`, color: B_COLOR },
+      { key: "tie", label: "Empate", color: TIE },
+    ];
+  }
+  if (r.layer === "growth" || r.layer === "decline")
+    return [
+      { key: "up", label: "Crescimento", color: HIGH },
+      { key: "down", label: "Queda", color: NEGATIVE },
+    ];
+  return [];
+}
+
+function gradientOf(r: MapLayerResponse): MapLayerView["gradient"] {
+  if (r.layer !== "intensity" && r.layer !== "share") return null;
+  const format = r.layer === "share" ? formatPercent : formatCount;
+  return { from: LOW, to: HIGH, min: format(r.min), max: format(r.max) };
 }
 
 export function buildLayerView(r: MapLayerResponse): MapLayerView {
   const values = r.features.map((f) => f.value).filter((v): v is number => v !== null);
-  const maxAbs = values.length ? Math.max(...values.map(Math.abs)) : 0;
-  const max = values.length ? Math.max(...values) : 0;
-  const legendIndex = new Map(r.legend.map((l, i) => [l.category, i]));
-
-  const colorOf = (f: MapFeature): string | null => {
-    if (r.layer === "winner") {
-      if (!f.category) return null;
-      if (f.category === "tie") return TIE;
-      const i = legendIndex.get(f.category);
-      return i === undefined ? TIE : CATEGORICAL[i % CATEGORICAL.length];
-    }
-    if (f.value === null) return null;
-    if (r.layer === "ab") {
-      const t = maxAbs > 0 ? Math.abs(f.value) / maxAbs : 0;
-      return f.category === "a" ? mix(NEUTRAL, A_COLOR, 0.35 + 0.65 * t) : f.category === "b" ? mix(NEUTRAL, B_COLOR, 0.35 + 0.65 * t) : TIE;
-    }
-    if (r.layer === "growth" || r.layer === "decline") {
-      if (f.value === 0) return mix(NEUTRAL, TIE, 0.3);
-      const t = maxAbs > 0 ? Math.abs(f.value) / maxAbs : 0;
-      return f.value > 0 ? mix(NEUTRAL, HIGH, 0.3 + 0.7 * t) : mix(NEUTRAL, NEGATIVE, 0.3 + 0.7 * t);
-    }
-    return max > 0 ? mix(LOW, HIGH, f.value / max) : LOW;
+  const scale: Scale = {
+    max: values.length ? Math.max(...values) : 0,
+    maxAbs: values.length ? Math.max(...values.map(Math.abs)) : 0,
+    legendIndex: new Map(r.legend.map((l, i) => [l.category, i])),
   };
-
   const municipalities: Record<string, LayerValue> = {};
   const places: MapLayerView["places"] = [];
   for (const f of r.features) {
-    const v = { color: colorOf(f), text: valueText(r.layer, f) };
+    const v = { color: colorOf(r, f, scale), text: valueText(r, f) };
     if (r.level === "municipality" && f.ibgeCode != null) municipalities[String(f.ibgeCode)] = v;
     if (r.level === "place" && f.latitude != null && f.longitude != null)
       places.push({ ...v, key: f.key, name: f.name, latitude: f.latitude, longitude: f.longitude });
   }
-
-  let legend: LegendEntry[] = [];
-  if (r.layer === "winner")
-    legend = r.legend.map((l, i) => ({ key: l.category, label: l.label, color: CATEGORICAL[i % CATEGORICAL.length] }));
-  else if (r.layer === "ab")
-    legend = [
-      { key: "a", label: `A: ${r.legend.find((l) => l.category === "a")?.label ?? "A"}`, color: A_COLOR },
-      { key: "b", label: `B: ${r.legend.find((l) => l.category === "b")?.label ?? "B"}`, color: B_COLOR },
-      { key: "tie", label: "Empate", color: TIE },
-    ];
-  else if (r.layer === "growth" || r.layer === "decline")
-    legend = [
-      { key: "up", label: "Crescimento", color: HIGH },
-      { key: "down", label: "Queda", color: NEGATIVE },
-    ];
-
-  const gradient =
-    r.layer === "intensity" || r.layer === "share"
-      ? {
-          from: LOW,
-          to: HIGH,
-          min: r.layer === "share" ? formatPercent(r.min) : formatCount(r.min),
-          max: r.layer === "share" ? formatPercent(r.max) : formatCount(r.max),
-        }
-      : null;
-  return { kind: r.layer, level: r.level, municipalities, places, legend, gradient, note: r.note };
+  return { kind: r.layer, level: r.level, municipalities, places, legend: legendOf(r), gradient: gradientOf(r), note: r.note };
 }

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { displayName, formatCount, formatPercent, UNAVAILABLE } from "@/lib/elections/format";
 import { buildElectionsPath } from "@/lib/elections/route";
 import { CELL_STATE_LABEL, LEVEL_LABEL, money, signedPercent, xrayApi } from "@/lib/elections/xray";
-import type { TerritoryLevel, TerritoryValue, XrayCandidacy } from "@/lib/elections/xray-types";
+import type { AssetDiffItem, TerritoryLevel, TerritoryValue, XrayCandidacy } from "@/lib/elections/xray-types";
 import { InsightList } from "./InsightList";
 
 type DetailTab = "territory" | "assets" | "finance" | "records";
@@ -152,6 +152,18 @@ function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   );
 }
 
+const DIFF_STYLE: Record<AssetDiffItem["status"], string> = {
+  added: "bg-brand/10 text-brand",
+  removed: "bg-amber-400/10 text-amber-300",
+  kept: "bg-white/5 text-slate-400",
+};
+
+function diffLabel(status: AssetDiffItem["status"], year: number, compareToYear: number | null): string {
+  if (status === "added") return `só em ${year}`;
+  if (status === "removed") return `só em ${compareToYear}`;
+  return "nas duas";
+}
+
 function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const q = useQuery({ queryKey: ["xray-assets", c.candidacyId], queryFn: () => xrayApi.assets(c.candidacyId), staleTime: 60_000 });
   if (q.isLoading) return <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando bens" />;
@@ -169,8 +181,8 @@ function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
           {withKeys(a.diff, (d) => `${d.status}|${d.typeCode}|${d.description}|${d.fromValue}|${d.toValue}`).map(([key, d]) => (
             <li key={key} className="flex items-start justify-between gap-2 rounded-md border border-white/5 bg-card px-2.5 py-1.5 text-xs" data-diff={d.status}>
               <span className="min-w-0">
-                <span className={`mr-1.5 rounded px-1 py-px text-[9px] uppercase ${d.status === "added" ? "bg-brand/10 text-brand" : d.status === "removed" ? "bg-amber-400/10 text-amber-300" : "bg-white/5 text-slate-400"}`}>
-                  {d.status === "added" ? `só em ${a.year}` : d.status === "removed" ? `só em ${a.compareToYear}` : "nas duas"}
+                <span className={`mr-1.5 rounded px-1 py-px text-[9px] uppercase ${DIFF_STYLE[d.status]}`}>
+                  {diffLabel(d.status, a.year, a.compareToYear)}
                 </span>
                 <span className="text-slate-300">{d.type ?? "Bem"}</span>
                 {d.description && <span className="block truncate text-[11px] text-slate-500">{d.description}</span>}
