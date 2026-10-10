@@ -41,6 +41,7 @@ const RESPONSE: SearchResponse = {
       id: "p1",
       name: "Morgana Kelly Bezerra Fortaleza",
       ballotName: "Dra Morgana Fortaleza",
+      slug: "dra-morgana-fortaleza",
       rank: 2,
       candidacy: { year: 2024, round: 1, officeCode: 13, officeName: "Vereador", unitName: "Campos Sales", uf: "CE", party: "PSB", elected: true },
     },

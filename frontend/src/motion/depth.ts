@@ -23,7 +23,8 @@ export function routeDepth(href: string): number {
   const parts = pathOf(href).split("/").filter(Boolean);
   if (parts.length === 0) return 0;
   const [root, ...rest] = parts;
-  if (root === "politico") return 2;
+  // perfil: /politicos/<slug> (e o legado /politico/<id>, que redireciona)
+  if (root === "politico" || (root === "politicos" && rest.length > 0)) return 2;
   if (root !== "eleicoes") return 1;
   // eleicoes/{ano}/{turno}/{uf}/{município}/zona/{n}/secao/{n}
   if (rest.length < 2) return 1;
@@ -38,8 +39,8 @@ export function routeDepth(href: string): number {
 export function directionBetween(from: string, to: string): NavDirection {
   const a = pathOf(from);
   const b = pathOf(to);
-  if (b.startsWith("/politico/") && a.startsWith("/eleicoes")) return "deeper";
-  if (a.startsWith("/politico/") && b.startsWith("/eleicoes")) return "shallower";
+  if (b.startsWith("/politicos/") && a.startsWith("/eleicoes")) return "deeper";
+  if (a.startsWith("/politicos/") && b.startsWith("/eleicoes")) return "shallower";
   const da = routeDepth(a);
   const db = routeDepth(b);
   if (db > da) return "deeper";

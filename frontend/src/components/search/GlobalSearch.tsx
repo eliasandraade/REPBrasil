@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useId,
   useMemo,
@@ -31,6 +29,9 @@ import {
   type SearchTerritory,
 } from "@/lib/search";
 import { TransitionLink, useNavigate } from "@/motion/navigation";
+import { SearchDialogContext, useOpenSearch } from "./search-context";
+
+export { useOpenSearch } from "./search-context";
 
 const DEBOUNCE_MS = 160;
 
@@ -379,9 +380,6 @@ export function SearchBox({ variant, autoFocus, onNavigate, onEscapeEmpty, place
 
 // ─── Diálogo global (atalho "/" e Ctrl/⌘+K) ──────────────────────────────────
 
-const SearchDialogContext = createContext<() => void>(() => {});
-
-export const useOpenSearch = () => useContext(SearchDialogContext);
 
 function isEditable(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;

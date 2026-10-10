@@ -4,27 +4,18 @@ import "./globals.css";
 import "@/motion/motion.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
+import { INDEXING, SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "REPBrasil — Inteligência pública sobre agentes políticos brasileiros",
+  metadataBase: SITE_URL ? new URL(SITE_URL) : undefined,
+  title: { default: "REPBrasil — eleições brasileiras, da urna ao candidato", template: `%s · ${SITE_NAME}` },
   description:
-    "Plataforma de inteligência cívica com dados públicos oficiais, fontes rastreáveis e análise estruturada de agentes políticos. Um produto da Andrade Systems.",
-  keywords: [
-    "transparência",
-    "política",
-    "dados públicos",
-    "Brasil",
-    "TSE",
-    "agentes políticos",
-    "inteligência cívica",
-  ],
-  openGraph: {
-    title: "REPBrasil — Inteligência pública sobre agentes políticos",
-    description:
-      "Dados públicos oficiais, fontes rastreáveis e análise estruturada. Um produto da Andrade Systems.",
-    locale: "pt_BR",
-    type: "website",
-  },
+    "Resultados oficiais do TSE por seção, zona e município, com o histórico de cada candidatura, patrimônio declarado e contas de campanha.",
+  applicationName: SITE_NAME,
+  // Sem endereço público definitivo + permissão explícita, nada é indexado (local e staging nunca aparecem em busca).
+  robots: INDEXING ? { index: true, follow: true } : { index: false, follow: false },
+  openGraph: { siteName: SITE_NAME, locale: "pt_BR", type: "website" },
+  twitter: { card: "summary" },
 };
 
 // Marca `html.js` antes da primeira pintura: estados iniciais de revelação só

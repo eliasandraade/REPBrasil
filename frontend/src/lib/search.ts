@@ -5,6 +5,7 @@
  */
 import { fetchJson } from "./api";
 import { buildElectionsPath } from "./elections/route";
+import { politicianPath } from "./paths";
 
 export const SEARCH_MIN_LENGTH = 2;
 export const SEARCH_MAX_LENGTH = 80;
@@ -29,6 +30,7 @@ export interface SearchPolitician {
   id: string;
   name: string;
   ballotName: string | null;
+  slug: string | null;
   rank: number;
   candidacy: SearchCandidacy | null;
 }
@@ -90,7 +92,7 @@ export function searchAll(query: string, signal?: AbortSignal): Promise<SearchRe
 }
 
 export function politicianHref(p: SearchPolitician): string {
-  return `/politico/${encodeURIComponent(p.id)}`;
+  return politicianPath(p);
 }
 
 /** Lugar com pleito importado → explorador no pleito mais recente; sem dados → `null` (não há para onde ir). */

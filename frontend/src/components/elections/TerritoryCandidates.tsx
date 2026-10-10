@@ -173,7 +173,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
                   <p className="truncate text-sm text-slate-200">
                     {c.rank !== null && <span className="mr-1 font-mono text-[10px] text-slate-600">{c.rank}º</span>}
                     {c.politicianId ? (
-                      <Link href={`/politico/${c.politicianId}?aba=raio-x`} className="hover:text-brand">
+                      <Link href={`/politicos/${c.politicianId}?aba=raio-x`} className="hover:text-brand">
                         {displayName(c.ballotName)}
                       </Link>
                     ) : (

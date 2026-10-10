@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { HomeCoverage } from "@/components/home/HomeCoverage";
+import { pageMetadata } from "@/lib/seo";
 import { SearchBox } from "@/components/search/GlobalSearch";
 import { TransitionLink } from "@/motion/navigation";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "REPBrasil — eleições brasileiras, da urna ao candidato",
+  absoluteTitle: true,
   description:
     "Resultados oficiais do TSE por seção, zona e município, com o histórico de cada candidatura, patrimônio declarado e contas de campanha. Cada número aponta para a fonte.",
-};
+  path: "/",
+});
 
 function ArrowIcon({ size = 14 }: Readonly<{ size?: number }>) {
   return (

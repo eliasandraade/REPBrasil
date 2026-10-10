@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Manifesto — REPBrasil",
+export const metadata: Metadata = pageMetadata({
+  title: "Manifesto",
   description:
     "Sem medo. Sem lados. Sem se ajoelhar para ninguém. O REPBrasil existe para organizar dados públicos verificáveis sobre agentes políticos brasileiros.",
-};
+  path: "/manifesto",
+});
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

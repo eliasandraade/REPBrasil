@@ -106,7 +106,7 @@ describe("explorador eleitoral", () => {
     renderAt("/eleicoes/2026/1/ce/fortaleza/zona/94/secao/381", "cargo=1");
     const results = await screen.findByTestId("section-results");
     await waitFor(() => expect(results.dataset.status).toBe("available"));
-    expect(screen.getByTestId("candidate-profile-link").getAttribute("href")).toBe("/politico/pol-1?aba=eleicoes");
+    expect(screen.getByTestId("candidate-profile-link").getAttribute("href")).toBe("/politicos/pol-1?aba=eleicoes");
     const calls = (fetch as unknown as { mock: { calls: string[][] } }).mock.calls.map((c) => c[0]);
     expect(calls.some((u) => u.endsWith("/zones/94/sections/381/results?office=1"))).toBe(true);
   });

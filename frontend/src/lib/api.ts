@@ -40,7 +40,11 @@ export function searchPoliticians(
 }
 
 export function getPolitician(id: string): Promise<PoliticianDetail> {
-  return fetchJson<PoliticianDetail>(`/api/v1/politicians/${id}`);
+  return fetchJson<PoliticianDetail>(`/api/v1/politicians/${encodeURIComponent(id)}`);
+}
+
+export function getPoliticianBySlug(slug: string): Promise<PoliticianDetail> {
+  return fetchJson<PoliticianDetail>(`/api/v1/politicians/slug/${encodeURIComponent(slug)}`);
 }
 
 export function getPoliticianElections(id: string): Promise<ElectionResultItem[]> {

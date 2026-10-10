@@ -1,8 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { displayName, formatCount, formatPercent, outcomeLabel, UNAVAILABLE } from "@/lib/elections/format";
 import {
   CELL_STATE_LABEL,
@@ -14,11 +13,9 @@ import {
   signed,
   signedPercent,
   toggleSelection,
-  xrayApi,
 } from "@/lib/elections/xray";
 import type { XrayCandidacy, XrayResponse } from "@/lib/elections/xray-types";
-import { CandidacyDetail } from "./CandidacyDetail";
-import { InsightList } from "./InsightList";
+import { byRecency } from "./useXray";
 
 const ROLE_LABEL = { vice: "Vice", first_substitute: "1º suplente", second_substitute: "2º suplente" } as const;
 
@@ -28,12 +25,12 @@ const BADGE_TONES = {
   muted: "border-white/10 bg-white/5 text-slate-400",
 } as const;
 
-function Badge({ children, tone = "muted" }: Readonly<{ children: React.ReactNode; tone?: keyof typeof BADGE_TONES }>) {
+export function Badge({ children, tone = "muted" }: Readonly<{ children: ReactNode; tone?: keyof typeof BADGE_TONES }>) {
   const cls = BADGE_TONES[tone];
   return <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>{children}</span>;
 }
 
-function TotalsLine({ c }: Readonly<{ c: XrayCandidacy }>) {
+export function TotalsLine({ c }: Readonly<{ c: XrayCandidacy }>) {
   const t = c.totals;
   if (c.ticket) {
     return (
@@ -77,22 +74,21 @@ function TotalsLine({ c }: Readonly<{ c: XrayCandidacy }>) {
   );
 }
 
-function CandidacyCard({
+export function CandidacyCard({
   c,
-  selected,
   compared,
-  onSelect,
+  onOpen,
   onCompare,
 }: Readonly<{
   c: XrayCandidacy;
-  selected: boolean;
-  compared: boolean;
-  onSelect: () => void;
-  onCompare: () => void;
+  /** Undefined: o cartão não oferece comparação (ex.: visão geral). */
+  compared?: boolean;
+  onOpen?: () => void;
+  onCompare?: () => void;
 }>) {
   return (
     <article
-      className={`rounded-lg border p-4 ${selected ? "border-brand/40 bg-card-elevated/70" : "border-white/8 bg-card-elevated/40"}`}
+      className="rounded-lg border border-white/8 bg-card-elevated/40 p-4"
       data-candidacy={c.candidacyId}
       data-testid="xray-candidacy"
     >
@@ -120,10 +116,12 @@ function CandidacyCard({
         {c.assets && <span>Bens declarados: {money(c.assets.total)} ({c.assets.items} itens)</span>}
         {c.finance && <span>Receitas: {money(c.finance.revenues)} · Despesas: {money(c.finance.expensesContracted)}</span>}
         <span className="flex-1" />
-        <button type="button" onClick={onSelect} aria-pressed={selected} className="text-brand hover:underline">
-          {selected ? "Detalhe aberto" : "Ver detalhe"}
-        </button>
-        {!c.ticket && (
+        {onOpen && (
+          <button type="button" onClick={onOpen} className="focus-ring rounded text-brand hover:underline">
+            Território, bens e contas →
+          </button>
+        )}
+        {!c.ticket && compared !== undefined && onCompare && (
           <label className="flex cursor-pointer items-center gap-1">
             <input type="checkbox" checked={compared} onChange={onCompare} className="accent-[#0dd48e]" />
             <span>comparar</span>
@@ -137,7 +135,7 @@ function CandidacyCard({
   );
 }
 
-function EvolutionList({ data }: Readonly<{ data: XrayResponse }>) {
+export function EvolutionList({ data }: Readonly<{ data: XrayResponse }>) {
   const byId = useMemo(() => new Map(data.candidacies.map((c) => [c.candidacyId, c])), [data]);
   if (data.evolution.length === 0 && data.assetsEvolution.length === 0) return null;
   return (
@@ -192,109 +190,74 @@ function EvolutionList({ data }: Readonly<{ data: XrayResponse }>) {
 }
 
 /**
- * Raio X eleitoral do perfil: todas as candidaturas oficiais da pessoa (identidade canônica), votação com estado
- * explícito (nunca zero inventado), chapa de vice/suplente, evolução, bens, contas, registros e histórico oficial.
+ * Histórico eleitoral do perfil: todas as candidaturas oficiais da pessoa (identidade canônica), da mais recente à
+ * mais antiga, com votação em estado explícito (nunca zero inventado), chapa de vice/suplente, seleção para comparar
+ * (até 5) e o histórico oficial do TSE.
  */
-export function XrayTab({ politicianId }: Readonly<{ politicianId: string }>) {
-  const q = useQuery({ queryKey: ["xray", politicianId], queryFn: () => xrayApi.xray(politicianId), staleTime: 60_000 });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; onOpen: (candidacyId: string) => void }>) {
   const [compare, setCompare] = useState<string[] | null>(null);
   const [limitHit, setLimitHit] = useState(false);
-
-  if (q.isLoading)
-    return (
-      <div aria-busy="true" className="space-y-3">
-        <div className="skeleton h-4 w-2/3" aria-hidden="true" />
-        <div className="skeleton h-28 rounded-lg" aria-hidden="true" />
-        <output className="sr-only">Carregando Raio X</output>
-      </div>
-    );
-  if (q.isError || !q.data)
-    return (
-      <p className="text-sm text-slate-400">
-        Não foi possível carregar o Raio X eleitoral.{" "}
-        <button type="button" onClick={() => q.refetch()} className="text-brand hover:underline">
-          Tentar novamente
-        </button>
-      </p>
-    );
-
-  const data = q.data;
-  const own = data.candidacies.filter((c) => !c.ticket && c.totals.votes !== null);
-  const defaultCompare = own.slice(0, MAX_COMPARE).map((c) => c.candidacyId);
-  const selection = compare ?? defaultCompare;
-  const selected = data.candidacies.find((c) => c.candidacyId === (selectedId ?? own[0]?.candidacyId ?? data.candidacies[0]?.candidacyId));
-  const uf = selected?.contest.unit.uf ?? data.candidacies.find((c) => c.contest.unit.uf)?.contest.unit.uf ?? "CE";
+  const candidacies = useMemo(() => byRecency(data.candidacies), [data]);
+  const own = candidacies.filter((c) => !c.ticket && c.totals.votes !== null);
+  const selection = compare ?? own.slice(0, MAX_COMPARE).map((c) => c.candidacyId);
+  const uf = own[0]?.contest.unit.uf ?? candidacies.find((c) => c.contest.unit.uf)?.contest.unit.uf ?? "CE";
 
   return (
     <div className="space-y-4" data-testid="xray">
       <p className="text-xs text-slate-500">
-        Candidaturas oficiais do TSE vinculadas por identificadores oficiais (CPF só como HMAC; histórico oficial de candidaturas). Nunca por nome.
-        Dados eleitorais são descritivos e não alteram o Score.
+        Candidaturas oficiais do TSE ligadas por identificadores oficiais (CPF só como HMAC; histórico oficial de candidaturas) — nunca por nome.
       </p>
       {data.freshness.stale && <p className="text-[11px] text-amber-300/80">{data.freshness.note}</p>}
-      {data.candidacies.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">Nenhuma candidatura da camada eleitoral vinculada a este perfil.</p>
-      ) : (
-        <>
-          <InsightList insights={data.insights} />
-          <EvolutionList data={data} />
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="space-y-2" data-testid="xray-timeline">
-              {data.candidacies.map((c) => (
-                <CandidacyCard
-                  key={c.candidacyId}
-                  c={c}
-                  selected={selected?.candidacyId === c.candidacyId}
-                  compared={selection.includes(c.candidacyId)}
-                  onSelect={() => setSelectedId(c.candidacyId)}
-                  onCompare={() => {
-                    const r = toggleSelection(selection, c.candidacyId);
-                    setLimitHit(r.rejected);
-                    setCompare(r.ids);
-                  }}
-                />
-              ))}
-              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-card px-3 py-2 text-xs">
-                <span className="text-slate-400">
-                  {selection.length} de {MAX_COMPARE} candidaturas para comparar
-                </span>
-                {limitHit && <span className="text-amber-300">Limite de {MAX_COMPARE} candidaturas.</span>}
-                {selection.length > 0 && (
-                  <Link
-                    href={`/eleicoes/comparar?c=${serializeSelection(selection)}&uf=${uf}&nivel=municipality`}
-                    className="ml-auto rounded-md border border-brand/30 bg-brand/10 px-2.5 py-1 font-medium text-brand hover:bg-brand/15"
-                  >
-                    Comparar evolução →
-                  </Link>
-                )}
-              </div>
-            </div>
-            <div>{selected && <CandidacyDetail key={selected.candidacyId} c={selected} />}</div>
-          </div>
-          {data.officialHistory.length > 0 && (
-            <div className="rounded-lg border border-white/8 bg-card p-3" data-testid="xray-history">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Histórico oficial de candidaturas (TSE)</p>
-              <ul className="space-y-1">
-                {data.officialHistory.map((h) => (
-                  <li key={`${h.year}-${h.round}-${h.tseCandidateId}`} className="flex flex-wrap justify-between gap-2 text-xs">
-                    <span className="text-slate-300">
-                      {electionLabel(h.year, h.round)} · {displayName(h.officeName)} · {h.unitName ? displayName(h.unitName) : h.unit}
-                      {h.number !== null && ` · nº ${h.number}`}
-                      {h.partyAcronym && ` · ${h.partyAcronym}`}
-                    </span>
-                    <span className="text-slate-500">
-                      {outcomeLabel(h.outcome)} · {h.imported ? "importada" : "não importada nesta base"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-1.5 text-[10px] text-slate-600">
-                Fonte: TSE, &ldquo;Histórico de candidaturas&rdquo; — vínculo oficial entre candidaturas da mesma pessoa.
-              </p>
-            </div>
+      <div className="space-y-2" data-testid="xray-timeline">
+        {candidacies.map((c) => (
+          <CandidacyCard
+            key={c.candidacyId}
+            c={c}
+            compared={selection.includes(c.candidacyId)}
+            onOpen={() => onOpen(c.candidacyId)}
+            onCompare={() => {
+              const r = toggleSelection(selection, c.candidacyId);
+              setLimitHit(r.rejected);
+              setCompare(r.ids);
+            }}
+          />
+        ))}
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-card px-3 py-2 text-xs">
+          <span className="text-slate-400">
+            {selection.length} de {MAX_COMPARE} candidaturas para comparar
+          </span>
+          {limitHit && <span className="text-amber-300">Limite de {MAX_COMPARE} candidaturas.</span>}
+          {selection.length > 0 && (
+            <Link
+              href={`/eleicoes/comparar?c=${serializeSelection(selection)}&uf=${uf}&nivel=municipality`}
+              className="ml-auto rounded-md border border-brand/30 bg-brand/10 px-2.5 py-1 font-medium text-brand hover:bg-brand/15"
+            >
+              Comparar evolução →
+            </Link>
           )}
-        </>
+        </div>
+      </div>
+      {data.officialHistory.length > 0 && (
+        <div className="rounded-lg border border-white/8 bg-card p-3" data-testid="xray-history">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Histórico oficial de candidaturas (TSE)</p>
+          <ul className="space-y-1">
+            {data.officialHistory.map((h) => (
+              <li key={`${h.year}-${h.round}-${h.tseCandidateId}`} className="flex flex-wrap justify-between gap-2 text-xs">
+                <span className="text-slate-300">
+                  {electionLabel(h.year, h.round)} · {displayName(h.officeName)} · {h.unitName ? displayName(h.unitName) : h.unit}
+                  {h.number !== null && ` · nº ${h.number}`}
+                  {h.partyAcronym && ` · ${h.partyAcronym}`}
+                </span>
+                <span className="text-slate-500">
+                  {outcomeLabel(h.outcome)} · {h.imported ? "importada" : "não importada nesta base"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-[10px] text-slate-600">
+            Fonte: TSE, &ldquo;Histórico de candidaturas&rdquo; — vínculo oficial entre candidaturas da mesma pessoa.
+          </p>
+        </div>
       )}
     </div>
   );

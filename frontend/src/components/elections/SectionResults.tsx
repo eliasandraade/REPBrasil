@@ -49,7 +49,7 @@ function VoteRow({ v }: { v: VoteItem }) {
             {v.candidacy?.politicianId && v.profileAvailable ? (
               // Do voto à pessoa: o nome é o elemento compartilhado com o cabeçalho do perfil.
               <TransitionLink
-                href={`/politico/${v.candidacy.politicianId}?aba=eleicoes`}
+                href={`/politicos/${v.candidacy.politicianId}?aba=eleicoes`}
                 direction="deeper"
                 shareIdentity
                 data-vt="name"

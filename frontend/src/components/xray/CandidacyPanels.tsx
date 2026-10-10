@@ -9,8 +9,6 @@ import { CELL_STATE_LABEL, LEVEL_LABEL, LEVEL_PLURAL, money, signedPercent, xray
 import type { AssetDiffItem, TerritoryLevel, TerritoryValue, XrayCandidacy } from "@/lib/elections/xray-types";
 import { InsightList } from "./InsightList";
 
-type DetailTab = "territory" | "assets" | "finance" | "records";
-
 const COMPLEMENT_LABELS: Record<string, string> = {
   detail_status: "Situação detalhada",
   status_in_election: "Situação no pleito",
@@ -63,7 +61,7 @@ interface PickedMunicipality {
   uf: string | null;
 }
 
-function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
+export function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const [level, setLevel] = useState<TerritoryLevel>("municipality");
   const [municipality, setMunicipality] = useState<PickedMunicipality | null>(
     c.contest.unit.scope === "municipal" ? { code: c.contest.unit.code, uf: c.contest.unit.uf } : null,
@@ -177,7 +175,7 @@ function diffLabel(status: AssetDiffItem["status"], year: number, compareToYear:
   return "nas duas";
 }
 
-function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
+export function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const q = useQuery({ queryKey: ["xray-assets", c.candidacyId], queryFn: () => xrayApi.assets(c.candidacyId), staleTime: 60_000 });
   if (q.isLoading) return <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando bens" />;
   if (q.isError || !q.data) return <p className="text-xs text-slate-400">Não foi possível carregar os bens declarados.</p>;
@@ -225,7 +223,7 @@ function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   );
 }
 
-function FinancePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
+export function FinancePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const q = useQuery({ queryKey: ["xray-finance", c.candidacyId], queryFn: () => xrayApi.finance(c.candidacyId), staleTime: 60_000 });
   if (q.isLoading) return <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando prestação de contas" />;
   if (q.isError || !q.data) return <p className="text-xs text-slate-400">Não foi possível carregar a prestação de contas.</p>;
@@ -276,7 +274,7 @@ function FinancePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   );
 }
 
-function RecordsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
+export function RecordsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const complement = c.records.complement;
   return (
     <div data-testid="xray-records" className="space-y-3">
@@ -329,48 +327,11 @@ function RecordsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   );
 }
 
-function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
+export function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="rounded-lg border border-white/8 bg-card p-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
       <p className="truncate text-sm font-bold text-slate-100">{value}</p>
     </div>
-  );
-}
-
-/** Detalhe de uma candidatura no Raio X: território, bens, contas e registros oficiais. */
-export function CandidacyDetail({ c }: Readonly<{ c: XrayCandidacy }>) {
-  const [tab, setTab] = useState<DetailTab>("territory");
-  const tabs: Array<{ id: DetailTab; label: string }> = [
-    { id: "territory", label: "Território" },
-    { id: "assets", label: "Bens" },
-    { id: "finance", label: "Contas de campanha" },
-    { id: "records", label: "Registros" },
-  ];
-  return (
-    <section className="rounded-lg border border-brand/20 bg-card-elevated/40 p-4" aria-label="Detalhe da candidatura" data-testid="xray-detail">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-        {c.contest.year} · {c.contest.round}º turno · {displayName(c.contest.officeName)} · {c.contest.unit.name}
-      </p>
-      <h3 className="mb-3 text-base font-bold text-slate-100">{displayName(c.ballotName)}</h3>
-      <div role="tablist" aria-label="Detalhe da candidatura" className="mb-3 flex flex-wrap gap-1">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`focus-ring rounded-md px-2.5 py-1 text-xs ${tab === t.id ? "bg-brand/15 text-brand" : "text-slate-400 hover:text-slate-200"}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {tab === "territory" && <TerritoryPanel c={c} />}
-      {tab === "assets" && <AssetsPanel c={c} />}
-      {tab === "finance" && <FinancePanel c={c} />}
-      {tab === "records" && <RecordsPanel c={c} />}
-    </section>
   );
 }

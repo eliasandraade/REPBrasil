@@ -1,3 +1,4 @@
+import { politicianPath } from "@/lib/paths";
 import type { PoliticianSummary } from "@/lib/types";
 import { initialsOf, rememberIdentity } from "@/motion/identity";
 import { TransitionLink } from "@/motion/navigation";
@@ -18,9 +19,9 @@ export function PoliticianCard({ politician }: PoliticianCardProps) {
 
   return (
     <TransitionLink
-      href={`/politico/${politician.id}`}
+      href={politicianPath(politician)}
       shareIdentity
-      onClick={() => rememberIdentity(politician.id, politician.ballotName)}
+      onClick={() => rememberIdentity(politician.slug ?? politician.id, politician.ballotName)}
       className="group mi-surface focus-ring flex items-center gap-4 rounded-lg border border-white/8 bg-card p-4 hover:border-brand/30 hover:bg-card-elevated/60"
     >
       {/* Avatar */}
