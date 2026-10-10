@@ -185,6 +185,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     derived.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
 
+    names = sub.add_parser(
+        "sync-official-names",
+        help="apply the official IBGE spelling to state/municipality names (same name only; codes and slugs never change)",
+    )
+    names.add_argument("--uf", action="append", default=[], help="limit to these UFs (repeatable); default: all")
+    names.add_argument("--dry-run", action="store_true", help="report what would change; nothing is written")
+    names.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
+
     cad_import = sub.add_parser(
         "import-electoral-cadaster", help="import zones, polling places and sections of one UF/turn from an acquired polling-place file"
     )
@@ -298,6 +306,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cadaster(args)
     if args.command == "audit-election":
         return _audit(args)
+    if args.command == "sync-official-names":
+        return _sync_official_names(args)
     if args.command == "refresh-derived":
         from .derived import refresh_derived
 
@@ -333,6 +343,23 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             client.close()
     raise AssertionError("unreachable")
+
+
+def _sync_official_names(args: argparse.Namespace) -> int:
+    from ..sources.ibge.localidades import fetch_all_municipalities, fetch_states
+    from .official_names import OfficialName, sync_official_names
+    from .paths import unit_code
+
+    database_url = _database_url(args)
+    if not database_url:
+        raise SystemExit("DATABASE_URL (or --database-url) is required")
+    ufs = {unit_code(u) for u in args.uf} or None
+    municipalities = [OfficialName(m.code, m.name) for m in fetch_all_municipalities()]
+    states = [OfficialName(s.code, s.name) for s in fetch_states()]
+    with electoral_db.connect(database_url, autocommit=True) as conn:
+        report = sync_official_names(conn, municipalities, states, ufs=ufs, dry_run=args.dry_run)
+    print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+    return 0
 
 
 def _open_data(args: argparse.Namespace) -> int:

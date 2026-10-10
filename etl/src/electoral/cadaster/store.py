@@ -19,6 +19,7 @@ from typing import Any
 import psycopg
 from psycopg.types.json import Jsonb
 
+from ..names import same_name
 from ..open_data.layout import DetectedLayout
 from .errors import CadasterConflict, CadasterError, CadasterMissing, TerritoryMissing
 from .polling_places import (
@@ -129,11 +130,14 @@ def import_territories(conn: psycopg.Connection, territories: Territories, manif
                     )
                     states_new += 1
                     continue
-                for label, have, want in (("name", current[0], s.name), ("ibge_code", current[1], s.ibge_code), ("tse_code", current[2], s.tse_code)):
+                if current[0] is not None and not same_name(current[0], s.name):
+                    raise CadasterConflict(f"state {s.uf}: stored name {current[0]!r} differs from the official {s.name!r}", {"state": s.uf, "name": [current[0], s.name]})
+                for label, have, want in (("ibge_code", current[1], s.ibge_code), ("tse_code", current[2], s.tse_code)):
                     if have is not None and have != want:
                         raise CadasterConflict(f"state {s.uf}: stored {label} {have!r} differs from the official {want!r}", {"state": s.uf, label: [have, want]})
+                # mesmo nome a menos da caixa: fica a grafia gravada (pode ser a oficial do IBGE, sync-official-names)
                 cur.execute(
-                    "UPDATE state SET name=%s, ibge_code=%s, tse_code=%s, source_file_id=COALESCE(source_file_id, %s) WHERE code=%s",
+                    "UPDATE state SET name=COALESCE(name, %s), ibge_code=%s, tse_code=%s, source_file_id=COALESCE(source_file_id, %s) WHERE code=%s",
                     (s.name, s.ibge_code, s.tse_code, source_id, s.uf),
                 )
 
@@ -144,7 +148,7 @@ def import_territories(conn: psycopg.Connection, territories: Territories, manif
                 have = existing.get(key)
                 if have is None:
                     rows.append((m.uf, m.tse_code, m.ibge_code, m.name, m.tse_name, m.slug, source_id))
-                elif tuple(have) != (m.ibge_code, m.name, m.slug):
+                elif (have[0], have[2]) != (m.ibge_code, m.slug) or not same_name(have[1], m.name):
                     raise CadasterConflict(f"municipality {key}: stored {tuple(have)} differs from the official {(m.ibge_code, m.name, m.slug)}", {"municipality": list(key)})
             cur.executemany(
                 "INSERT INTO municipality (state_code, tse_code, ibge_code, name, tse_name, slug, source_file_id) VALUES (%s,%s,%s,%s,%s,%s,%s)",

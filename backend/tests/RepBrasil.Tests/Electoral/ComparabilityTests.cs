@@ -97,6 +97,9 @@ public class ComparabilityTests
         Assert.Equal("André Fernandes", Fmt.Name("ANDRÉ FERNANDES"));
         Assert.Equal("Luiz Inácio Lula da Silva", Fmt.Name("LUIZ INÁCIO LULA DA SILVA"));
         Assert.Equal("Já Formatado", Fmt.Name("Já Formatado"));
+        Assert.Equal("Andre Fernandes de Moura", Fmt.Name("Andre Fernandes De Moura")); // capitalizado palavra a palavra
+        Assert.Equal("Olho D'Água do Borges", Fmt.Name("OLHO D'ÁGUA DO BORGES"));
+        Assert.Equal("Não-Me-Toque", Fmt.Name("NÃO-ME-TOQUE"));
         Assert.Equal("", Fmt.Name(null));
     }
 

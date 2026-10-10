@@ -134,15 +134,33 @@ public static class Comparability
 public static class Fmt
 {
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
-    private static readonly HashSet<string> NameParticles = ["da", "de", "do", "das", "dos", "e"];
+    private static readonly HashSet<string> NameParticles = ["da", "de", "do", "das", "dos", "e", "del"];
 
-    /// <summary>Nome publicado em caixa alta ("ANDRÉ FERNANDES") em caixa de nome ("André Fernandes"); outro formato fica como está.</summary>
+    /// <summary>
+    /// Nome publicado em CAIXA ALTA ("ANDRÉ FERNANDES") ou capitalizado palavra a palavra ("Juazeiro Do Norte") em
+    /// caixa de nome: partículas soltas (da, de, do, das, dos, e, del) em minúscula, exceto na 1ª palavra; em caixa
+    /// alta, cada palavra é capitalizada antes (também após hífen e apóstrofo). Acentos e grafia oficial ficam.
+    /// </summary>
     public static string Name(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return "";
-        if (value != value.ToUpper(PtBr)) return value;
-        var words = value.ToLower(PtBr).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return string.Join(' ', words.Select((w, i) => i > 0 && NameParticles.Contains(w) ? w : char.ToUpper(w[0], PtBr) + w[1..]));
+        var upper = value == value.ToUpper(PtBr);
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Select((w, i) =>
+        {
+            var lower = w.ToLower(PtBr);
+            if (i > 0 && NameParticles.Contains(lower)) return lower;
+            return upper ? TitleWord(lower) : w;
+        }));
+    }
+
+    private static string TitleWord(string lower)
+    {
+        var chars = lower.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+            if (char.IsLetter(chars[i]) && (i == 0 || chars[i - 1] is '-' or '\'' or '’'))
+                chars[i] = char.ToUpper(chars[i], PtBr);
+        return new string(chars);
     }
 
     public static string Int(long value) => value.ToString("N0", PtBr);

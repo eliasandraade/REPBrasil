@@ -8,6 +8,7 @@ import polars as pl
 from loguru import logger
 
 from src.db.connection import get_db
+from src.electoral.names import official_case
 from src.pipeline.base import BasePipeline
 from src.sources.tse.downloader import CSV_PATH, extract_candidates_csv
 
@@ -90,8 +91,8 @@ class TseCandidatesPipeline(BasePipeline):
         records = []
         for row in df.iter_rows(named=True):
             tse_id = str(row.get("tse_id") or "").strip() or None
-            name = (row.get("name") or "").strip().title()
-            ballot_name = (row.get("ballot_name") or "").strip().title()
+            name = official_case(row.get("name"))
+            ballot_name = official_case(row.get("ballot_name"))
             if tse_id is None:
                 logger.warning(f"Registro ignorado: SQ_CANDIDATO vazio para '{name}'")
                 continue

@@ -37,7 +37,7 @@ def test_transform_normalizes_names(
     pipeline: TseCandidatesPipeline, sample_df: pl.DataFrame
 ) -> None:
     result = pipeline.transform(sample_df)
-    assert result[0]["name"] == "Joao Da Silva"
+    assert result[0]["name"] == "Joao da Silva"  # partícula em minúscula (grafia oficial)
     assert result[0]["ballot_name"] == "Joao Silva"
 
 
