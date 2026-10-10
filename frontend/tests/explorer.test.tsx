@@ -111,6 +111,48 @@ describe("explorador eleitoral", () => {
     expect(calls.some((u) => u.endsWith("/zones/94/sections/381/results?office=1"))).toBe(true);
   });
 
+  it("P2: votos da seção A nunca aparecem sob a seção B enquanto B carrega", async () => {
+    const pendingB: { release?: () => void } = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("/sections/29/results")) {
+          // B fica pendente até o fim das asserções
+          return new Promise<Response>((resolve) => {
+            pendingB.release = () => resolve(new Response(JSON.stringify(sectionResults(29)), { status: 200 }));
+          });
+        }
+        return api(url);
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    nav.pathname = "/eleicoes/2026/1/ce/fortaleza/zona/94/secao/381";
+    nav.search = "";
+    const view = render(
+      <QueryClientProvider client={client}>
+        <ElectionsExplorer />
+      </QueryClientProvider>,
+    );
+    const a = await screen.findByTestId("section-results");
+    await waitFor(() => expect(a.dataset.status).toBe("available"));
+    expect(document.querySelector('[data-vote="11"]')).toBeTruthy();
+
+    nav.pathname = "/eleicoes/2026/1/ce/fortaleza/zona/94/secao/29";
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <ElectionsExplorer />
+      </QueryClientProvider>,
+    );
+    const b = await screen.findByRole("heading", { name: "Seção 029" });
+    const panel = b.closest('[data-testid="section-results"]') as HTMLElement;
+    expect(panel.getAttribute("aria-busy")).toBe("true");
+    expect(panel.dataset.status).toBeUndefined();
+    expect(document.querySelector("[data-vote]")).toBeNull();
+    expect(screen.queryByTestId("metrics")).toBeNull();
+    expect(screen.queryByText("Candidata Com Perfil")).toBeNull();
+    pendingB.release?.();
+  });
+
   it("seção agregada no cadastro aponta para a principal sem buscar votos próprios", async () => {
     renderAt("/eleicoes/2026/1/ce/caucaia/zona/120/secao/79");
     const results = await screen.findByTestId("section-results");

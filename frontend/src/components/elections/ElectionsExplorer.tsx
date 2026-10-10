@@ -1,6 +1,6 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -87,8 +87,21 @@ export function ElectionsExplorer() {
     queryKey: ["el-results", year, round, uf, canonical, parsed?.zone, parsed?.section, resultQuery.office, resultQuery.voteType],
     queryFn: () => electionsApi.sectionResults(year, round, uf!, canonical!, parsed!.zone!, parsed!.section!, resultQuery),
     enabled: !!sectionDetail && !sectionDetail.isAggregated,
-    placeholderData: keepPreviousData,
+    // Sem placeholder: o resultado de uma seção nunca é exibido sob a rota de outra.
   });
+
+  // Defesa em profundidade: só aceita resultado cuja identidade territorial é a da rota atual
+  // (UF, município, zona e seção pedida). Qualquer outro dado é tratado como carregando.
+  const resultsData = resultsQ.data;
+  const sectionData =
+    resultsData &&
+    !resultsQ.isPlaceholderData &&
+    resultsData.requestedSection === parsed?.section &&
+    resultsData.territory.zone === parsed?.zone &&
+    resultsData.territory.uf.toLowerCase() === uf &&
+    resultsData.territory.municipality.slug === canonical
+      ? resultsData
+      : null;
 
   // Município por código TSE/IBGE na URL → canoniza para o slug do catálogo.
   useEffect(() => {
@@ -267,8 +280,8 @@ export function ElectionsExplorer() {
                 <SectionResults
                   route={route}
                   municipalityName={mun ? `${mun.municipality.name}/${mun.municipality.uf}` : ""}
-                  data={resultsQ.data ?? null}
-                  status={resultsQ.isError ? "error" : resultsQ.data ? "ready" : "loading"}
+                  data={sectionData}
+                  status={resultsQ.isError ? "error" : sectionData ? "ready" : "loading"}
                   isAggregatedInCadaster={sectionDetail!.isAggregated}
                   principalNumber={sectionDetail!.principalNumber}
                   voteType={voteType}
