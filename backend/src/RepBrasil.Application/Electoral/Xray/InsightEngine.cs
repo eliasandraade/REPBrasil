@@ -1,6 +1,12 @@
 namespace RepBrasil.Application.Electoral;
 
 /// <summary>
+/// Base dos percentuais de distribuição: a votação inteira da candidatura; só os votos com Boletim de Urna
+/// importado (disputa nacional, ou cobertura parcial); ou o recorte exibido (município, zona, seção, local).
+/// </summary>
+public enum DistributionBase { Candidacy, Imported, Shown }
+
+/// <summary>
 /// Insights determinísticos: dados → métrica → template textual. Cada insight devolve os valores
 /// estruturados usados no texto; nada aqui é opinião, previsão ou causalidade.
 /// </summary>
@@ -57,20 +63,35 @@ public static class InsightEngine
             ("deltaPercent", step.DeltaPercent), ("deltaSharePoints", step.DeltaSharePoints));
     }
 
-    public static InsightDto TopTerritory(string level, string label, long votes, long candidacyVotes) => Make(
+    private static string Of(DistributionBase b) => b switch
+    {
+        DistributionBase.Imported => "dos votos da candidatura com Boletim de Urna importado",
+        DistributionBase.Shown => "dos votos da candidatura no recorte",
+        _ => "da votação da candidatura",
+    };
+
+    private static string BaseKey(DistributionBase b) => b switch
+    {
+        DistributionBase.Imported => "imported",
+        DistributionBase.Shown => "shown",
+        _ => "candidacy",
+    };
+
+    public static InsightDto TopTerritory(string level, string label, long votes, long baseVotes, DistributionBase of = DistributionBase.Candidacy) => Make(
         "top_territory",
-        $"Maior votação: {label}, com {Fmt.Int(votes)} votos" + (Comparability.Pct(votes, candidacyVotes) is { } p ? $" ({Fmt.Pct(p)} da votação da candidatura)." : "."),
-        ("level", level), ("territory", label), ("votes", votes), ("shareOfCandidacyVotes", Comparability.Pct(votes, candidacyVotes)));
+        $"Maior votação: {label}, com {Fmt.Int(votes)} votos" + (Comparability.Pct(votes, baseVotes) is { } p ? $" ({Fmt.Pct(p)} {Of(of)})." : "."),
+        ("level", level), ("territory", label), ("votes", votes), ("shareOfCandidacyVotes", Comparability.Pct(votes, baseVotes)),
+        ("base", BaseKey(of)));
 
     public static InsightDto BestShare(string level, string label, double share) => Make(
         "best_share_territory",
         $"Maior participação nos votos válidos: {label}, com {Fmt.Pct(share)}.",
         ("level", level), ("territory", label), ("share", share));
 
-    public static InsightDto Concentration(string level, int top, double pct) => Make(
+    public static InsightDto Concentration(string level, int top, double pct, DistributionBase of = DistributionBase.Candidacy) => Make(
         "concentration_top",
-        $"Os {top} {LevelLabel(level, top)} com mais votos somam {Fmt.Pct(pct)} da votação da candidatura.",
-        ("level", level), ("top", top), ("share", pct));
+        $"{(level is "zone" or "section" ? "As" : "Os")} {top} {LevelLabel(level, top)} com mais votos somam {Fmt.Pct(pct)} {Of(of)}.",
+        ("level", level), ("top", top), ("share", pct), ("base", BaseKey(of)));
 
     public static InsightDto Reach(string level, int withVotes, int covered) => Make(
         "territories_with_votes",

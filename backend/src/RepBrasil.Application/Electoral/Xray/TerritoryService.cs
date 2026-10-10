@@ -83,7 +83,7 @@ public class TerritoryService(IElectoralXrayRepository repo)
             ? await SectionTerritoriesAsync(c, contest, lvl, ufCode!, mun!, zone, ct)
             : await ZoneTerritoriesAsync(c, contest, lvl, ufCode, mun, zone, ct);
         var summary = Summarize(territories);
-        var insights = DistributionInsights(lvl, territories, summary);
+        var insights = DistributionInsights(lvl, territories, summary, BaseOf(contest, mun, zone, territories));
         return new CandidacyTerritoryResponse(
             c.Id, contest.ToDto(), lvl, mun, zone, territories, summary, insights,
             XrayService.Freshness(await repo.FreshnessAsync(ct)), Definitions);
@@ -208,17 +208,30 @@ public class TerritoryService(IElectoralXrayRepository repo)
         _ => t.MunicipalityName ?? t.MunicipalityTseCode ?? t.Uf,
     };
 
+    /// <summary>
+    /// Base dos percentuais: a votação inteira só quando o recorte é a disputa toda, com cobertura completa;
+    /// um município ou zona escolhidos são o recorte; disputa nacional ou território sem BU, os votos importados.
+    /// </summary>
+    private static DistributionBase BaseOf(ContestInfo contest, string? mun, int? zone, IReadOnlyList<TerritoryValueDto> territories)
+    {
+        var whole = zone is null && (contest.Scope == "municipal" ? mun == contest.ElectoralUnit : mun is null);
+        if (!whole) return DistributionBase.Shown;
+        if (contest.Scope == "federal" || territories.Any(t => t.State is CellState.PartialCoverage or CellState.NoCoverage))
+            return DistributionBase.Imported;
+        return DistributionBase.Candidacy;
+    }
+
     private static IReadOnlyList<InsightDto> DistributionInsights(
-        string level, IReadOnlyList<TerritoryValueDto> territories, DistributionSummaryDto summary)
+        string level, IReadOnlyList<TerritoryValueDto> territories, DistributionSummaryDto summary, DistributionBase of)
     {
         var insights = new List<InsightDto>();
         if (summary.Votes is not > 0) return insights;
         if (summary.Best is { Votes: > 0 } best)
-            insights.Add(InsightEngine.TopTerritory(level, Label(best, level), best.Votes!.Value, summary.Votes.Value));
+            insights.Add(InsightEngine.TopTerritory(level, Label(best, level), best.Votes!.Value, summary.Votes.Value, of));
         if (summary.BestShare is { Share: { } share } bestShare)
             insights.Add(InsightEngine.BestShare(level, Label(bestShare, level), share));
         if (summary.TerritoriesCovered > 5 && summary.TopFiveConcentration is { } top5)
-            insights.Add(InsightEngine.Concentration(level, 5, top5));
+            insights.Add(InsightEngine.Concentration(level, 5, top5, of));
         insights.Add(InsightEngine.Reach(level, summary.TerritoriesWithVotes, summary.TerritoriesCovered));
         if (territories.Any(t => t.State == CellState.PartialCoverage))
             insights.Add(new InsightDto("coverage_partial_territories",

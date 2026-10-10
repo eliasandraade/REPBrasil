@@ -125,6 +125,7 @@ public class XrayServiceTests
         Assert.Null(a26.Totals.Rank);
         Assert.Equal(ContestComparability.Unavailable, Assert.Single(r.Evolution).Comparability);
         Assert.Contains(r.Insights, i => i.Code == "coverage_partial");
+        Assert.Contains("dos votos da candidatura com Boletim de Urna importado", r.Insights.Single(i => i.Code == "top_territory").Text);
     }
 
     [Fact]
@@ -170,7 +171,10 @@ public class XrayServiceTests
         Assert.Equal(["Município Dois", "Município Um"], d.Territories.Select(t => t.MunicipalityName));
         Assert.Equal(45, d.Summary.Votes);
         Assert.Equal(25, d.Summary.Best!.Votes);
-        Assert.Contains(d.Insights, i => i.Code == "top_territory");
+        Assert.Contains("(55,56% da votação da candidatura)", d.Insights.Single(i => i.Code == "top_territory").Text);
+        // município escolhido: o percentual é do recorte, não da votação inteira
+        var zones = await service.DistributionAsync(A26, "zone", null, "22222", null, Ct);
+        Assert.Contains("(100% dos votos da candidatura no recorte)", zones.Insights.Single(i => i.Code == "top_territory").Text);
 
         var growth = await service.MapAsync(new MapQuery(2026, 1, "CE", "growth", null, A26, A22, null, null, null), Ct);
         Assert.Equal(ContestComparability.Comparable, growth.Comparability);

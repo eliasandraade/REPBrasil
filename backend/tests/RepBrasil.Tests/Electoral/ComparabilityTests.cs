@@ -90,4 +90,18 @@ public class ComparabilityTests
         var assets = InsightEngine.Assets(new AssetsStepDto(Guid.Empty, Guid.Empty, 100m, 150m, 50m, 50, 1, 0, 1), 2022, 2026);
         Assert.Contains("não indica irregularidade", assets.Text);
     }
+
+    [Fact]
+    public void Distribution_shares_name_their_base()
+    {
+        Assert.Equal("Maior votação: Fortaleza, com 25 votos (25% da votação da candidatura).",
+            InsightEngine.TopTerritory("municipality", "Fortaleza", 25, 100).Text);
+        // Presidente com só o CE importado: 25% NÃO é da votação nacional
+        var federal = InsightEngine.TopTerritory("municipality", "Fortaleza", 25, 100, DistributionBase.Imported);
+        Assert.Equal("Maior votação: Fortaleza, com 25 votos (25% dos votos da candidatura com Boletim de Urna importado).", federal.Text);
+        Assert.Equal("imported", federal.Values["base"]);
+        Assert.Equal("As 5 zonas com mais votos somam 80% dos votos da candidatura no recorte.",
+            InsightEngine.Concentration("zone", 5, 80, DistributionBase.Shown).Text);
+        Assert.StartsWith("Os 5 municípios", InsightEngine.Concentration("municipality", 5, 80).Text);
+    }
 }

@@ -312,12 +312,16 @@ public class XrayService(IElectoralXrayRepository repo)
             var total = counted.Sum(d => d.Aggregate.Votes ?? 0);
             if (total > 0)
             {
+                // disputa nacional (só as UFs importadas) ou cobertura parcial: o total não é a votação inteira
+                var of = contest.Scope == "federal" || agg.State == CellState.PartialCoverage
+                    ? DistributionBase.Imported
+                    : DistributionBase.Candidacy;
                 var top = counted.OrderByDescending(d => d.Aggregate.Votes).First();
-                insights.Add(InsightEngine.TopTerritory("municipality", top.Name, top.Aggregate.Votes ?? 0, total));
+                insights.Add(InsightEngine.TopTerritory("municipality", top.Name, top.Aggregate.Votes ?? 0, total, of));
                 if (counted.Count > 5)
                 {
                     var top5 = counted.OrderByDescending(d => d.Aggregate.Votes).Take(5).Sum(d => d.Aggregate.Votes ?? 0);
-                    insights.Add(InsightEngine.Concentration("municipality", 5, Comparability.Pct(top5, total) ?? 0));
+                    insights.Add(InsightEngine.Concentration("municipality", 5, Comparability.Pct(top5, total) ?? 0, of));
                 }
                 insights.Add(InsightEngine.Reach("municipality", counted.Count(d => d.Aggregate.Votes > 0), counted.Count));
             }
