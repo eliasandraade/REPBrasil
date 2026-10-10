@@ -65,14 +65,14 @@ public class CandidacyService(IElectoralReadRepository repo)
 
     public static TerritoryPerformanceDto TerritoryView(TerritoryVotesRow r) => new(
         r.Uf, r.MunicipalityTseCode, r.MunicipalityName, r.MunicipalitySlug, r.Votes, r.ValidVotes,
-        r.ValidVotes > 0 ? Math.Round(r.Votes * 10000.0 / r.ValidVotes, MidpointRounding.AwayFromZero) / 100 : null,
+        r.ValidVotes is > 0 ? Math.Round(r.Votes * 10000.0 / r.ValidVotes.Value, MidpointRounding.AwayFromZero) / 100 : null,
         r.Urns);
 
     private static CandidacyDto View(CandidacyRow c, CandidacyPerformanceDto? performance) => new(
         c.Id, c.TseCandidateId,
         new ContestDto(c.Year, c.Round, c.TseElectionCode, c.TseElectionDescription, c.OfficeCode, c.OfficeName, c.Scope, c.ElectoralUnit),
         c.CandidateNumber, c.BallotName,
-        c.PartyNumber is null && c.PartyAcronym is null ? null : new PartyDto(c.PartyNumber ?? 0, c.PartyAcronym, c.PartyName),
+        c.PartyNumber is null && c.PartyAcronym is null ? null : new PartyDto(c.PartyNumber, c.PartyAcronym, c.PartyName),
         c.FederationAcronym, c.CoalitionName, c.CandidacyStatus, c.RoundOutcome, c.Elected,
         c.IdentityStatus, c.PersonId, c.PoliticianId, c.PoliticianId is not null,
         new CandidacySourceDto("Tribunal Superior Eleitoral · Dados Abertos (Candidatos)", c.SourceUrl, c.SourceZipSha256,

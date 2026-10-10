@@ -52,6 +52,7 @@ export function ElectionsExplorer() {
   const parsed = parseElectionsPath(pathname);
   const [placeFilter, setPlaceFilter] = useState<string | null>(null);
 
+  // Sem rota válida as consultas ficam desabilitadas (enabled: !!parsed): 0 nunca chega à API.
   const year = parsed?.year ?? 0;
   const round = parsed?.round ?? 0;
   const uf = parsed?.state ?? null;

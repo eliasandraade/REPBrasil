@@ -192,8 +192,8 @@ public sealed class TerritoryVotesRow
     public string? MunicipalitySlug { get; init; }
     public long Votes { get; init; }
 
-    /// <summary>Votos válidos (nominais + legenda) do cargo no mesmo recorte.</summary>
-    public long ValidVotes { get; init; }
+    /// <summary>Votos válidos (nominais + legenda) do cargo no mesmo recorte; null se a fonte não permite somar.</summary>
+    public long? ValidVotes { get; init; }
 
     public int Urns { get; init; }
 }

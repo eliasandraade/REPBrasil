@@ -302,4 +302,46 @@ public class ElectoralServicesTests
         Assert.Null(CandidacyService.TerritoryView(repo.CandidacyVotes[withVotes.Id][2]).ShareOfValidVotes);
         await Assert.ThrowsAsync<ElectoralNotFoundException>(() => service.PerformanceAsync(Guid.NewGuid(), Ct));
     }
+
+    [Fact]
+    public async Task Missing_party_number_stays_null_never_zero()
+    {
+        // NULL != 0: sigla publicada sem NR_PARTIDO não vira "partido 0".
+        var repo = Repo();
+        var politician = Guid.NewGuid();
+        repo.Candidacies.Add(new CandidacyRow
+        {
+            Id = Guid.NewGuid(),
+            TseCandidateId = 1,
+            CandidateNumber = 10,
+            BallotName = "X",
+            PartyNumber = null,
+            PartyAcronym = "PX",
+            PartyName = "PARTIDO X",
+            Year = 2026,
+            Round = 1,
+            OfficeCode = 6,
+            OfficeName = "DEPUTADO FEDERAL",
+            Scope = "state",
+            ElectoralUnit = "CE",
+            IdentityStatus = "resolved",
+            PoliticianId = politician,
+        });
+        var c = Assert.Single((await new CandidacyService(repo).ByPoliticianAsync(politician, 5, Ct)).Candidacies);
+        Assert.NotNull(c.Party);
+        Assert.Null(c.Party!.Number);
+        Assert.Equal("PX", c.Party.Acronym);
+        var json = System.Text.Json.JsonSerializer.Serialize(c.Party, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.Contains("\"number\":null", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"number\":0", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Unknown_valid_votes_give_no_share_never_zero()
+    {
+        var row = new TerritoryVotesRow { Uf = "CE", MunicipalityTseCode = "13897", Votes = 10, ValidVotes = null, Urns = 1 };
+        var view = CandidacyService.TerritoryView(row);
+        Assert.Null(view.ValidVotes);
+        Assert.Null(view.ShareOfValidVotes);
+    }
 }

@@ -38,7 +38,6 @@ function Metric({ label, value, help }: { label: string; value: number | null; h
 
 function VoteRow({ v }: { v: VoteItem }) {
   const name = v.voteType === "branco" || v.voteType === "nulo" ? v.votable.name ?? v.voteType : displayName(v.votable.name);
-  const width = v.percentage ?? 0;
   return (
     <li className="rounded-lg border border-white/8 bg-card-elevated/40 px-3 py-2" data-vote={v.votable.number} data-vote-type={v.voteType}>
       <div className="flex items-start justify-between gap-3">
@@ -70,7 +69,7 @@ function VoteRow({ v }: { v: VoteItem }) {
       </div>
       {v.percentage !== null && (
         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
-          <div className="h-full rounded-full bg-slate-400/60" style={{ width: `${Math.min(100, width)}%` }} />
+          <div className="h-full rounded-full bg-slate-400/60" style={{ width: `${Math.min(100, v.percentage)}%` }} />
         </div>
       )}
     </li>

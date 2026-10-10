@@ -28,6 +28,7 @@ public class ElectoralReadRepository(ApplicationDbContext db) : IElectoralReadRe
                        FROM electoral.electoral_section s JOIN electoral.municipality m ON m.id = s.municipality_id
                       WHERE s.election_id = {0} AND m.state_code = {1}
                       GROUP BY s.municipality_id)
+        -- COALESCE(…, 0) abaixo é contagem de linhas do cadastro/lotes: município sem linhas tem 0 zonas.
         SELECT m.id AS "Id", m.state_code::text AS "Uf", m.tse_code::text AS "TseCode", m.ibge_code AS "IbgeCode",
                m.name AS "Name", m.slug AS "Slug", COALESCE(cad.zones, 0) AS "Zones",
                COALESCE(cad.sections, 0) AS "Sections", COALESCE(res.zones, 0) AS "ResultsZones"
@@ -268,7 +269,7 @@ public class ElectoralReadRepository(ApplicationDbContext db) : IElectoralReadRe
                  valid AS (
                    SELECT u.uf, u.municipality_tse_code, max(u.municipality_name) AS municipality_name,
                           count(DISTINCT u.id)::int AS urns,
-                          COALESCE(sum(v.votes) FILTER (WHERE t.vote_kind IN ('candidate', 'party_legend')), 0)::bigint AS valid_votes
+                          (sum(v.votes) FILTER (WHERE t.vote_kind IN ('candidate', 'party_legend')))::bigint AS valid_votes
                      FROM urns u
                      JOIN electoral.section_office_vote v ON v.result_id = u.id
                      JOIN electoral.votable t ON t.id = v.votable_id

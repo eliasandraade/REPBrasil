@@ -51,7 +51,7 @@ const RESPONSE: PoliticianCandidaciesResponse = {
       contest: { year: 2026, round: 1, tseElectionCode: 6259, tseElectionDescription: null, officeCode: 9, officeName: "1º SUPLENTE", scope: "state", electoralUnit: "CE" },
       candidateNumber: 555,
       ballotName: "CANDIDATO FICTÍCIO",
-      party: { number: 55, acronym: "PSD", name: null },
+      party: { number: null, acronym: "PSD", name: null },
       federationAcronym: null,
       coalitionName: null,
       candidacyStatus: null,
@@ -85,6 +85,10 @@ describe("perfil político → desempenho eleitoral", () => {
     expect(screen.getByRole("link", { name: "Fortaleza/CE" }).getAttribute("href")).toBe("/eleicoes/2026/1/ce/fortaleza");
     // sem votação própria: estado explícito, nunca zero
     expect(screen.getByText(/Sem votação própria vinculada/)).toBeTruthy();
+    // NR_PARTIDO ausente (number null) mostra a sigla publicada e nunca "0"
+    const second = document.querySelector('[data-candidacy="60002537655"]')!;
+    expect(second.textContent).toContain("· PSD");
+    expect(second.textContent).not.toMatch(/0/);
     expect(screen.getAllByTestId("candidacy-outcome").map((e) => e.textContent)).toEqual(["Suplente", "Situação não publicada"]);
   });
 });

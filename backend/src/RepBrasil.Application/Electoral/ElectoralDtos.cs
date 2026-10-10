@@ -81,7 +81,8 @@ public record VoteTypeSourceDto(int Code, string Description);
 
 public record VotableDto(int Number, string? Name);
 
-public record PartyDto(int Number, string? Acronym, string? Name);
+/// <summary>Partido como publicado. Number null = NR_PARTIDO não publicado (nunca 0).</summary>
+public record PartyDto(int? Number, string? Acronym, string? Name);
 
 /// <summary>Candidatura oficial vinculada ao votável. Ausente ⇒ voto continua correto, só sem perfil.</summary>
 public record CandidacyLinkDto(Guid CandidacyId, long TseCandidateId, Guid? PersonId, Guid? PoliticianId);
@@ -155,7 +156,7 @@ public record CoverageUfDto(
 /// </summary>
 public record TerritoryPerformanceDto(
     string Uf, string MunicipalityTseCode, string? MunicipalityName, string? MunicipalitySlug, long Votes,
-    long ValidVotes, double? ShareOfValidVotes, int Urns);
+    long? ValidVotes, double? ShareOfValidVotes, int Urns);
 
 public record CandidacyPerformanceDto(
     long Votes, CoverageDto Coverage, IReadOnlyList<TerritoryPerformanceDto> Municipalities, int MunicipalitiesWithVotes,

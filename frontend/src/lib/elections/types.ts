@@ -162,7 +162,8 @@ export interface VoteItem {
   voteType: string;
   voteTypeSource: { code: number; description: string };
   votable: { number: number; name: string | null };
-  party: { number: number; acronym: string | null; name: string | null } | null;
+  /** number null = NR_PARTIDO não publicado (nunca 0). */
+  party: { number: number | null; acronym: string | null; name: string | null } | null;
   votes: number;
   percentage: number | null;
   candidacy: CandidacyLink | null;
@@ -208,7 +209,8 @@ export interface TerritoryPerformance {
   municipalityName: string | null;
   municipalitySlug: string | null;
   votes: number;
-  validVotes: number;
+  /** null = a fonte não permite somar (nunca 0 presumido). */
+  validVotes: number | null;
   shareOfValidVotes: number | null;
   urns: number;
 }
@@ -249,7 +251,8 @@ export interface CandidacyItem {
   };
   candidateNumber: number;
   ballotName: string;
-  party: { number: number; acronym: string | null; name: string | null } | null;
+  /** number null = NR_PARTIDO não publicado (nunca 0). */
+  party: { number: number | null; acronym: string | null; name: string | null } | null;
   federationAcronym: string | null;
   coalitionName: string | null;
   candidacyStatus: string | null;
