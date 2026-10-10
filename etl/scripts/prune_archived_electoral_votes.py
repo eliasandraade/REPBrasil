@@ -59,8 +59,13 @@ def main() -> int:
                 raise SystemExit("no succeeded BU ingestion runs found for scope")
             cur.execute("DELETE FROM ingestion_run WHERE id = ANY(%s::uuid[])", (run_ids,))
             deleted_runs = cur.rowcount
-        conn.autocommit = True
-        derived = refresh_derived(conn)
+        has_derived = bool(conn.execute("SELECT to_regclass('derived_refresh') IS NOT NULL").fetchone()[0])
+        if has_derived:
+            conn.commit()
+            conn.autocommit = True
+            derived: dict[str, object] = refresh_derived(conn)
+        else:
+            derived = {"status": "not_available_before_migration_008"}
 
     print(
         json.dumps(
