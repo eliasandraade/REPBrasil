@@ -40,12 +40,14 @@ export function useReveal<T extends HTMLElement>() {
       return;
     }
     io.observe(el);
+    // Desmontado antes de entrar na leitura: o observer compartilhado não retém o nó.
+    return () => io.unobserve(el);
   }, []);
 }
 
 type RevealProps<E extends ElementType> = { as?: E; children?: ReactNode } & Omit<ComponentPropsWithoutRef<E>, "as" | "children">;
 
-export function Reveal<E extends ElementType = "div">({ as, children, ...rest }: RevealProps<E>) {
+export function Reveal<E extends ElementType = "div">({ as, children, ...rest }: Readonly<RevealProps<E>>) {
   const ref = useReveal<HTMLElement>();
   const Tag = (as ?? "div") as ElementType;
   return (

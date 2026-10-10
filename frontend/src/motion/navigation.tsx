@@ -6,6 +6,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useRef,
   type AnchorHTMLAttributes,
@@ -71,32 +72,45 @@ const FRAME_KEYFRAMES: Record<NavDirection, Keyframe[]> = {
   ],
 };
 
-export function NavigationProvider({ children }: { children: ReactNode }) {
+export function NavigationProvider({ children }: Readonly<{ children: ReactNode }>) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
   const settle = useRef<(() => void) | null>(null);
   const vtActive = useRef(false);
   const pendingDirection = useRef<NavDirection | null>(null);
+  // Cada transição recebe uma geração: só a mais recente pode limpar o estado global.
+  const generation = useRef(0);
 
   // Commit da nova rota: libera a transição em curso.
   useLayoutEffect(() => {
     settle.current?.();
   }, [pathname]);
 
+  // Voltar/avançar do navegador: a direção é deduzida dos caminhos, nunca herdada de um clique anterior.
+  useEffect(() => {
+    const onPop = () => (pendingDirection.current = null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const navigate = useCallback<Navigate>(
     (href, options = {}) => {
       const here = window.location.pathname + window.location.search;
       const direction = options.direction ?? directionBetween(here, href);
       const go = () => (options.replace ? router.replace(href, { scroll: options.scroll }) : router.push(href, { scroll: options.scroll }));
-      const samePath = pathOf(href) === window.location.pathname;
+      const pathChanges = pathOf(href) !== window.location.pathname;
       const insideExplorer = isExplorer(pathOf(href)) && isExplorer(window.location.pathname);
-      pendingDirection.current = direction;
+      // Só uma troca de caminho consome a direção (filtros/query não deixam direção pendente).
+      pendingDirection.current = pathChanges ? direction : null;
 
-      if (samePath || insideExplorer || !supportsViewTransitions() || prefersReducedMotion()) {
+      if (!pathChanges || insideExplorer || !supportsViewTransitions() || prefersReducedMotion()) {
         go();
         return;
       }
 
+      // Navegação consecutiva: libera imediatamente a transição anterior ainda aberta.
+      settle.current?.();
+      const id = ++generation.current;
       const root = document.documentElement;
       root.dataset.navDirection = direction;
       const unmark = markShared(options.share);
@@ -104,9 +118,13 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       const transition = (document as DocumentWithVT).startViewTransition!(
         () =>
           new Promise<void>((resolve) => {
+            let released = false;
             const done = () => {
+              if (released) return;
+              released = true;
               window.clearTimeout(cap);
-              settle.current = null;
+              // Nunca apaga o liberador de uma transição mais nova.
+              if (settle.current === done) settle.current = null;
               unmark();
               resolve();
             };
@@ -115,10 +133,14 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
             go();
           }),
       );
-      transition.finished.finally(() => {
+      const cleanup = () => {
+        if (generation.current !== id) return;
         vtActive.current = false;
         delete root.dataset.navDirection;
-      });
+      };
+      // Pulada por uma navegação mais nova, `ready` rejeita com AbortError: esperado, não é falha.
+      transition.ready.catch(() => undefined);
+      transition.finished.then(cleanup, cleanup);
     },
     [router],
   );
@@ -136,11 +158,11 @@ function FrameDirection({
   pathname,
   vtActive,
   pendingDirection,
-}: {
+}: Readonly<{
   pathname: string;
   vtActive: React.MutableRefObject<boolean>;
   pendingDirection: React.MutableRefObject<NavDirection | null>;
-}) {
+}>) {
   const previous = useRef(pathname);
   useLayoutEffect(() => {
     const from = previous.current;
@@ -178,7 +200,7 @@ type TransitionLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href">
  * ctrl/cmd, botão do meio) seguem o comportamento nativo; o href continua real
  * (acessível, rastreável, funciona sem JS).
  */
-export function TransitionLink({ href, direction, shareIdentity, scroll, prefetch, onClick, children, ...rest }: TransitionLinkProps) {
+export function TransitionLink({ href, direction, shareIdentity, scroll, prefetch, onClick, children, ...rest }: Readonly<TransitionLinkProps>) {
   const navigate = useContext(NavigationContext);
   const handle = (e: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(e);
