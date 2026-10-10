@@ -68,7 +68,7 @@ def section_results(
                     "municipalityName": row["municipality_name"],
                     "zone": int(row["zone"]),
                     "section": section,
-                    "sectionMembers": sorted(set([section, *aggregated])),
+                    "sectionMembers": sorted({section, *aggregated}),
                     "pollingPlaceCode": str(row["polling_place_code"]) if row["polling_place_code"] is not None else None,
                     "eligible": int(row["eligible"]) if row["eligible"] is not None else None,
                     "turnout": int(row["turnout"]) if row["turnout"] is not None else None,
