@@ -199,7 +199,8 @@ public class ComparisonService(IElectoralXrayRepository repo)
             var cells = cands.Select(c =>
             {
                 var inContest = c.Contest.Covers(uf, municipality);
-                var forOffice = group.Where(r => r.Year == c.Contest.Year && r.Round == c.Contest.Round && r.OfficeCode == c.Contest.OfficeCode).ToList();
+                // vice/suplente: a urna do cargo do titular define a cobertura (votado na chapa)
+                var forOffice = group.Where(r => r.Year == c.Contest.Year && r.Round == c.Contest.Round && r.OfficeCode == c.Contest.CoverageKey.OfficeCode).ToList();
                 var count = forOffice.Sum(r => votesBy.GetValueOrDefault((r.ResultId, c.Row.Id)));
                 var state = Comparability.Cell(
                     inContest, forOffice.Count == 0 ? Comparability.Coverage.None : Comparability.Coverage.Full,

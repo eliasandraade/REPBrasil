@@ -27,18 +27,32 @@ public class ComparisonServiceTests
         ]);
         // 2022: seções 100, 101 (+102 agregada), 103 e 104; 2026: 100, 101 (sem agregada), 104 — 103 não existe mais.
         repo.Sections.AddRange([
-            Xray.Section(1, 2022, 7, 100, [100]), Xray.Section(2, 2022, 7, 101, [101, 102]),
-            Xray.Section(3, 2022, 7, 103, [103]), Xray.Section(4, 2022, 7, 104, [104]),
-            Xray.Section(11, 2026, 7, 100, [100]), Xray.Section(12, 2026, 7, 101, [101]), Xray.Section(14, 2026, 7, 104, [104]),
-            Xray.Section(21, 2022, 6, 100, [100]), Xray.Section(31, 2026, 5, 100, [100]),
+            Xray.Section(1, 2022, 7, 100, [100]),
+            Xray.Section(2, 2022, 7, 101, [101, 102]),
+            Xray.Section(3, 2022, 7, 103, [103]),
+            Xray.Section(4, 2022, 7, 104, [104]),
+            Xray.Section(11, 2026, 7, 100, [100]),
+            Xray.Section(12, 2026, 7, 101, [101]),
+            Xray.Section(14, 2026, 7, 104, [104]),
+            Xray.Section(21, 2022, 6, 100, [100]),
+            Xray.Section(31, 2026, 5, 100, [100]),
         ]);
+        // Seção 104: A não tem linha em 2022 (zero real, a urna existe).
         repo.SectionVotes.AddRange([
-            Xray.Votes(1, A22, 10), Xray.Votes(1, B22, 20),
-            Xray.Votes(11, A26, 20), Xray.Votes(11, B26, 15),
-            Xray.Votes(2, A22, 5), Xray.Votes(2, B22, 5), Xray.Votes(12, A26, 7), Xray.Votes(12, B26, 1),
+            Xray.Votes(1, A22, 10),
+            Xray.Votes(1, B22, 20),
+            Xray.Votes(11, A26, 20),
+            Xray.Votes(11, B26, 15),
+            Xray.Votes(2, A22, 5),
+            Xray.Votes(2, B22, 5),
+            Xray.Votes(12, A26, 7),
+            Xray.Votes(12, B26, 1),
             Xray.Votes(3, A22, 3),
-            Xray.Votes(4, B22, 4), Xray.Votes(14, A26, 6), Xray.Votes(14, B26, 2), // A em 2022 na 104: zero real
-            Xray.Votes(21, D22, 50), Xray.Votes(31, D26, 80),
+            Xray.Votes(4, B22, 4),
+            Xray.Votes(14, A26, 6),
+            Xray.Votes(14, B26, 2),
+            Xray.Votes(21, D22, 50),
+            Xray.Votes(31, D26, 80),
         ]);
         return repo;
     }
@@ -147,6 +161,18 @@ public class ComparisonServiceTests
         var s100 = Territory(r, 100);
         Assert.Equal((CellState.Unlinked, (long?)null), (Cell(s100, E26).State, Cell(s100, E26).Votes));
         Assert.Equal((CellState.NotOnBallot, (long?)null), (Cell(s100, F26).State, Cell(s100, F26).Votes));
+    }
+
+    [Fact]
+    public async Task Vice_at_section_level_is_a_ticket_member_not_missing_coverage()
+    {
+        var repo = Repo();
+        var vice = Guid.NewGuid();
+        repo.Candidacies.Add(Xray.Candidacy(vice, 2026, 4, "state", "CE", 77, "VICE FICTÍCIA", hasLink: false, officeName: "Vice-Governador"));
+        repo.Sections.Add(Xray.Section(41, 2026, 3, 100, [100]));
+        var r = await new ComparisonService(repo).CompareAsync(Section(vice), Ct);
+        var cell = Cell(Territory(r, 100), vice);
+        Assert.Equal((CellState.TicketMember, (long?)null), (cell.State, cell.Votes));
     }
 
     [Fact]
