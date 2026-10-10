@@ -189,4 +189,16 @@ public class XrayServiceTests
         await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>
             service.MapAsync(new MapQuery(2026, 1, "CE", "winner", null, null, null, null, null, null), Ct));
     }
+
+    [Fact]
+    public async Task Section_distribution_uses_the_reference_municipality_name()
+    {
+        var repo = Repo();
+        repo.Sections.Add(Xray.Section(31, 2026, 7, 5, [5], zone: 2, municipality: "22222")); // nome do BU: caixa alta
+        repo.SectionVotes.Add(Xray.Votes(31, A26, 12));
+        var d = await new TerritoryService(repo).DistributionAsync(A26, "section", null, "22222", null, Ct);
+        var only = Assert.Single(d.Territories);
+        Assert.Equal(("Município Dois", 12L), (only.MunicipalityName, only.Votes!.Value));
+        Assert.StartsWith("Maior votação: Município Dois · zona 2 · seção 5", d.Insights.Single(i => i.Code == "top_territory").Text);
+    }
 }

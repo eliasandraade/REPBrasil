@@ -138,6 +138,8 @@ public class TerritoryService(IElectoralXrayRepository repo)
         var byResult = votes.GroupBy(v => v.ResultId).ToDictionary(g => g.Key, g => g.Sum(v => v.Votes));
         var places = (await repo.PlacesAsync([(contest.Year, contest.Round)], uf, mun, zone, ct))
             .ToDictionary(p => (p.Zone, p.Code));
+        // nome de referência do município (o BU publica em caixa alta), como na comparação
+        var munName = (await repo.MunicipalitiesAsync(uf, ct)).FirstOrDefault(m => m.TseCode == mun)?.Name;
         var ticket = Comparability.IsTicketMember(c.OfficeCode);
         var notOnBallot = Comparability.NotOnBallot(c.InsertedInUrn);
 
@@ -153,7 +155,7 @@ public class TerritoryService(IElectoralXrayRepository repo)
                     var place = r.PollingPlaceCode is null ? null : places.GetValueOrDefault((r.Zone, r.PollingPlaceCode));
                     long? count = Comparability.HasCount(state) ? v : null;
                     return new TerritoryValueDto(
-                        r.Uf, r.MunicipalityTseCode, r.MunicipalityName, r.Zone, r.Section, r.SectionMembers.OrderBy(x => x).ToList(),
+                        r.Uf, r.MunicipalityTseCode, munName ?? r.MunicipalityName, r.Zone, r.Section, r.SectionMembers.OrderBy(x => x).ToList(),
                         r.PollingPlaceCode, place?.Name, place?.Latitude, place?.Longitude, count, r.ValidVotes,
                         count is { } n ? Comparability.Pct(n, r.ValidVotes) : null, r.Eligible, r.Turnout, 1, state);
                 })
@@ -173,7 +175,7 @@ public class TerritoryService(IElectoralXrayRepository repo)
                 long? eligible = g.All(r => r.Eligible is not null) ? g.Sum(r => (long)r.Eligible!.Value) : null;
                 long? turnout = g.All(r => r.Turnout is not null) ? g.Sum(r => (long)r.Turnout!.Value) : null;
                 return new TerritoryValueDto(
-                    g.Key.Uf, g.Key.MunicipalityTseCode, g.Key.MunicipalityName, g.Key.Zone, null,
+                    g.Key.Uf, g.Key.MunicipalityTseCode, munName ?? g.Key.MunicipalityName, g.Key.Zone, null,
                     g.SelectMany(r => r.SectionMembers).Distinct().OrderBy(x => x).ToList(), g.Key.PollingPlaceCode, place?.Name,
                     place?.Latitude, place?.Longitude, count, valid, count is { } n ? Comparability.Pct(n, valid) : null,
                     eligible, turnout, g.Count(), state);
