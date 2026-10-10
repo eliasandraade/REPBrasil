@@ -1,0 +1,152 @@
+name: CI
+
+# Gates obrigatórios do REPBrasil. Nenhum banco externo, nenhum download do TSE,
+# nenhum segredo real: só fixtures sintéticas e um PostgreSQL + PostGIS efêmero.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  backend:
+    name: Backend (.NET 8)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore -c Release
+      - name: Format
+        run: dotnet format --no-restore --verify-no-changes
+      - name: Test (unit; DB tests skip without database)
+        run: dotnet test --no-build -c Release
+
+  database:
+    name: Database (PostgreSQL 18 + PostGIS 3.6)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: repbrasil
+          POSTGRES_PASSWORD: repbrasil
+          POSTGRES_DB: repbrasil_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U repbrasil -d repbrasil_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil;Password=repbrasil
+      PGPASSWORD: repbrasil
+      PSQL: psql -h localhost -U repbrasil -d repbrasil_ci_test -v ON_ERROR_STOP=1 -At
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 8.0.15
+      - name: Build API (migrations startup project)
+        working-directory: backend
+        run: dotnet build -c Release
+      - name: Migrations up from zero
+        working-directory: backend
+        run: dotnet ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+      - name: Check schema (21 electoral tables + PostGIS)
+        run: |
+          test "$($PSQL -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='electoral'")" = "21"
+          $PSQL -c "SELECT extversion FROM pg_extension WHERE extname='postgis'" | grep -q .
+      - name: Migrations down to AddMandate
+        working-directory: backend
+        run: dotnet ef database update AddMandate --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+      - name: Check rollback
+        run: |
+          test "$($PSQL -c "SELECT count(*) FROM information_schema.schemata WHERE schema_name='electoral'")" = "0"
+          test "$($PSQL -c "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\"")" = "20260518020514_AddMandate"
+      - name: Migrations up again
+        working-directory: backend
+        run: dotnet ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+      - name: .NET database tests (synthetic data, rolled back)
+        working-directory: backend
+        env:
+          REPBRASIL_ELECTORAL_TEST_DB: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil;Password=repbrasil
+        run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: ETL database tests (synthetic fixtures)
+        working-directory: etl
+        env:
+          REPBRASIL_ELECTORAL_TEST_DATABASE_URL: postgresql://repbrasil:repbrasil@localhost:5432/repbrasil_ci_test
+          # Chave FICTÍCIA de teste (>= 32 bytes). Nunca usar fora do CI.
+          REPBRASIL_PERSON_DOCUMENT_KEY: ci-only-fictitious-test-key-0123456789abcdef
+        run: |
+          uv sync --extra dev --frozen
+          uv run pytest -q tests/electoral
+
+  frontend:
+    name: Frontend (Node 22)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:5000
+        run: npm run build
+
+  etl:
+    name: ETL (Python 3.12)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: etl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --extra dev --frozen
+      - name: Lint (electoral layer)
+        run: uv run ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py
+      - name: Test (DB tests skip without database)
+        run: uv run pytest -q
