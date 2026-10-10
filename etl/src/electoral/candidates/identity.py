@@ -69,6 +69,15 @@ def load_key(environ: dict[str, str] | None = None) -> bytes:
     return key
 
 
+KEY_CHECK_MESSAGE = b"repbrasil:person-document-key:check:v1"
+
+
+def key_fingerprint(key: bytes) -> str:
+    """Impressão digital pública da chave (HMAC de uma constante, 16 hex): detecta troca de chave
+    entre importações sem revelar o segredo nem permitir verificar CPFs."""
+    return hmac.new(key, KEY_CHECK_MESSAGE, hashlib.sha256).hexdigest()[:16]
+
+
 def document_hash(key: bytes, digits: str) -> str:
     """HMAC-SHA256 hexadecimal do CPF normalizado (apenas dígitos)."""
     return hmac.new(key, digits.encode("ascii"), hashlib.sha256).hexdigest()

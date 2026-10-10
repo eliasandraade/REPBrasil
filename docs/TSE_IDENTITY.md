@@ -84,3 +84,40 @@ abreviações divergentes entre as duas fontes oficiais (ex.: `PROFª` × `PROF.
 Não são gravados: CPF, e-mail, título de eleitor, data de nascimento, gênero, cor/raça, grau de
 instrução, estado civil e ocupação, embora o TSE os publique. A exposição de dados pessoais não
 aumenta por causa da camada eleitoral.
+
+## Hashes: o que cada um garante
+
+| Hash | Sobre o quê | Para quê | Chaveado? |
+|---|---|---|---|
+| `open_data_source_file.zip_sha256` / `zip_sha512` / `csv_sha256` | arquivo oficial inteiro | integridade integral da fonte (o SHA-512 do BU é o publicado pelo TSE) | não (é sobre o arquivo público) |
+| `candidacy.source_row_hash` | campos canônicos da linha de candidatura com `NR_CPF_CANDIDATO` trocado por `[REDACTED]` | proveniência da linha (detectar mudança de conteúdo) | não — e por isso o CPF é redigido antes |
+| `section_office_vote.source_row_hash` | linha do BU (não contém dado pessoal) | proveniência do voto | não |
+| `Persons.NormalizedDocumentHash` | CPF (dígitos) | identidade da pessoa | **sim**: HMAC-SHA256 com `REPBRASIL_PERSON_DOCUMENT_KEY` |
+
+Nenhum hash persistido sem chave cobre o CPF: um verificador offline ("este CPF é deste candidato?")
+exigiria o segredo. O CPF nunca é gravado, logado ou exposto pela API.
+
+## Ciclo de vida da chave `REPBRASIL_PERSON_DOCUMENT_KEY`
+
+A chave é **parte da identidade persistida**: o mesmo CPF com outra chave gera outro hash e,
+portanto, outra `Person`.
+
+- **Estável por banco/ambiente.** Cada banco (local, staging, produção) tem a sua chave, e ela não
+  muda entre deploys do mesmo banco.
+- **Mínimo de 32 bytes** de segredo aleatório (ex.: `python -c "import secrets; print(secrets.token_urlsafe(48))"`).
+  Chave ausente ou curta: a importação de candidaturas não roda (não há fallback sem chave).
+- **Nunca commitada**, nunca em `.env` versionado, nunca em log, issue ou PR. Em produção, só no
+  gerenciador de segredos do provedor. No CI, apenas uma chave fictícia de teste.
+- **Backup seguro fora do banco** (cofre de segredos com controle de acesso). Perder a chave não
+  apaga dados, mas impede que futuras importações reconheçam as mesmas pessoas.
+- **Troca silenciosa é bloqueada.** Cada lote de candidaturas grava em `ingestion_run.stats` a
+  `key_fingerprint` (HMAC da constante `repbrasil:person-document-key:check:v1`, 16 hex — não revela
+  a chave nem permite verificar CPFs). Se a chave atual não reproduz a impressão digital do último
+  lote bem-sucedido, a importação é recusada.
+- **Rotação = processo explícito**, nunca automático: (1) congelar importações; (2) com a chave
+  antiga e a nova disponíveis e os arquivos oficiais de candidatos que publicam CPF, recalcular
+  `NormalizedDocumentHash` de cada `Person` numa transação, verificando 1:1 (nenhuma colisão, nenhuma
+  pessoa nova); (3) registrar o lote de rotação com a nova impressão digital; (4) descartar a chave
+  antiga do cofre. Pessoas cujo CPF a fonte não publica mais não podem ser re-hasheadas — por isso a
+  rotação só deve ocorrer por incidente de segurança.
+

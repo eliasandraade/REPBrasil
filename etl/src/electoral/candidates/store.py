@@ -81,6 +81,22 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _check_key(cur: psycopg.Cursor, key: bytes) -> None:
+    """A chave HMAC é parte da identidade persistida: trocá-la em silêncio duplicaria pessoas."""
+    cur.execute(
+        """SELECT stats->>'key_fingerprint' FROM ingestion_run
+            WHERE source = %s AND status = 'succeeded' AND stats ? 'key_fingerprint'
+            ORDER BY finished_at DESC LIMIT 1""",
+        (SOURCE,),
+    )
+    row = cur.fetchone()
+    if row and row[0] != identity.key_fingerprint(key):
+        raise CandidatesError(
+            "REPBRASIL_PERSON_DOCUMENT_KEY differs from the key used by previous imports in this database; "
+            "key rotation requires the explicit procedure in docs/TSE_IDENTITY.md (never a silent change)"
+        )
+
+
 def _election_id(cur: psycopg.Cursor, year: int, turn: int) -> str:
     cur.execute("SELECT id FROM election WHERE year = %s AND round = %s", (year, turn))
     row = cur.fetchone()
@@ -283,6 +299,7 @@ def import_candidates(
         "status": "succeeded", "scope": scope, "candidacies": len(selected), "inserted": 0, "unchanged": 0,
         "superseded": 0, "identity": defaultdict(int), "persons": 0, "politicians_created": 0,
         "politicians_linked_by_history": 0, "identity_conflicts": [], "diff": [],
+        "key_fingerprint": identity.key_fingerprint(key),
     }
     try:
         with conn.transaction(), conn.cursor() as cur:
@@ -298,6 +315,7 @@ def import_candidates(
             if done:
                 return {"status": "already_imported", "scope": scope, "import_batch_id": str(done[0])}
             election_id = _election_id(cur, year, turn)
+            _check_key(cur, key)
             cur.execute(
                 """INSERT INTO ingestion_run (source, election_id, scope, status, source_file_id)
                    VALUES (%s, %s, %s, 'running', %s) RETURNING id""",

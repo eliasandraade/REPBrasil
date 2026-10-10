@@ -198,7 +198,7 @@ def conn():
         yield c
 
 
-def run_import(conn, tmp_path, br, xx, history=(), sha="c", supersede=False):
+def run_import(conn, tmp_path, br, xx, history=(), sha="c", supersede=False, key=KEY):
     tmp_path.mkdir(parents=True, exist_ok=True)
     br_rows, layout = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, br))
     xx_rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_XX.csv", CANDIDATES_COLUMNS, xx))
@@ -207,7 +207,7 @@ def run_import(conn, tmp_path, br, xx, history=(), sha="c", supersede=False):
         conn, year=2099, turn=1, units={"BR", "XX"}, candidates=br_rows + xx_rows,
         candidates_manifest=manifest("tse-open-data-candidates", sha), candidates_layout=layout,
         history=hist, history_manifest=manifest("tse-open-data-candidacy-history", "d"), history_layout=hist_layout,
-        key=KEY, supersede=supersede,
+        key=key, supersede=supersede,
     )
 
 
@@ -307,4 +307,19 @@ def test_votables_link_by_contest_and_number_without_touching_votes(conn, tmp_pa
     assert linked == [(11, 9001), (22, 9002)]
     assert conn.execute("SELECT count(*), sum(votes) FROM section_office_vote").fetchone() == votes_before
     assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
+
+
+@db
+def test_a_different_hmac_key_on_the_same_database_is_refused(conn, tmp_path):
+    """Trocar a chave em silêncio criaria pessoas duplicadas: a importação recusa."""
+    from src.electoral.candidates.store import CandidatesError
+
+    first = run_import(conn, tmp_path / "a", [ALFA], [GAMA])
+    assert first["key_fingerprint"] == identity.key_fingerprint(KEY)
+    assert first["key_fingerprint"] not in KEY.decode() and len(first["key_fingerprint"]) == 16
+    with pytest.raises(CandidatesError, match="REPBRASIL_PERSON_DOCUMENT_KEY"):
+        run_import(conn, tmp_path / "b", [ALFA, BETA], [GAMA], sha="e", key=b"z" * 32)
+    assert conn.execute('SELECT count(*) FROM "Persons"').fetchone()[0] == 2
+    # mesma chave continua aceita
+    assert run_import(conn, tmp_path / "c", [ALFA, BETA], [GAMA], sha="e")["status"] == "succeeded"
 
