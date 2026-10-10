@@ -42,6 +42,7 @@ def test_import_is_idempotent_and_versioned(conn, tmp_path):
     assert first["status"] == "succeeded"
     after_first = counts(conn)
     assert after_first == (1, 6, 13, 8)
+    assert conn.execute("SELECT array_agg(DISTINCT uf ORDER BY uf) FROM votable").fetchone()[0] == ["XX"]
 
     again = import_prepared(conn, prepared(tmp_path / "b"))  # mesmo arquivo
     assert again["status"] == "already_imported" and again["import_batch_id"] == first["import_batch_id"]
@@ -62,12 +63,28 @@ def test_import_is_idempotent_and_versioned(conn, tmp_path):
     assert blank_party is None
 
 
+def test_same_votable_key_can_exist_in_different_ufs(conn):
+    conn.execute(
+        """INSERT INTO votable
+             (uf, election_code, office_code, vote_kind, type_code, type_description, number, name)
+           VALUES
+             ('XX', 777001, 1, 'candidate', 1, 'Nominal', 42, 'CANDIDATO XX'),
+             ('YY', 777001, 1, 'candidate', 1, 'Nominal', 42, 'CANDIDATO YY')"""
+    )
+    rows = conn.execute(
+        """SELECT uf, name FROM votable
+            WHERE election_code = 777001 AND office_code = 1 AND type_code = 1 AND number = 42
+            ORDER BY uf"""
+    ).fetchall()
+    assert rows == [("XX", "CANDIDATO XX"), ("YY", "CANDIDATO YY")]
+
+
 def test_failed_import_is_recorded_and_writes_nothing(conn, tmp_path):
     p = prepared(tmp_path / "a")
-    # votável já registrado com outro nome ⇒ conflito de identidade
+    # votável já registrado com outro nome ⇒ conflito de identidade dentro da mesma UF
     conn.execute(
-        "INSERT INTO votable (election_code, office_code, vote_kind, type_code, type_description, number, name) "
-        "VALUES (999001, 1, 'candidate', 1, 'Nominal', 11, 'OUTRO NOME FICTÍCIO')"
+        "INSERT INTO votable (uf, election_code, office_code, vote_kind, type_code, type_description, number, name) "
+        "VALUES ('XX', 999001, 1, 'candidate', 1, 'Nominal', 11, 'OUTRO NOME FICTÍCIO')"
     )
     conn.commit()
     with pytest.raises(ConsistencyError, match="different attributes"):

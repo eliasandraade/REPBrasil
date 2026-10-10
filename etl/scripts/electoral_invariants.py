@@ -56,8 +56,13 @@ def collect(conn: psycopg.Connection, year: int, turn: int, uf: str) -> dict:
                          count(*) FILTER (WHERE c.politician_id IS NOT NULL AND NOT EXISTS
                                           (SELECT 1 FROM "Politicians" p WHERE p."Id" = c.politician_id AND p."DeletedAt" IS NULL))
                     FROM candidacy c JOIN contest k ON k.id = c.contest_id JOIN election e ON e.id = k.election_id
-                   WHERE e.year = %(y)s AND e.round = %(t)s""")
-    dup = one("""SELECT count(*) FROM (SELECT contest_id, tse_candidate_id FROM candidacy GROUP BY 1, 2 HAVING count(*) > 1) x""")[0]
+                   WHERE e.year = %(y)s AND e.round = %(t)s AND k.electoral_unit IN ('BR', %(uf)s)""")
+    dup = one("""SELECT count(*) FROM (
+                       SELECT c.contest_id, c.tse_candidate_id
+                         FROM candidacy c JOIN contest k ON k.id = c.contest_id JOIN election e ON e.id = k.election_id
+                        WHERE e.year = %(y)s AND e.round = %(t)s AND k.electoral_unit IN ('BR', %(uf)s)
+                        GROUP BY 1, 2 HAVING count(*) > 1
+                     ) x""")[0]
     out["candidacies"] = {
         "total": cand[0], "contests": cand[1], "persons_linked": cand[2], "politicians_linked": cand[3],
         "identity_unresolved": cand[4], "dangling_person": cand[5], "dangling_politician": cand[6],
@@ -67,7 +72,7 @@ def collect(conn: psycopg.Connection, year: int, turn: int, uf: str) -> dict:
         """SELECT v.id, v.office_code, v.number, v.name,
                   EXISTS (SELECT 1 FROM votable_candidacy vc WHERE vc.votable_id = v.id AND vc.uf = %(uf)s) AS linked
              FROM votable v
-            WHERE v.vote_kind = 'candidate'
+            WHERE v.uf = %(uf)s AND v.vote_kind = 'candidate'
               AND EXISTS (SELECT 1 FROM section_office_vote sv JOIN section_office_result r ON r.id = sv.result_id
                            WHERE sv.votable_id = v.id AND r.year = %(y)s AND r.turn = %(t)s AND r.uf = %(uf)s)""",
         p,
