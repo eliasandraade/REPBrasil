@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import sys
@@ -15,6 +16,7 @@ if str(ROOT) not in sys.path:
 from src.electoral import db as electoral_db
 from src.electoral.lake import LakeError, lake_root_from_env
 from src.electoral.lake_query import candidacy_votes_by_result, result_votes, valid_votes_by_result
+from src.electoral.lake_result_query import result_votes_from_archive, section_results
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 
@@ -24,7 +26,7 @@ def _json_bytes(value: Any) -> bytes:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "REPBrasilElectoralLake/1"
+    server_version = "REPBrasilElectoralLake/2"
 
     def log_message(self, format: str, *args: Any) -> None:
         print(f"lake-http {self.address_string()} {format % args}", flush=True)
@@ -37,6 +39,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _authorized(self) -> bool:
+        token = os.environ.get("REPBRASIL_LAKE_TOKEN")
+        if not token:
+            return True
+        supplied = self.headers.get("Authorization", "")
+        expected = f"Bearer {token}"
+        return hmac.compare_digest(supplied, expected)
 
     def _read_json(self) -> dict[str, Any]:
         raw_length = self.headers.get("Content-Length")
@@ -52,11 +62,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            self._reply(HTTPStatus.OK, {"status": "ok", "storage": "parquet"})
+            self._reply(HTTPStatus.OK, {"status": "ok", "storage": "parquet", "schema": 2})
             return
         self._reply(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
     def do_POST(self) -> None:
+        if not self._authorized():
+            self._reply(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            return
         try:
             body = self._read_json()
             database_url = os.environ.get("DATABASE_URL")
@@ -65,7 +78,16 @@ class Handler(BaseHTTPRequestHandler):
             root = lake_root_from_env().resolve()
             with electoral_db.connect(database_url) as conn:
                 conn.read_only = True
-                if self.path == "/v1/valid-votes":
+                if self.path == "/v1/section-results":
+                    result = section_results(
+                        conn,
+                        root,
+                        scopes=list(body.get("scopes", [])),
+                        uf=str(body["uf"]),
+                        municipality_tse_code=str(body["municipalityTseCode"]),
+                        zone=int(body["zone"]) if body.get("zone") is not None else None,
+                    )
+                elif self.path == "/v1/valid-votes":
                     result = valid_votes_by_result(
                         conn,
                         root,
@@ -87,12 +109,11 @@ class Handler(BaseHTTPRequestHandler):
                         zone=int(body["zone"]) if body.get("zone") is not None else None,
                     )
                 elif self.path == "/v1/result-votes":
-                    result = result_votes(
-                        conn,
-                        root,
-                        result_id=int(body["resultId"]),
-                        uf=str(body["uf"]),
-                    )
+                    result_id = int(body["resultId"])
+                    uf = str(body["uf"])
+                    result = result_votes(conn, root, result_id=result_id, uf=uf)
+                    if not result:
+                        result = result_votes_from_archive(conn, root, result_id=result_id, uf=uf)
                 else:
                     self._reply(HTTPStatus.NOT_FOUND, {"error": "not_found"})
                     return
