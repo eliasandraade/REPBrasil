@@ -94,6 +94,11 @@ def resource_spec(kind: str, year: int, uf: str | None = None) -> CadasterResour
     raise SystemExit(f"unknown resource {kind!r}")
 
 
+DIR_HELP = "acquired files root"
+DATABASE_URL_HELP = "defaults to $DATABASE_URL"
+REPORT_HELP = "write the full JSON report here (stdout gets a summary)"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="repbrasil-electoral-candidates")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -115,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--municipal-uf", action="append", default=[],
         help="repeatable: every municipal contest (all municipalities) of this UF, read from consulta_cand_<year>_<UF>.csv",
     )
-    imp.add_argument("--dir", type=Path, default=DEFAULT_DIR, help="acquired files root")
+    imp.add_argument("--dir", type=Path, default=DEFAULT_DIR, help=DIR_HELP)
     imp.add_argument("--candidates", type=Path, default=None, help="acquired candidates directory (default: the only one under --dir)")
     imp.add_argument(
         "--history", type=Path, default=None,
@@ -123,17 +128,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     imp.add_argument("--supersede", action="store_true", help="apply a newer official file that changes stored candidacies (diff recorded)")
     imp.add_argument("--dry-run", action="store_true", help="parse and validate only; never touch the database")
-    imp.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
-    imp.add_argument("--report", type=Path, default=None, help="write the full JSON report here (stdout gets a summary)")
+    imp.add_argument("--database-url", default=None, help=DATABASE_URL_HELP)
+    imp.add_argument("--report", type=Path, default=None, help=REPORT_HELP)
 
     backfill = sub.add_parser(
         "backfill-history", help="persist the official candidacy history of an already-imported year (identity facts only)"
     )
     backfill.add_argument("--year", type=int, required=True)
-    backfill.add_argument("--dir", type=Path, default=DEFAULT_DIR, help="acquired files root")
+    backfill.add_argument("--dir", type=Path, default=DEFAULT_DIR, help=DIR_HELP)
     backfill.add_argument("--history", type=Path, default=None, help="acquired candidacy-history directory (default: the only one under --dir)")
-    backfill.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
-    backfill.add_argument("--report", type=Path, default=None, help="write the full JSON report here (stdout gets a summary)")
+    backfill.add_argument("--database-url", default=None, help=DATABASE_URL_HELP)
+    backfill.add_argument("--report", type=Path, default=None, help=REPORT_HELP)
 
     records = sub.add_parser(
         "import-records", help="import declared assets, complementary data or social networks of one UF/year (sanitized)"
@@ -141,19 +146,19 @@ def build_parser() -> argparse.ArgumentParser:
     records.add_argument("--year", type=int, required=True)
     records.add_argument("--uf", required=True, help="UF of the official CSV (BR = federal candidacies)")
     records.add_argument("--kind", required=True, choices=("asset", "complement", "social_network"))
-    records.add_argument("--dir", type=Path, default=DEFAULT_DIR, help="acquired files root")
+    records.add_argument("--dir", type=Path, default=DEFAULT_DIR, help=DIR_HELP)
     records.add_argument("--source", type=Path, default=None, help="acquired directory (default: the only one of the kind under --dir)")
     records.add_argument("--supersede", action="store_true", help="apply a newer official file that changes stored records")
     records.add_argument("--dry-run", action="store_true", help="parse and validate only; never touch the database")
-    records.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
-    records.add_argument("--report", type=Path, default=None, help="write the full JSON report here (stdout gets a summary)")
+    records.add_argument("--database-url", default=None, help=DATABASE_URL_HELP)
+    records.add_argument("--report", type=Path, default=None, help=REPORT_HELP)
 
     link = sub.add_parser("link-votables", help="link BU votables of one UF to official candidacies (no vote table is changed)")
     link.add_argument("--year", type=int, required=True)
     link.add_argument("--turn", type=int, required=True)
     link.add_argument("--uf", required=True)
-    link.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
-    link.add_argument("--report", type=Path, default=None, help="write the full JSON report here (stdout gets a summary)")
+    link.add_argument("--database-url", default=None, help=DATABASE_URL_HELP)
+    link.add_argument("--report", type=Path, default=None, help=REPORT_HELP)
     return parser
 
 

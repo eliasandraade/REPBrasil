@@ -91,7 +91,7 @@ def select_rows(rows: list[FinanceRow], *, year: int, uf: str) -> tuple[dict[tup
         submissions: dict[tuple[int, int | None, str | None], list[FinanceRow]] = defaultdict(list)
         for r in group:
             submissions[(r.provider_id, r.turn, r.accounts_type)].append(r)
-        best = max(submissions, key=lambda s: _submission_rank(submissions[s][0]))
+        best = max(submissions.items(), key=lambda item: _submission_rank(item[1][0]))[0]
         for sub, sub_rows in submissions.items():
             if sub != best:
                 counts["superseded_submission_rows"] += len(sub_rows)

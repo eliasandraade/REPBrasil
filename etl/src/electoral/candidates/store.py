@@ -60,6 +60,8 @@ COMPARED_FIELDS = (
     "round_outcome_code", "round_outcome", "elected",
 )
 
+_RUN_SUCCEEDED = "UPDATE ingestion_run SET status = 'succeeded', finished_at = now(), stats = %s WHERE id = %s"
+
 
 class CandidatesError(RuntimeError):
     pass
@@ -563,7 +565,7 @@ def import_candidates(
             report["identity_resolution"] = dict(report["identity_resolution"])
             report["history_source_file_id"] = history_source_id
             cur.execute(
-                "UPDATE ingestion_run SET status = 'succeeded', finished_at = now(), stats = %s WHERE id = %s",
+                _RUN_SUCCEEDED,
                 (Jsonb({k: v for k, v in report.items() if k not in ("diff",)} | {"diff_count": len(report["diff"])}), run_id),
             )
             report["import_batch_id"] = run_id
@@ -633,7 +635,7 @@ def backfill_history(
             report["inserted"] = _persist_priors(cur, history_by_current, ids_by_sq, source_id)
             _register_source(cur, history_manifest, f"TSE Histórico de candidaturas {year} — {history_manifest['zip']['name']}", _now())
             cur.execute(
-                "UPDATE ingestion_run SET status = 'succeeded', finished_at = now(), stats = %s WHERE id = %s",
+                _RUN_SUCCEEDED,
                 (Jsonb(report), run_id),
             )
             report["import_batch_id"] = run_id
@@ -752,7 +754,7 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
             report["linked"] += 1
         stats = {k: (len(v) if isinstance(v, list) else v) for k, v in report.items()}
         cur.execute(
-            "UPDATE ingestion_run SET status = 'succeeded', finished_at = now(), stats = %s WHERE id = %s",
+            _RUN_SUCCEEDED,
             (Jsonb(stats), run_id),
         )
     report["import_batch_id"] = run_id
