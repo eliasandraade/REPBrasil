@@ -49,8 +49,9 @@ jobs:
         image: postgis/postgis:18-3.6
         env:
           POSTGRES_USER: repbrasil
-          POSTGRES_PASSWORD: repbrasil
           POSTGRES_DB: repbrasil_ci_test
+          # Banco efêmero do runner, só em localhost: sem senha no repositório.
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
@@ -59,8 +60,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil;Password=repbrasil
-      PGPASSWORD: repbrasil
+      ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
       PSQL: psql -h localhost -U repbrasil -d repbrasil_ci_test -v ON_ERROR_STOP=1 -At
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +92,7 @@ jobs:
       - name: .NET database tests (synthetic data, rolled back)
         working-directory: backend
         env:
-          REPBRASIL_ELECTORAL_TEST_DB: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil;Password=repbrasil
+          REPBRASIL_ELECTORAL_TEST_DB: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
         run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral"
       - uses: astral-sh/setup-uv@v6
         with:
@@ -100,7 +100,7 @@ jobs:
       - name: ETL database tests (synthetic fixtures)
         working-directory: etl
         env:
-          REPBRASIL_ELECTORAL_TEST_DATABASE_URL: postgresql://repbrasil:repbrasil@localhost:5432/repbrasil_ci_test
+          REPBRASIL_ELECTORAL_TEST_DATABASE_URL: postgresql://repbrasil@localhost:5432/repbrasil_ci_test
           # Chave FICTÍCIA de teste (>= 32 bytes). Nunca usar fora do CI.
           REPBRASIL_PERSON_DOCUMENT_KEY: ci-only-fictitious-test-key-0123456789abcdef
         run: |
