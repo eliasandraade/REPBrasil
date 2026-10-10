@@ -42,13 +42,6 @@ public interface IElectoralReadRepository
     Task<IReadOnlyList<TerritoryVotesRow>> CandidacyVotesByMunicipalityAsync(Guid candidacyId, CancellationToken ct);
 
     /// <summary>
-    /// Votos das candidaturas em cada seção principal do BU vigente. Quando a candidatura está vinculada
-    /// ao pleito/cargo mas não possui linha nominal naquele BU, Votes = 0; ausência de cobertura nunca vira zero.
-    /// </summary>
-    Task<IReadOnlyList<CandidacySectionComparisonRow>> CandidacySectionComparisonAsync(
-        IReadOnlyList<Guid> candidacyIds, string uf, string? municipalityTseCode, int? zone, CancellationToken ct);
-
-    /// <summary>
     /// Todos os escopos UF × município × zona esperados pelo cadastro do pleito/turno, cada um marcado
     /// com a existência de lote BU bem-sucedido.
     /// </summary>
