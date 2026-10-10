@@ -43,6 +43,8 @@ RESERVED_VOTABLE_NUMBERS = {"blank": 95, "null": 96}
 # Governador, Senador, Deputado Federal, Deputado Estadual, Deputado Distrital.
 FEDERAL_OFFICES = frozenset({1})
 STATE_OFFICES = frozenset({3, 5, 6, 7, 8})
+# Prefeito e Vereador (o Vice-Prefeito é votado na chapa do Prefeito e não tem linha no BU).
+MUNICIPAL_OFFICES = frozenset({11, 13})
 
 _URN_FIELDS = (
     "year", "turn", "pleito_code", "election_code", "election_description", "office_name",
@@ -119,12 +121,17 @@ class NormalizedZone:
         return next(r.structural for (s, _, _), r in self.results.items() if s == section)
 
     def eligible_by_scope(self, section: int) -> dict[str, int | None]:
-        """Aptos da urna por abrangência (federal/estadual), sem somar cargos."""
+        """Aptos da urna por abrangência (federal/estadual/municipal), sem somar cargos."""
         out: dict[str, set[int | None]] = defaultdict(set)
         for (s, office, _), r in self.results.items():
             if s != section:
                 continue
-            scope = "federal" if office in FEDERAL_OFFICES else "state" if office in STATE_OFFICES else None
+            scope = (
+                "federal" if office in FEDERAL_OFFICES
+                else "state" if office in STATE_OFFICES
+                else "municipal" if office in MUNICIPAL_OFFICES
+                else None
+            )
             if scope is None:
                 raise ConsistencyError(f"section {section}: office {office} has no documented electorate scope")
             out[scope].add(r.structural["eligible"])  # type: ignore[arg-type]

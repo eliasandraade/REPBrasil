@@ -83,34 +83,46 @@ def _source_file_id(cur: psycopg.Cursor, prepared: PreparedImport) -> str:
     return str(existing[0])
 
 
+# Cargos de eleição municipal (TSE): o mesmo número representa candidaturas
+# diferentes em cada município, então o município faz parte da identidade.
+MUNICIPAL_OFFICES = frozenset({11, 12, 13})
+
+
+def votable_municipality(office_code: int, municipality: str) -> str | None:
+    """Escopo municipal do votável: código TSE (5 dígitos) só para cargos municipais."""
+    return str(municipality).zfill(5) if office_code in MUNICIPAL_OFFICES else None
+
+
 def _upsert_votables(cur: psycopg.Cursor, prepared: PreparedImport) -> dict[Any, int]:
     ids: dict[Any, int] = {}
     uf = str(prepared.scope["uf"]).upper()
     for key, v in prepared.zone.votables.items():
+        municipality = votable_municipality(key.office_code, prepared.scope["municipality"])
         cur.execute(
             """
             INSERT INTO votable (uf, election_code, office_code, vote_kind, type_code, type_description, number, name,
-                                 party_number, party_acronym, party_name)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (uf, election_code, office_code, type_code, number) DO NOTHING
+                                 party_number, party_acronym, party_name, municipality_tse_code)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (uf, election_code, office_code, type_code, number, municipality_tse_code) DO NOTHING
             RETURNING id
             """,
             (uf, key.election_code, key.office_code, v.vote_kind, key.type_code, v.type_description, key.number,
-             v.name, v.party_number, v.party_acronym, v.party_name),
+             v.name, v.party_number, v.party_acronym, v.party_name, municipality),
         )
         row = cur.fetchone()
         if row is None:
             cur.execute(
                 """SELECT id, vote_kind::text, type_description, name, party_number, party_acronym, party_name
-                   FROM votable WHERE uf=%s AND election_code=%s AND office_code=%s AND type_code=%s AND number=%s""",
-                (uf, key.election_code, key.office_code, key.type_code, key.number),
+                   FROM votable WHERE uf=%s AND election_code=%s AND office_code=%s AND type_code=%s AND number=%s
+                    AND municipality_tse_code IS NOT DISTINCT FROM %s""",
+                (uf, key.election_code, key.office_code, key.type_code, key.number, municipality),
             )
             existing = cur.fetchone()
             assert existing is not None
             expected = (v.vote_kind, v.type_description, v.name, v.party_number, v.party_acronym, v.party_name)
             if tuple(existing[1:]) != expected:
                 raise ConsistencyError(
-                    f"votable {uf}/{key} already stored with different attributes {existing[1:]} vs {expected}"
+                    f"votable {uf}/{municipality or '-'}/{key} already stored with different attributes {existing[1:]} vs {expected}"
                 )
             row = existing
         ids[key] = int(row[0])
