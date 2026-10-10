@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
 import type { ReactNode } from "react";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { TransitionLink } from "@/motion/navigation";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -109,15 +109,8 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex items-center px-5 py-5 border-b border-white/[0.05]">
-        <TransitionLink href="/" onClick={onLinkClick} className="focus-ring rounded">
-          <Image
-            src="/logo.svg"
-            alt="REPBrasil"
-            width={148}
-            height={40}
-            className="h-9 w-auto"
-            priority
-          />
+        <TransitionLink href="/" onClick={onLinkClick} className="focus-ring rounded" aria-label="REPBrasil — início">
+          <BrandMark />
         </TransitionLink>
       </div>
 
@@ -228,14 +221,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             {mobileOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
-          <TransitionLink href="/" className="focus-ring rounded">
-            <Image
-              src="/symbol.svg"
-              alt="REPBrasil"
-              width={28}
-              height={28}
-              className="h-7 w-auto"
-            />
+          <TransitionLink href="/" className="focus-ring rounded" aria-label="REPBrasil — início">
+            <BrandMark compact />
           </TransitionLink>
         </div>
 
