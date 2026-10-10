@@ -108,6 +108,14 @@ KINDS = ("asset", "complement", "social_network")
 _EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
 _CPF_LIKE = re.compile(r"(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)")
 _BLOCKED_HOSTS = ("whatsapp.com", "wa.me", "whats.app")
+# Perfil público declarado sem esquema ("instagram.com/perfil"): só para estas redes o "https://" é
+# completado; um domínio qualquer (ou com erro de digitação) sem esquema continua descartado.
+_SCHEMELESS_SOCIAL = re.compile(
+    r"(?:www\.)?(?:instagram\.com|facebook\.com|x\.com|twitter\.com|tiktok\.com|youtube\.com|linkedin\.com"
+    r"|threads\.net|kwai\.com)/\S+",
+    re.IGNORECASE,
+)
+_PHONE_LIKE = re.compile(r"[\d\s().+-]{8,32}")
 
 
 class RecordsError(RuntimeError):
@@ -150,13 +158,29 @@ def sanitize_url(value: str | None) -> str | None:
         return None
     url = value.strip()
     if not re.match(r"^https?://", url, re.IGNORECASE):
-        return None
+        if not _SCHEMELESS_SOCIAL.fullmatch(url):
+            return None
+        url = "https://" + url
     host = (urlparse(url).hostname or "").lower()
     if any(host == h or host.endswith("." + h) for h in _BLOCKED_HOSTS):
         return None
     if _EMAIL.search(url):
         return None
     return url
+
+
+def social_drop_reason(value: str | None) -> str | None:
+    """Por que um link declarado não é gravado: "personal_contact" (WhatsApp, e-mail, telefone) ou
+    "not_a_public_url" (texto, @perfil sem rede, domínio sem esquema). None quando o link é mantido."""
+    if sanitize_url(value) is not None:
+        return None
+    raw = (value or "").strip()
+    lowered = raw.lower()
+    host = (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower()
+    if (any(host == h or host.endswith("." + h) for h in _BLOCKED_HOSTS) or lowered.startswith(("mailto:", "tel:"))
+            or _EMAIL.search(raw) or _PHONE_LIKE.fullmatch(raw)):
+        return "personal_contact"
+    return "not_a_public_url"
 
 
 def money(raw: str, column: str, line: int) -> Decimal | None:
@@ -396,6 +420,7 @@ def import_records(
     layout: DetectedLayout,
     supersede: bool = False,
     dropped_rows: int = 0,
+    not_url_rows: int = 0,
 ) -> dict[str, Any]:
     """Grava os registros de uma UF/ano ligados às candidaturas já importadas do mesmo ano.
 
@@ -409,6 +434,7 @@ def import_records(
     scope = {"year": year, "uf": uf, "record_kind": None if kind == "asset" else kind}
     report: dict[str, Any] = {
         "status": "succeeded", "scope": scope, "rows": len(rows), "dropped_personal_contact": dropped_rows,
+        "dropped_not_a_public_url": not_url_rows,
         "other_uf_rows": 0, "other_year_rows": 0, "other_election_rows": 0, "rows_without_value": 0,
         "duplicate_rows": 0, "rows_unmatched": 0, "candidacies": 0, "inserted": 0, "unchanged": 0,
         "superseded": 0, "diff": [],

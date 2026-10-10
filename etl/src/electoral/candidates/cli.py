@@ -18,6 +18,7 @@ import argparse
 import os
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 from .. import db as electoral_db
@@ -48,6 +49,7 @@ from .records import (
     parse_asset,
     parse_complement,
     parse_social,
+    social_drop_reason,
 )
 from .store import backfill_history, dumps, import_candidates, link_votables, select_candidacies
 
@@ -225,27 +227,29 @@ def _import_records(args: argparse.Namespace) -> int:
     if member is None:
         raise SystemExit(f"{pattern.format(year=args.year, uf=uf)} not found in the acquired ZIP")
     path = member["path"]
+    reasons: Counter[str | None] = Counter()
     if args.kind == "asset":
         layout = detect_csv_layout(path, columns=ASSETS_COLUMNS, profile_id=ASSETS_PROFILE_ID)
         rows = [parse_asset(f, line, layout.columns, member["name"]) for line, f in iter_rows(path, layout)]
-        dropped = 0
     elif args.kind == "complement":
         layout = detect_csv_layout(path, columns=COMPLEMENT_COLUMNS, profile_id=COMPLEMENT_PROFILE_ID)
         rows = [parse_complement(f, line, layout.columns, member["name"], uf) for line, f in iter_rows(path, layout)]
-        dropped = 0
     else:
         try:
             layout = detect_csv_layout(path, columns=SOCIAL_COLUMNS, profile_id=SOCIAL_PROFILE_ID)
         except LayoutError:
             layout = detect_csv_layout(path, columns=SOCIAL_COLUMNS_2022, profile_id=SOCIAL_PROFILE_ID_2022)
-        parsed = [parse_social(f, line, layout.columns, member["name"]) for line, f in iter_rows(path, layout)]
-        rows = [r for r in parsed if r is not None]
-        dropped = len(parsed) - len(rows)
+        url_index = layout.columns.index("DS_URL")
+        parsed = [(f, parse_social(f, line, layout.columns, member["name"])) for line, f in iter_rows(path, layout)]
+        rows = [r for _, r in parsed if r is not None]
+        # contato pessoal × não é URL pública: contados à parte (nenhum dos dois é gravado)
+        reasons = Counter(social_drop_reason(f[url_index]) for f, r in parsed if r is None)
+    dropped, not_url = reasons["personal_contact"], reasons["not_a_public_url"]
     if args.dry_run:
         _emit(args.report, {
             "status": "dry_run", "kind": args.kind, "file": {k: member[k] for k in ("name", "size", "sha256")},
             "layout": layout.profile, "rows": len(rows), "dropped_personal_contact": dropped,
-            "candidacies": len({r.tse_candidate_id for r in rows}),
+            "dropped_not_a_public_url": not_url, "candidacies": len({r.tse_candidate_id for r in rows}),
             "election_codes": sorted({str(r.election_code) for r in rows}),
         })
         return 0
@@ -253,7 +257,7 @@ def _import_records(args: argparse.Namespace) -> int:
         with electoral_db.connect(_database_url(args), autocommit=True) as conn:
             _emit(args.report, import_records(
                 conn, year=args.year, uf=uf, kind=args.kind, rows=rows, manifest=manifest, layout=layout,
-                supersede=args.supersede, dropped_rows=dropped,
+                supersede=args.supersede, dropped_rows=dropped, not_url_rows=not_url,
             ))
     except RecordsConflict as exc:
         _emit(args.report, {"status": "conflict", "detail": str(exc), "diff": exc.diff})

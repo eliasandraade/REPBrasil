@@ -19,6 +19,7 @@ from src.electoral.candidates.records import (
     parse_social,
     sanitize_text,
     sanitize_url,
+    social_drop_reason,
 )
 from src.electoral.candidates.store import municipal_selector, select_candidacies
 
@@ -106,9 +107,22 @@ def test_complement_keeps_only_the_allowlisted_public_fields():
 
 def test_social_networks_drop_personal_contact_links():
     assert sanitize_url("https://www.instagram.com/perfil.ficticio") == "https://www.instagram.com/perfil.ficticio"
+    # perfil público de rede conhecida declarado sem esquema: o esquema é completado (dado real de 2024/2026)
+    assert sanitize_url("instagram.com/perfil.ficticio") == "https://instagram.com/perfil.ficticio"
+    assert sanitize_url("www.facebook.com/perfil.ficticio") == "https://www.facebook.com/perfil.ficticio"
     for blocked in ("https://wa.me/5585999999999", "https://api.whatsapp.com/send?phone=5585", "mailto:a@b.org",
-                    "https://example.org/?contato=a@b.org", "instagram.com/sem-esquema"):
+                    "https://example.org/?contato=a@b.org", "wa.me/5585999999999",
+                    "instagran.com/erro-de-digitacao", "site-qualquer.com.br/pagina", "@perfil", "Instagram: perfil"):
         assert sanitize_url(blocked) is None
+    reasons = {v: social_drop_reason(v) for v in (
+        "https://wa.me/5585999999999", "wa.me/5585999999999", "contato@exemplo.org", "(85) 99999-9999",
+        "mailto:a@b.org", "@perfil", "instagran.com/erro-de-digitacao", "#NULO", "instagram.com/perfil.ficticio")}
+    assert reasons == {
+        "https://wa.me/5585999999999": "personal_contact", "wa.me/5585999999999": "personal_contact",
+        "contato@exemplo.org": "personal_contact", "(85) 99999-9999": "personal_contact", "mailto:a@b.org": "personal_contact",
+        "@perfil": "not_a_public_url", "instagran.com/erro-de-digitacao": "not_a_public_url", "#NULO": "not_a_public_url",
+        "instagram.com/perfil.ficticio": None,
+    }
     base = {"DT_GERACAO": "01/01/2099", "HH_GERACAO": "10:00:00", "AA_ELEICAO": "2098", "SG_UF": "XX", "CD_TIPO_ELEICAO": "2",
             "NM_TIPO_ELEICAO": "ORDINÁRIA", "CD_ELEICAO": "999619", "DS_ELEICAO": "Fictícia", "SQ_CANDIDATO": "700001"}
     ok = parse_social([(base | {"NR_ORDEM_REDE_SOCIAL": "2", "DS_URL": "https://example.org/p"})[c] for c in SOCIAL_COLUMNS], 2, SOCIAL_COLUMNS, "s.csv")
