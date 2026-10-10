@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -459,10 +460,18 @@ def _cadaster(args: argparse.Namespace) -> int:
 
     manifest = load_manifest(args.directory or find_acquired(args.cadaster_dir, kind=KIND_POLLING_PLACES, year=args.year), kind=KIND_POLLING_PLACES)
     uf = args.uf.upper()
-    member = extract_member(manifest, rf".*_{args.year}_{uf}\.csv")
+    # Um CSV por UF (2026) ou um único CSV nacional (até 2024): nunca os dois no mesmo ZIP.
+    names = {m["name"] for m in manifest["zip_members"]}
+    national = f"eleitorado_local_votacao_{args.year}.csv"
+    per_uf = [n for n in names if re.fullmatch(rf".*_{args.year}_{uf}\.csv", n)]
+    if per_uf and national in names:
+        raise SystemExit(f"ambiguous polling-place ZIP: both {per_uf} and {national}")
+    member = extract_member(manifest, rf".*_{args.year}_{uf}\.csv" if per_uf else re.escape(national))
     layout = detect_layout(member["path"])
     municipalities = [str(m).zfill(5) for m in args.municipality] or None
-    cadaster = parse_cadaster(member["path"], year=args.year, turn=args.turn, uf=uf, municipalities=municipalities)
+    cadaster = parse_cadaster(
+        member["path"], year=args.year, turn=args.turn, uf=uf, municipalities=municipalities, national=not per_uf
+    )
     if args.dry_run:
         print(dumps({"status": "dry_run", "csv": {k: member[k] for k in ("name", "size", "sha256")},
                      "layout": layout.as_dict(), "summary": cadaster.summary(), "warnings": cadaster.warnings}))
