@@ -90,6 +90,9 @@ function webglAvailable() {
   }
 }
 
+const CONTROL =
+  "focus-ring flex h-8 w-8 items-center justify-center text-sm font-semibold text-slate-300 hover:bg-white/10 hover:text-slate-50 [&+button]:border-t [&+button]:border-white/10";
+
 export function TerritoryMap(props: Props) {
   const container = useRef<HTMLDivElement>(null);
   const tooltip = useRef<HTMLDivElement>(null);
@@ -100,7 +103,24 @@ export function TerritoryMap(props: Props) {
   const selected = useRef<Array<{ source: string; id: number }>>([]);
   const colored = useRef<number[]>([]);
   const hovered = useRef<{ source: string; id: number } | null>(null);
+  // o usuário mexeu no mapa (arrastar/zoom): reenquadrar sozinho deixaria de respeitar a escolha dele
+  const interacted = useRef(false);
   const [status, setStatus] = useState<GeoStatus>("loading");
+
+  /** Enquadra o território atual (país, UF ou município) — no carregamento, na troca de rota e ao redimensionar. */
+  const fitScope = (map: MapLibreMap, animate: boolean) => {
+    const geo = geoRef.current;
+    if (!geo) return;
+    const p = latest.current;
+    const [w, s, e, n] = boundsForLevel(geo, p.level, { state: p.scope.state, municipality: p.scope.municipality });
+    map.fitBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      { padding: 32, duration: animate && !p.reduced ? duration.survey : 0, easing: SURVEY_EASING, maxZoom: p.level === "country" ? 5 : 13 },
+    );
+  };
 
   useEffect(() => {
     if (!webglAvailable()) {
@@ -108,6 +128,7 @@ export function TerritoryMap(props: Props) {
       return;
     }
     let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
     void (async () => {
       let geo: TerritoryGeo;
       try {
@@ -134,6 +155,22 @@ export function TerritoryMap(props: Props) {
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
       mapRef.current = map;
+      for (const ev of ["dragstart", "zoomstart"] as const)
+        map.on(ev, (e: { originalEvent?: unknown }) => {
+          if (e.originalEvent) interacted.current = true;
+        });
+      // O contêiner muda de tamanho depois da montagem (painel lateral carregando, grade, rotação do celular):
+      // o MapLibre só escuta a janela, então o canvas ficava num canto. Redimensiona e reenquadra.
+      let frame = 0;
+      resizeObserver = new ResizeObserver(() => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => {
+          if (mapRef.current !== map) return;
+          map.resize();
+          if (!interacted.current) fitScope(map, false);
+        });
+      });
+      resizeObserver.observe(container.current);
       map.on("load", () => {
         map.addSource("ufs", { type: "geojson", data: geo.ufs as never });
         map.addSource("mun", { type: "geojson", data: geo.municipalities as never });
@@ -265,9 +302,11 @@ export function TerritoryMap(props: Props) {
     })();
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scopeKey = JSON.stringify(props.scope);
@@ -350,18 +389,24 @@ export function TerritoryMap(props: Props) {
 
   useEffect(() => {
     const map = mapRef.current;
-    const geo = geoRef.current;
-    if (status !== "ready" || !map || !geo) return;
-    const [w, s, e, n] = boundsForLevel(geo, props.level, { state: props.scope.state, municipality: props.scope.municipality });
-    map.fitBounds(
-      [
-        [w, s],
-        [e, n],
-      ],
-      { padding: 32, duration: props.reduced ? 0 : duration.survey, easing: SURVEY_EASING, maxZoom: props.level === "country" ? 5 : 13 },
-    );
+    if (status !== "ready" || !map) return;
+    interacted.current = false; // novo território: volta a enquadrar sozinho
+    fitScope(map, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, props.routeKey, props.scope.state, props.scope.municipality]);
+
+  const zoomBy = (delta: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    interacted.current = true;
+    map.easeTo({ zoom: map.getZoom() + delta, duration: props.reduced ? 0 : duration.acknowledge });
+  };
+  const refit = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    interacted.current = false;
+    fitScope(map, true);
+  };
 
   return (
     <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-white/8 bg-background">
@@ -372,6 +417,17 @@ export function TerritoryMap(props: Props) {
         className="pointer-events-none absolute left-0 top-0 z-10 max-w-[220px] rounded-md border border-white/10 bg-slate-950/95 px-2 py-1 text-xs font-medium text-slate-100 opacity-0 shadow-lg transition-opacity motion-reduce:transition-none"
         data-testid="territory-hover-label"
       />
+      {status === "ready" && (
+        <div className="absolute right-3 top-3 z-10 flex flex-col overflow-hidden rounded-md border border-white/10 bg-slate-950/90" data-testid="map-controls">
+          <button type="button" onClick={() => zoomBy(1)} aria-label="Aproximar o mapa" title="Aproximar" className={CONTROL}>+</button>
+          <button type="button" onClick={() => zoomBy(-1)} aria-label="Afastar o mapa" title="Afastar" className={CONTROL}>−</button>
+          <button type="button" onClick={refit} aria-label="Enquadrar o território" title="Enquadrar o território" className={CONTROL}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 8V5a2 2 0 0 1 2-2h3" /><path d="M16 3h3a2 2 0 0 1 2 2v3" /><path d="M21 16v3a2 2 0 0 1-2 2h-3" /><path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+            </svg>
+          </button>
+        </div>
+      )}
       {status !== "ready" && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-xs text-slate-500">
           {status === "loading" && "Carregando malha territorial oficial (IBGE)…"}
