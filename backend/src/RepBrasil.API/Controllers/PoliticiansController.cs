@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RepBrasil.Application.Assets.DTOs;
 using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.Common;
+using RepBrasil.Application.Electoral;
 using RepBrasil.Application.ElectionResults.DTOs;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Politicians.DTOs;
@@ -26,6 +27,7 @@ public class PoliticiansController : ControllerBase
     private readonly GetPoliticianSourcesQuery _getSourcesQuery;
     private readonly GetPoliticianScoreQuery _getScoreQuery;
     private readonly GetPoliticianScoreHistoryQuery _getScoreHistoryQuery;
+    private readonly CandidacyService _candidacies;
     private readonly ApplicationDbContext _db;
 
     public PoliticiansController(
@@ -36,6 +38,7 @@ public class PoliticiansController : ControllerBase
         GetPoliticianSourcesQuery getSourcesQuery,
         GetPoliticianScoreQuery getScoreQuery,
         GetPoliticianScoreHistoryQuery getScoreHistoryQuery,
+        CandidacyService candidacies,
         ApplicationDbContext db)
     {
         _searchQuery = searchQuery;
@@ -45,6 +48,7 @@ public class PoliticiansController : ControllerBase
         _getSourcesQuery = getSourcesQuery;
         _getScoreQuery = getScoreQuery;
         _getScoreHistoryQuery = getScoreHistoryQuery;
+        _candidacies = candidacies;
         _db = db;
     }
 
@@ -132,6 +136,24 @@ public class PoliticiansController : ControllerBase
 
         var history = await _getScoreHistoryQuery.ExecuteAsync(id, ct);
         return Ok(history);
+    }
+
+    // ── Candidaturas (inteligência eleitoral) ───────────────────────────────────
+
+    /// <summary>
+    /// Candidaturas oficiais (TSE) ligadas a este perfil, com partido/cargo DAQUELA eleição e
+    /// desempenho por município a partir do Boletim de Urna. Dados descritivos: não afetam o Score.
+    /// </summary>
+    [HttpGet("{id:guid}/candidacies")]
+    [ProducesResponseType(typeof(PoliticianCandidaciesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCandidacies(Guid id, [FromQuery] int top = 5, CancellationToken ct = default)
+    {
+        var politician = await _getByIdQuery.ExecuteAsync(id, ct);
+        if (politician is null) return NotFound();
+
+        var result = await _candidacies.ByPoliticianAsync(id, Math.Clamp(top, 0, 50), ct);
+        return Ok(result);
     }
 
     // ── Mandates ─────────────────────────────────────────────────────────────────

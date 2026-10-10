@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type {
   AssetDeclarationItem,
@@ -16,8 +16,9 @@ import { AssetsTab } from "./tabs/AssetsTab";
 import { MetadataTab } from "./tabs/MetadataTab";
 import { ScoreTab } from "./tabs/ScoreTab";
 import { CamaraTab } from "./tabs/CamaraTab";
+import { ElectoralPerformanceTab } from "./tabs/ElectoralPerformanceTab";
 
-type TabId = "overview" | "elections" | "assets" | "metadata" | "score" | "camara";
+type TabId = "overview" | "elections" | "electoral" | "assets" | "metadata" | "score" | "camara";
 
 interface PoliticianProfileProps {
   politician: PoliticianDetail;
@@ -71,9 +72,15 @@ export function PoliticianProfile({
 }: PoliticianProfileProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
+  // Deep link ?aba=eleicoes (vindo do explorador eleitoral) abre o desempenho eleitoral.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("aba") === "eleicoes") setActiveTab("electoral");
+  }, []);
+
   const TABS: { id: TabId; label: string }[] = [
     { id: "overview", label: "Visão Geral" },
     { id: "elections", label: "Eleições" },
+    { id: "electoral", label: "Desempenho eleitoral" },
     { id: "assets", label: "Patrimônio" },
     { id: "metadata", label: "Fontes" },
     { id: "score", label: "Score" },
@@ -204,6 +211,7 @@ export function PoliticianProfile({
             />
           )}
           {activeTab === "elections" && <ElectionTab elections={elections} />}
+          {activeTab === "electoral" && <ElectoralPerformanceTab politicianId={politician.id} />}
           {activeTab === "assets" && <AssetsTab assets={assets} />}
           {activeTab === "metadata" && (
             <MetadataTab politician={politician} sources={sources} />

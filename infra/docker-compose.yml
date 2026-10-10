@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:16
+    # PostGIS: exigido pelo schema electoral (geometrias oficiais de UF/município e locais de votação).
+    image: postgis/postgis:16-3.4
     container_name: repbrasil-postgres
     restart: unless-stopped
     environment:

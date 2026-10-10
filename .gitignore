@@ -59,3 +59,6 @@ desktop.ini
 .claude/
 *.swp
 *.swo
+
+# MapLibre worker copiado em predev/prebuild (scripts/copy-maplibre-worker.mjs)
+frontend/public/maplibre/

@@ -10,8 +10,9 @@ public class Person : AuditableEntity
     public string[]? Aliases { get; set; }
 
     /// <summary>
-    /// Hash SHA-256 do CPF normalizado (dígitos apenas, sem pontuação).
-    /// NUNCA armazenar CPF completo em plaintext.
+    /// HMAC-SHA256 (chave secreta do ambiente, REPBRASIL_PERSON_DOCUMENT_KEY) do CPF normalizado
+    /// (dígitos apenas). Um SHA-256 sem chave de um CPF seria revertido por enumeração.
+    /// NUNCA armazenar CPF completo em plaintext. Ver docs/TSE_IDENTITY.md.
     /// Quando a fonte pública oferecer apenas CPF parcial (ex: "***.***.123-**"),
     /// armazenar somente o fragmento público disponível.
     /// Armazenar hash somente quando juridicamente permitido pela fonte.

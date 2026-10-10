@@ -54,3 +54,15 @@ src/
 
 **Fase 0 — Fundação.** Nenhum pipeline está funcional.
 A estrutura existe para orientar os contribuidores da Fase 1.
+
+## Inteligência eleitoral (`src/electoral`)
+
+Pipeline eleitoral auditado (território TSE↔IBGE, cadastro, Boletim de Urna, sync estadual,
+candidaturas e identidade). Escreve no schema `electoral` (conexão com
+`search_path = electoral, public`). Comandos e fontes em
+[../docs/ELECTORAL_DATA_SOURCES.md](../docs/ELECTORAL_DATA_SOURCES.md); identidade em
+[../docs/TSE_IDENTITY.md](../docs/TSE_IDENTITY.md).
+
+Testes de banco: `REPBRASIL_ELECTORAL_TEST_DATABASE_URL` aponta para um banco descartável cujo nome
+termina em `_test`, com as migrations EF aplicadas. Sem ela, os testes de banco são pulados.
+

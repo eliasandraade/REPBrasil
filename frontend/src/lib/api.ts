@@ -1,12 +1,23 @@
 import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem, Mandate, PagedResult, PoliticianDetail, PoliticianSummary, ScoreStatusItem, SearchFilters } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
-async function fetchJson<T>(path: string): Promise<T> {
+/** Erro HTTP da API, com o status preservado (404 ≠ falha de rede ≠ dado vazio). */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${path}${body ? ` — ${body}` : ""}`);
+    throw new ApiError(res.status, `API error ${res.status}: ${path}${body ? ` — ${body}` : ""}`);
   }
   return res.json() as Promise<T>;
 }

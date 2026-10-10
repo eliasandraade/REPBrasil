@@ -1,0 +1,37 @@
+{
+  "dg": "04/10/2026",
+  "hg": "18:05:00",
+  "idg": 202,
+  "f": "o",
+  "st": "Totalizada",
+  "hashes": [
+    {
+      "hash": "hash-old",
+      "dr": "04/10/2026",
+      "hr": "17:32:00",
+      "st": "Recebido",
+      "arq": [
+        {"nm": "urna-old.bu", "tp": "synthetic-sample"},
+        {"nm": "urna-old.logjez", "tp": "synthetic-sample"}
+      ]
+    },
+    {
+      "hash": "hash-rejected",
+      "dr": "04/10/2026",
+      "hr": "17:40:00",
+      "st": "Rejeitado",
+      "arq": [{"nm": "urna-rejected.bu", "tp": "synthetic-sample"}]
+    },
+    {
+      "hash": "hash-final",
+      "dr": "04/10/2026",
+      "hr": "17:50:00",
+      "st": "Totalizado",
+      "arq": [
+        {"nm": "urna-final.bu", "tp": "synthetic-sample"},
+        {"nm": "o09001ce1393500500029-bu.dat", "tp": "synthetic-sample"},
+        {"nm": "urna-final.rdv", "tp": "synthetic-sample"}
+      ]
+    }
+  ]
+}

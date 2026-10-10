@@ -1,0 +1,155 @@
+name: CI
+
+# Gates obrigatórios do REPBrasil. Nenhum banco externo, nenhum download do TSE,
+# nenhum segredo real: só fixtures sintéticas e um PostgreSQL + PostGIS efêmero.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  backend:
+    name: Backend (.NET 8)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore -c Release
+      - name: Format
+        run: dotnet format --no-restore --verify-no-changes
+      - name: Test (unit; DB tests skip without database)
+        run: dotnet test --no-build -c Release
+
+  database:
+    name: Database (PostgreSQL 18 + PostGIS 3.6)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: repbrasil
+          POSTGRES_DB: repbrasil_ci_test
+          # Banco efêmero do runner, só em localhost: sem senha no repositório.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U repbrasil -d repbrasil_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
+      PSQL: psql -h localhost -U repbrasil -d repbrasil_ci_test -v ON_ERROR_STOP=1 -At
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore local tools (dotnet-ef pinned in backend/.config/dotnet-tools.json)
+        working-directory: backend
+        run: dotnet tool restore
+      - name: Build API (migrations startup project)
+        working-directory: backend
+        run: |
+          dotnet restore
+          dotnet build --no-restore -c Release
+      - name: Migrations up from zero
+        working-directory: backend
+        run: dotnet tool run dotnet-ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+      - name: Check schema (21 electoral tables + PostGIS)
+        run: |
+          test "$($PSQL -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='electoral'")" = "21"
+          $PSQL -c "SELECT extversion FROM pg_extension WHERE extname='postgis'" | grep -q .
+      - name: Migrations down to AddMandate
+        working-directory: backend
+        run: dotnet tool run dotnet-ef database update AddMandate --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+      - name: Check rollback
+        run: |
+          test "$($PSQL -c "SELECT count(*) FROM information_schema.schemata WHERE schema_name='electoral'")" = "0"
+          test "$($PSQL -c "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\"")" = "20260518020514_AddMandate"
+      - name: Migrations up again
+        working-directory: backend
+        run: dotnet tool run dotnet-ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
+      - name: .NET database tests (synthetic data, rolled back)
+        working-directory: backend
+        env:
+          REPBRASIL_ELECTORAL_TEST_DB: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
+        run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: "3.12"
+      - name: ETL database tests (synthetic fixtures)
+        working-directory: etl
+        env:
+          REPBRASIL_ELECTORAL_TEST_DATABASE_URL: postgresql://repbrasil@localhost:5432/repbrasil_ci_test
+          # Chave FICTÍCIA de teste (>= 32 bytes). Nunca usar fora do CI.
+          REPBRASIL_PERSON_DOCUMENT_KEY: ci-only-fictitious-test-key-0123456789abcdef
+        run: |
+          uv sync --extra dev --frozen --no-install-project --no-build
+          uv run --frozen --no-sync --no-build pytest -q tests/electoral
+
+  frontend:
+    name: Frontend (Node 22)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:5000
+        run: npm run build
+
+  etl:
+    name: ETL (Python 3.12)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: etl
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: "3.12"
+      - name: Install (lockfile only; the project itself is imported from the checkout)
+        run: uv sync --extra dev --frozen --no-install-project --no-build
+      - name: Lint (electoral layer)
+        run: uv run --frozen --no-sync --no-build ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
+      - name: Test (DB tests skip without database)
+        run: uv run --frozen --no-sync --no-build pytest -q

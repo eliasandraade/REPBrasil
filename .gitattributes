@@ -1,0 +1,3 @@
+# Fixtures de layout oficial TSE: bytes exatos (Latin-1, CRLF)
+etl/tests/electoral/fixtures/open-data/*.csv binary
+etl/tests/electoral/fixtures/cadaster/*.csv binary
