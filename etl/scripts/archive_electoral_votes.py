@@ -5,8 +5,8 @@ import json
 import os
 from pathlib import Path
 
-from electoral import db as electoral_db
-from electoral.lake import LakeScope, archive_scope, lake_root_from_env, load_manifest, parquet_totals
+from src.electoral import db as electoral_db
+from src.electoral.lake import LakeScope, archive_scope, lake_root_from_env, load_manifest, parquet_totals
 
 
 def parser() -> argparse.ArgumentParser:
