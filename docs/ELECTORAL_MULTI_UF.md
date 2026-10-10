@@ -37,13 +37,33 @@ Nenhum voto é recalculado, movido ou agregado pela migration. `section_office_v
 
 O downgrade só é permitido enquanto a chave antiga continuar sem colisões. Depois que duas UFs contiverem o mesmo conjunto `CD_ELEICAO + cargo + tipo + número`, o rollback é recusado em vez de fundir ou excluir registros.
 
+## Loader estadual reutilizável
+
+A carga do BU de uma UF não deve mais depender de comandos Railway escritos especificamente para um estado. O script `etl/scripts/import_electoral_state.py` recebe a UF, o pleito e o manifesto oficial adquirido e executa o mesmo fluxo de forma idempotente para qualquer estado.
+
+Exemplo:
+
+```bash
+python scripts/import_electoral_state.py \
+  --uf PI \
+  --year 2026 \
+  --turn 1 \
+  --manifest /data/open-data/<sha256>/manifest.json \
+  --progress /data/reports/pi-progress.json \
+  --report /data/reports/pi-final.json \
+  --link-votables \
+  --protect-uf CE
+```
+
+O script valida o SHA-256 do CSV uma única vez antes da carga, deriva os escopos município×zona do cadastro eleitoral persistido, pula escopos já carregados, grava progresso de forma atômica, pode executar o vínculo BU → candidatura e compara o estado protegido antes/depois. Assim, uma expansão nacional pode usar o mesmo artefato e variar apenas UF e manifesto.
+
 ## Gate para uma nova UF
 
 Antes de disponibilizar uma nova UF:
 
 1. migration 005 aplicada e baseline do Ceará preservado;
 2. cadastro eleitoral da UF importado;
-3. BU importado com SHA-512 oficial validado;
+3. BU importado com SHA-512 oficial validado na aquisição e SHA-256 do CSV revalidado antes da carga;
 4. candidaturas importadas usando a mesma chave HMAC persistente do ambiente;
 5. vínculo `votable_candidacy` executado;
 6. invariantes da nova UF executadas;
