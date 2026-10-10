@@ -284,6 +284,17 @@ def test_cli_dry_run_reconciles_every_zone_from_the_official_cadaster(tmp_path, 
     assert reports[0]["sections"]["aggregation"] == {"1": [2, 3], "5": [6]}
 
 
+def test_bu_dry_run_reconciles_against_the_national_cadaster_file(tmp_path, capsys):
+    """Regressão: o dry-run do BU (cadastro lido do CSV adquirido) também aceita o arquivo nacional de 2022/2024."""
+    a = acquire(tmp_path, make_zip((("eleitorado_local_votacao_2099.csv", national_csv()), ("leiame.pdf", b"%PDF fictitious"))))
+    bu = acquired(tmp_path / "bu")
+    code = main(["import-open-data-bu", str(bu.directory), "--municipality", "99999", "--dry-run", "--cadaster-dir", str(a.directory.parent)])
+    assert code == 0
+    reports = json.loads(capsys.readouterr().out)
+    assert [r["scope"]["zone"] for r in reports] == [9]
+    assert reports[0]["sections"]["aggregation"] == {"1": [2, 3], "5": [6]}
+
+
 def test_cli_reads_the_national_cadaster_file_and_refuses_an_ambiguous_zip(tmp_path, capsys):
     national = (("eleitorado_local_votacao_2099.csv", national_csv()), ("leiame.pdf", b"%PDF fictitious"))
     a = acquire(tmp_path / "national", make_zip(national))

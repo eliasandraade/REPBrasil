@@ -453,12 +453,12 @@ def _import_open_data_bu(args: argparse.Namespace) -> int:
             snapshot = lambda zone: load_zone_snapshot(conn, year=year, turn=turn, uf=uf, municipality=args.municipality, zone=zone)  # noqa: E731
         else:
             from .cadaster.polling_places import parse_cadaster, zone_snapshot
-            from .cadaster.sources import KIND_POLLING_PLACES, extract_member, find_acquired
+            from .cadaster.sources import KIND_POLLING_PLACES, find_acquired
             from .cadaster.sources import load_manifest as load_cadaster_manifest
 
             cad_manifest = load_cadaster_manifest(find_acquired(args.cadaster_dir, kind=KIND_POLLING_PLACES, year=year), kind=KIND_POLLING_PLACES)
-            member = extract_member(cad_manifest, rf".*_{year}_{uf.upper()}\.csv")
-            cadaster = parse_cadaster(member["path"], year=year, turn=turn, uf=uf, municipalities=[args.municipality])
+            member, national = _polling_member(cad_manifest, year, uf.upper())  # CSV da UF (2026) ou nacional (até 2024)
+            cadaster = parse_cadaster(member["path"], year=year, turn=turn, uf=uf, municipalities=[args.municipality], national=national)
             mun = cadaster.municipality(args.municipality)
             assert mun is not None
             zones = [args.zone] if args.zone is not None else sorted(mun.zones)
