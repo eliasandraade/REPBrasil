@@ -45,13 +45,15 @@ function SearchBox({ value, onChange, placeholder, label }: { value: string; onC
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="mb-3 w-full rounded-lg border border-white/10 bg-background px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand/40 focus:outline-none"
+      className="mb-3 w-full rounded-lg border border-white/10 bg-background px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 transition-colors duration-[var(--motion-acknowledge)] focus:border-brand/40 focus:outline-none focus:ring-2 focus:ring-brand/15"
     />
   );
 }
 
 const rowClass =
-  "flex items-center justify-between gap-3 rounded-lg border border-white/8 bg-card-elevated/60 px-3 py-2.5 text-sm transition-colors hover:border-brand/30 hover:bg-card-elevated";
+  "flex items-center justify-between gap-3 rounded-lg border border-white/8 bg-card-elevated/60 px-3 py-2.5 text-sm";
+/** Linha navegável: marca o canto e eleva o fundo; nada se desloca. */
+const linkRow = `${rowClass} mi-surface focus-ring hover:border-brand/30 hover:bg-card-elevated`;
 
 // ─── Brasil → UFs ─────────────────────────────────────────────────────────────
 
@@ -68,14 +70,14 @@ export function CountryPanel({ route, states }: { route: ExplorerRoute; states: 
         {states.map((s) => (
           <li key={s.uf}>
             {s.cadasterAvailable ? (
-              <Link href={buildElectionsPath({ year: route.year, round: route.round, state: s.slug })} className={rowClass} data-state={s.uf}>
+              <Link href={buildElectionsPath({ year: route.year, round: route.round, state: s.slug })} className={linkRow} data-state={s.uf}>
                 <span className="text-slate-200">
                   {s.name} <span className="text-slate-600">· {s.uf}</span>
                 </span>
                 <AvailabilityBadge results={s.resultsAvailable} cadaster={s.cadasterAvailable} />
               </Link>
             ) : (
-              <div className={`${rowClass} cursor-default opacity-50 hover:border-white/8 hover:bg-card-elevated/60`} aria-disabled="true">
+              <div className={`${rowClass} cursor-default opacity-50`} aria-disabled="true">
                 <span className="text-slate-400">
                   {s.name} <span className="text-slate-600">· {s.uf}</span>
                 </span>
@@ -113,7 +115,7 @@ export function StatePanel({ route, state, municipalities }: { route: ExplorerRo
             {m.cadasterAvailable ? (
               <Link
                 href={buildElectionsPath({ year: route.year, round: route.round, state: state.slug, municipality: m.slug })}
-                className={rowClass}
+                className={linkRow}
                 data-municipality={m.slug}
               >
                 <span className="truncate text-slate-200">{m.name}</span>
@@ -167,7 +169,7 @@ export function MunicipalityPanel({ route, detail }: { route: ExplorerRoute; det
           <li key={z.number}>
             <Link
               href={buildElectionsPath({ ...route, municipality: m.slug, zone: z.number, section: undefined })}
-              className={rowClass}
+              className={linkRow}
               data-zone={z.number}
             >
               <span className="font-medium text-slate-200">{zoneLabel(z.number)}</span>
@@ -248,7 +250,7 @@ export function ZonePanel({
                     data-section={s.number}
                     aria-current={active ? "true" : undefined}
                     title={s.isAggregated ? `Seção ${pad3(s.number)} agregada à ${pad3(s.principalNumber)}` : sectionLabel(s.number)}
-                    className={`rounded border px-2 py-1 font-mono text-[11px] transition-colors ${
+                    className={`focus-ring rounded border px-2 py-1 font-mono text-[11px] transition-colors duration-[var(--motion-acknowledge)] ${
                       active
                         ? "border-brand bg-brand/15 text-brand"
                         : s.isAggregated

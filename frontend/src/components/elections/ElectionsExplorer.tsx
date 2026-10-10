@@ -3,12 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { electionsApi, type ResultQuery } from "@/lib/elections/api";
 import { pad3, sectionLabel, sourceDate, zoneLabel } from "@/lib/elections/format";
 import { buildElectionsPath, levelOf, parentRoute, parseElectionsPath, type ExplorerRoute } from "@/lib/elections/route";
-import { useReducedMotion } from "@/lib/elections/reduced-motion";
+import { useReducedMotion } from "@/motion/reduced-motion";
+import { cssEasing, duration } from "@/motion/tokens";
 import { buildZoneModel } from "@/lib/elections/zone-model";
 import { CountryPanel, MunicipalityPanel, StatePanel, ZonePanel } from "./ExplorerPanels";
 import { SectionResults, type VoteTypeFilter } from "./SectionResults";
@@ -27,12 +28,58 @@ function Notice({ title, children, action }: { title: string; children?: React.R
   );
 }
 
+/** Esqueleto do painel: título + linhas com a altura das linhas reais. */
 function Skeleton() {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Carregando">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="h-11 animate-pulse rounded-lg bg-card-elevated" />
-      ))}
+    <div aria-busy="true" aria-label="Carregando">
+      <div className="mb-4 space-y-1.5" aria-hidden="true">
+        <div className="skeleton h-2.5 w-16" />
+        <div className="skeleton h-5 w-40" />
+        <div className="skeleton h-3 w-56" />
+      </div>
+      <div className="space-y-1.5" aria-hidden="true">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="skeleton h-[42px] rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const LEVELS = ["country", "state", "municipality", "zone", "section"] as const;
+
+/**
+ * Zoom semântico do painel: ao mudar de camada do território, o novo nível
+ * entra pelo lado da direção (aprofundar → da direita; emergir → da esquerda).
+ * Na mesma camada (outra seção, outra zona), só uma troca curta de opacidade.
+ * Nunca mantém o conteúdo anterior na tela: só a entrada é animada.
+ */
+function useDepthEntrance(level: string, key: string, reduced: boolean) {
+  const ref = useRef<HTMLElement>(null);
+  const prev = useRef({ level, key });
+  useLayoutEffect(() => {
+    const from = prev.current;
+    prev.current = { level, key };
+    if (reduced || (from.level === level && from.key === key)) return;
+    const a = LEVELS.indexOf(from.level as (typeof LEVELS)[number]);
+    const b = LEVELS.indexOf(level as (typeof LEVELS)[number]);
+    const frames: Keyframe[] =
+      b === a
+        ? [{ opacity: 0.4 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: `translateX(${b > a ? 14 : -14}px)` },
+            { opacity: 1, transform: "none" },
+          ];
+    ref.current?.animate?.(frames, { duration: b === a ? duration.settle : duration.traverse, easing: cssEasing("enter") });
+  }, [level, key, reduced]);
+  return ref;
+}
+
+function PanelFrame({ level, frameKey, reduced, children }: { level: string; frameKey: string; reduced: boolean; children: React.ReactNode }) {
+  const ref = useDepthEntrance(level, frameKey, reduced);
+  return (
+    <div ref={ref as React.RefObject<HTMLDivElement>} data-panel-level={level}>
+      {children}
     </div>
   );
 }
@@ -51,6 +98,14 @@ export function ElectionsExplorer() {
   const reduced = useReducedMotion();
   const parsed = parseElectionsPath(pathname);
   const [placeFilter, setPlaceFilter] = useState<string | null>(null);
+  // Trilha territorial: só segmentos acrescentados depois da primeira pintura se estendem.
+  const explorerMounted = useRef(false);
+  useEffect(() => {
+    explorerMounted.current = true;
+  }, []);
+  const extendCrumb = useCallback((el: HTMLElement | null) => {
+    if (el && explorerMounted.current) el.classList.add("crumb-extend");
+  }, []);
 
   // Sem rota válida as consultas ficam desabilitadas (enabled: !!parsed): 0 nunca chega à API.
   const year = parsed?.year ?? 0;
@@ -246,24 +301,25 @@ export function ElectionsExplorer() {
   }
 
   const showResults = !notFound && level === "section" && !!sectionDetail;
+  const panelLevel = level === "section" ? "zone" : level;
   const cadasterDate = sourceDate(zoneQ.data?.provenance?.sourceGeneratedAt ?? mun?.provenance?.sourceGeneratedAt);
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 sm:px-6" data-level={level}>
       <div className="mx-auto max-w-7xl">
         <nav aria-label="Navegação territorial" className="mb-4 flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="breadcrumb">
-          <Link href="/eleicoes" className="hover:text-slate-300">
+          <Link href="/eleicoes" className="focus-ring rounded hover:text-slate-300">
             Eleições
           </Link>
           {crumbs.map((c, i) => (
-            <span key={c.href} className="flex items-center gap-1">
+            <span key={c.href} ref={extendCrumb} className="flex items-center gap-1">
               <span aria-hidden="true">/</span>
               {i === crumbs.length - 1 ? (
                 <span className="text-slate-300" aria-current="page">
                   {c.label}
                 </span>
               ) : (
-                <Link href={c.href} className="hover:text-slate-300">
+                <Link href={c.href} className="focus-ring rounded hover:text-slate-300">
                   {c.label}
                 </Link>
               )}
@@ -273,7 +329,9 @@ export function ElectionsExplorer() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(320px,420px)_1fr]">
           <aside className="rounded-xl border border-white/8 bg-card p-4" aria-label="Exploração territorial" data-testid="explorer-panel">
-            {panel}
+            <PanelFrame level={panelLevel} frameKey={`${uf}/${canonical}/${route.zone}`} reduced={reduced}>
+              {panel}
+            </PanelFrame>
           </aside>
           <div className="relative min-h-[360px] lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]">
             {showResults ? (
