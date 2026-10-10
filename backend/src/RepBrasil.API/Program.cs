@@ -5,6 +5,7 @@ using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
 using RepBrasil.Application.Politicians.Queries;
 using RepBrasil.Application.Score.Queries;
+using RepBrasil.Application.Search;
 using RepBrasil.Application.Sources.Queries;
 using RepBrasil.Infrastructure.Persistence;
 using RepBrasil.Infrastructure.Repositories;
@@ -34,6 +35,11 @@ builder.Services.AddScoped<IElectoralXrayRepository, ElectoralXrayRepository>();
 builder.Services.AddScoped<XrayService>();
 builder.Services.AddScoped<TerritoryService>();
 builder.Services.AddScoped<ComparisonService>();
+
+// Busca global (políticos, territórios, partidos, pleitos); o catálogo pequeno fica na memória do processo
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<ISearchRepository, SearchRepository>();
+builder.Services.AddScoped<SearchService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

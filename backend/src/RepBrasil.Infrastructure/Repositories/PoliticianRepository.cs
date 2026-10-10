@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RepBrasil.Application.Common;
 using RepBrasil.Application.Interfaces;
+using RepBrasil.Application.Search;
 using RepBrasil.Domain.Entities;
 using RepBrasil.Infrastructure.Persistence;
 
@@ -24,27 +25,32 @@ public class PoliticianRepository : IPoliticianRepository
         int pageSize,
         CancellationToken ct = default)
     {
-        var q = _db.Politicians.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(query))
+        // nome sem acento e por início de palavra ("andre moura" acha "André Fernandes de Moura"), pelo índice de trigramas
+        var terms = SearchService.NameTerms(query);
+        IQueryable<Politician> q;
+        if (terms.Count > 0)
         {
-            var escaped = query.Trim()
-                .Replace(@"\", @"\\")
-                .Replace("%", @"\%")
-                .Replace("_", @"\_");
-            var pattern = $"%{escaped}%";
-            q = q.Where(p =>
-                EF.Functions.ILike(p.Name, pattern, @"\") ||
-                EF.Functions.ILike(p.BallotName, pattern, @"\"));
+            // o texto do SQL só ganha nomes de parâmetro (@t0, @t1…); os termos vão como valores
+            var parameters = new List<object>();
+            var sql = $"""SELECT p.* FROM public."Politicians" p WHERE p."DeletedAt" IS NULL{PoliticianNameMatch.Conditions(terms, parameters)}""";
+            q = _db.Politicians.FromSqlRaw(sql, parameters.ToArray());
         }
+        else
+        {
+            q = _db.Politicians;
+        }
+        q = q.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(state))
             q = q.Where(p => p.State != null &&
                 EF.Functions.ILike(p.State, state.Trim(), @"\"));
 
+        // a mesma sigla com outra grafia no TSE ("PC do B" e "PCDOB") é o mesmo partido; sem curinga de LIKE
         if (!string.IsNullOrWhiteSpace(party))
-            q = q.Where(p => p.PartyAcronym != null &&
-                EF.Functions.ILike(p.PartyAcronym, party.Trim(), @"\"));
+        {
+            var compact = party.Replace(" ", "", StringComparison.Ordinal).ToLowerInvariant();
+            q = q.Where(p => p.PartyAcronym != null && p.PartyAcronym.Replace(" ", "").ToLower() == compact);
+        }
 
         if (!string.IsNullOrWhiteSpace(office))
         {
