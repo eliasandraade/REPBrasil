@@ -88,7 +88,7 @@ public class ComparisonServiceTests
         var overtake = Assert.Single(r.Overtakes);
         Assert.Equal((subjectA, subjectB, 0, 1), (overtake.Subject, overtake.OvertakenSubject, overtake.FromElection, overtake.ToElection));
         Assert.Contains(s100.Key, overtake.Keys);
-        Assert.Contains(r.Insights, i => i.Code == "overtake" && i.Text.Contains("CANDIDATA A passou à frente de CANDIDATO B"));
+        Assert.Contains(r.Insights, i => i.Code == "overtake" && i.Text.Contains("Candidata A passou à frente de Candidato B"));
 
         var growth = r.Extremes.Single(x => x.Kind == "growth" && x.Subject == subjectA);
         Assert.Equal((s100.Key, 10L), (growth.Key, growth.DeltaVotes));

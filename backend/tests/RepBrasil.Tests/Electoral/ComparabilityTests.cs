@@ -92,6 +92,15 @@ public class ComparabilityTests
     }
 
     [Fact]
+    public void Published_upper_case_names_read_as_names()
+    {
+        Assert.Equal("André Fernandes", Fmt.Name("ANDRÉ FERNANDES"));
+        Assert.Equal("Luiz Inácio Lula da Silva", Fmt.Name("LUIZ INÁCIO LULA DA SILVA"));
+        Assert.Equal("Já Formatado", Fmt.Name("Já Formatado"));
+        Assert.Equal("", Fmt.Name(null));
+    }
+
+    [Fact]
     public void Distribution_shares_name_their_base()
     {
         Assert.Equal("Maior votação: Fortaleza, com 25 votos (25% da votação da candidatura).",

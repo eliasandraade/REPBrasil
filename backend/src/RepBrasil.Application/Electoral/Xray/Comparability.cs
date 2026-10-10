@@ -134,6 +134,16 @@ public static class Comparability
 public static class Fmt
 {
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private static readonly HashSet<string> NameParticles = ["da", "de", "do", "das", "dos", "e"];
+
+    /// <summary>Nome publicado em caixa alta ("ANDRÉ FERNANDES") em caixa de nome ("André Fernandes"); outro formato fica como está.</summary>
+    public static string Name(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        if (value != value.ToUpper(PtBr)) return value;
+        var words = value.ToLower(PtBr).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Select((w, i) => i > 0 && NameParticles.Contains(w) ? w : char.ToUpper(w[0], PtBr) + w[1..]));
+    }
 
     public static string Int(long value) => value.ToString("N0", PtBr);
 

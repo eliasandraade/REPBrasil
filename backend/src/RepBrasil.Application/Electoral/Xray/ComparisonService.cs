@@ -68,7 +68,13 @@ public class ComparisonService(IElectoralXrayRepository repo)
             }
             cands.Add(new Cand(r, ContestInfo.From(r), subject, elections.IndexOf(((int)r.Year, (int)r.Round))));
         }
-        subjects = subjects.Select(s => s with { CandidacyIds = cands.Where(c => c.Subject == s.Index).Select(c => c.Row.Id).ToList() }).ToList();
+        // nome do sujeito nos textos = nome de urna da sua candidatura mais recente (o mesmo dos cartões)
+        subjects = subjects.Select(s =>
+        {
+            var own = cands.Where(c => c.Subject == s.Index).ToList();
+            var latest = own.OrderByDescending(c => c.Row.Year).ThenByDescending(c => c.Row.Round).First();
+            return s with { Name = Fmt.Name(latest.Row.BallotName), CandidacyIds = own.Select(c => c.Row.Id).ToList() };
+        }).ToList();
 
         var keys = cands.Select(c => c.Contest.CoverageKey).Concat(cands.Select(c => c.Contest.Key)).Distinct().ToList();
         var electionKeys = elections.Select(e => (e.Year, e.Round)).ToList();
