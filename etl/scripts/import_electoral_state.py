@@ -14,8 +14,11 @@ if str(ROOT) not in sys.path:
 from src.electoral import db as electoral_db
 from src.electoral.cadaster.store import load_zone_snapshot
 from src.electoral.candidates.store import link_votables
+from src.electoral.derived import refresh_derived
 from src.electoral.open_data.acquire import load_manifest, verify_file_sha256
+from src.electoral.open_data.layout import detect_layout
 from src.electoral.open_data.pipeline import prepare_import
+from src.electoral.open_data.scope_index import load_or_build_scope_index
 from src.electoral.open_data.store import import_prepared
 
 
@@ -100,6 +103,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--link-votables", action="store_true")
     parser.add_argument("--protect-uf", default=None, help="fail if this UF changes while the target UF is imported")
+    parser.add_argument(
+        "--no-refresh", action="store_true",
+        help="skip recalculating the derived zone aggregates at the end (the API then flags them as stale)",
+    )
     args = parser.parse_args(argv)
 
     uf = args.uf.upper()
@@ -111,6 +118,10 @@ def main(argv: list[str] | None = None) -> int:
     if actual != expected:
         raise SystemExit(f"manifest scope {actual} does not match requested {expected}")
     verify_file_sha256(csv_path, manifest["csv"]["sha256"])
+    # Uma passada indexa o CSV estadual; cada município × zona lê só o seu trecho.
+    scope_index = load_or_build_scope_index(
+        csv_path, detect_layout(csv_path), csv_sha256=manifest["csv"]["sha256"], csv_size=int(manifest["csv"]["size"])
+    )
 
     summary: dict[str, Any] = {
         "uf": uf,
@@ -156,6 +167,7 @@ def main(argv: list[str] | None = None) -> int:
                     zone=zone,
                     cadastro=snapshot,
                     verify_csv_hash=False,
+                    scope_index=scope_index,
                 )
                 report = import_prepared(conn, prepared)
                 summary["imported"] += 1
@@ -166,6 +178,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.link_votables:
             summary["link"] = link_votables(conn, year=args.year, turn=args.turn, uf=uf)
+        # Agregados derivados por zona × cargo: recalculados quando algum lote novo entrou.
+        if summary["imported"] > 0 and not args.no_refresh:
+            summary["derived"] = refresh_derived(conn)
 
         summary["state"] = _state_stats(conn, year=args.year, turn=args.turn, uf=uf)
         if protect_uf:

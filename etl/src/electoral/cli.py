@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -163,6 +164,27 @@ def build_parser() -> argparse.ArgumentParser:
     territories.add_argument("--dry-run", action="store_true")
     territories.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
 
+    audit = sub.add_parser(
+        "audit-election", help="audit one imported election/UF: official sources × database, classified divergences"
+    )
+    audit.add_argument("--year", type=int, required=True)
+    audit.add_argument("--turn", type=int, required=True)
+    audit.add_argument("--uf", required=True)
+    audit.add_argument("--bu-manifest", type=Path, default=None, help="acquired BU manifest/directory (whole official CSV is scanned)")
+    audit.add_argument("--candidates", type=Path, default=None, help="acquired candidates directory (consulta_cand)")
+    audit.add_argument("--units", default="", help="SG_UE values used in the candidates import, e.g. CE,BR")
+    audit.add_argument("--municipal-uf", action="append", default=[], help="municipal selector used in the candidates import")
+    audit.add_argument(
+        "--save", action="store_true",
+        help="write the full JSON report to etl/artifacts/reports/ and the markdown summary to docs/audits/",
+    )
+    audit.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
+
+    derived = sub.add_parser(
+        "refresh-derived", help="recalculate the derived zone aggregates of the current BU batches (after BU imports)"
+    )
+    derived.add_argument("--database-url", default=None, help="defaults to $DATABASE_URL")
+
     cad_import = sub.add_parser(
         "import-electoral-cadaster", help="import zones, polling places and sections of one UF/turn from an acquired polling-place file"
     )
@@ -274,6 +296,17 @@ def main(argv: list[str] | None = None) -> int:
         return _open_data(args)
     if args.command in {"discover-electoral-cadaster", "acquire-electoral-cadaster", "import-territories", "import-electoral-cadaster"}:
         return _cadaster(args)
+    if args.command == "audit-election":
+        return _audit(args)
+    if args.command == "refresh-derived":
+        from .derived import refresh_derived
+
+        database_url = _database_url(args)
+        if not database_url:
+            raise SystemExit("DATABASE_URL (or --database-url) is required")
+        with electoral_db.connect(database_url, autocommit=True) as conn:
+            print(json.dumps(refresh_derived(conn), ensure_ascii=False, indent=2, default=str))
+        return 0
     if args.command in {"plan-section-live", "acquire-section-live"}:
         client = TSEHttpClient()
         try:
@@ -327,6 +360,57 @@ def _open_data(args: argparse.Namespace) -> int:
     return _import_open_data_bu(args)
 
 
+def _audit(args: argparse.Namespace) -> int:
+    from .audit import audit_election, to_markdown
+    from .cadaster.sources import extract_member
+    from .cadaster.sources import load_manifest as load_cadaster_manifest
+    from .candidates.layout import CANDIDATES_COLUMNS, CANDIDATES_PROFILE_ID
+    from .candidates.parser import iter_csv, parse_candidate
+    from .candidates.store import select_candidacies
+    from .open_data.acquire import load_manifest as load_bu_manifest
+    from .open_data.layout import detect_csv_layout
+    from .paths import AUDITS_DIR, REPORTS_DIR, report_file, unit_code, write_report
+
+    # Só valores validados seguem adiante (e nomeiam os arquivos de saída).
+    year, turn, uf = int(args.year), int(args.turn), unit_code(args.uf)
+    bu_csv = None
+    if args.bu_manifest is not None:
+        manifest, bu_csv = load_bu_manifest(args.bu_manifest)
+        scope = manifest.get("scope", {})
+        if (int(scope.get("year", -1)), int(scope.get("turn", -1)), str(scope.get("uf", "")).upper()) != (year, turn, uf):
+            raise SystemExit(f"BU manifest scope {scope} does not match {year}/{turn}/{uf}")
+    counts = None
+    other_elections = 0
+    if args.candidates is not None:
+        units = {unit_code(u) for u in args.units.split(",") if u.strip()}
+        municipal = {unit_code(u) for u in args.municipal_uf if u.strip()}
+        cand_manifest = load_cadaster_manifest(args.candidates, kind="tse-open-data-candidates")
+        rows = []
+        for unit in sorted(units | municipal):
+            member = extract_member(cand_manifest, rf"consulta_cand_{year}_{unit}\.csv")
+            layout = detect_csv_layout(member["path"], columns=CANDIDATES_COLUMNS, profile_id=CANDIDATES_PROFILE_ID)
+            rows.extend(parse_candidate(f, line, layout.columns, member["name"]) for line, f in iter_csv(member["path"], layout))
+        selected, _, other = select_candidacies(rows, year=year, turn=turn, units=units, municipal_ufs=municipal)
+        counts = {}
+        for r in selected:
+            counts[r.office_code] = counts.get(r.office_code, 0) + 1
+        other_elections = sum(other.values())
+    database_url = _database_url(args)
+    if not database_url:
+        raise SystemExit("DATABASE_URL (or --database-url) is required")
+    with electoral_db.connect(database_url, autocommit=True) as conn:
+        report = audit_election(conn, year=year, turn=turn, uf=uf, bu_csv=bu_csv,
+                                candidate_counts=counts, other_election_rows=other_elections)
+    saved = {}
+    if args.save:  # diretórios fixos; nomes só com ano, turno e UF validados
+        saved["report"] = str(write_report(report_file(REPORTS_DIR, "audit", year, uf, turn),
+                                           json.dumps(report, ensure_ascii=False, indent=2, default=str)))
+        saved["markdown"] = str(write_report(report_file(AUDITS_DIR, "audit", year, uf, turn, suffix=".md"), to_markdown(report)))
+    print(json.dumps({"status": report["status"], "summary": report["summary"], "cadaster": report["cadaster"], **saved},
+                     ensure_ascii=False))
+    return 0 if report["status"] == "ok" else 5
+
+
 def _database_url(args: argparse.Namespace) -> str | None:
     import os
 
@@ -369,12 +453,12 @@ def _import_open_data_bu(args: argparse.Namespace) -> int:
             snapshot = lambda zone: load_zone_snapshot(conn, year=year, turn=turn, uf=uf, municipality=args.municipality, zone=zone)  # noqa: E731
         else:
             from .cadaster.polling_places import parse_cadaster, zone_snapshot
-            from .cadaster.sources import KIND_POLLING_PLACES, extract_member, find_acquired
+            from .cadaster.sources import KIND_POLLING_PLACES, find_acquired
             from .cadaster.sources import load_manifest as load_cadaster_manifest
 
             cad_manifest = load_cadaster_manifest(find_acquired(args.cadaster_dir, kind=KIND_POLLING_PLACES, year=year), kind=KIND_POLLING_PLACES)
-            member = extract_member(cad_manifest, rf".*_{year}_{uf.upper()}\.csv")
-            cadaster = parse_cadaster(member["path"], year=year, turn=turn, uf=uf, municipalities=[args.municipality])
+            member, national = _polling_member(cad_manifest, year, uf.upper())  # CSV da UF (2026) ou nacional (até 2024)
+            cadaster = parse_cadaster(member["path"], year=year, turn=turn, uf=uf, municipalities=[args.municipality], national=national)
             mun = cadaster.municipality(args.municipality)
             assert mun is not None
             zones = [args.zone] if args.zone is not None else sorted(mun.zones)
@@ -397,6 +481,18 @@ def _import_open_data_bu(args: argparse.Namespace) -> int:
             conn.close()
     print(dumps(reports[0] if args.zone is not None else reports))
     return 0
+
+
+def _polling_member(manifest: dict, year: int, uf: str) -> tuple[dict, bool]:
+    """(membro, nacional?): um CSV por UF (2026) ou um único CSV nacional (até 2024) — nunca os dois no mesmo ZIP."""
+    from .cadaster.sources import extract_member
+
+    names = {m["name"] for m in manifest["zip_members"]}
+    national = f"eleitorado_local_votacao_{year}.csv"
+    per_uf = [n for n in names if re.fullmatch(rf".*_{year}_{uf}\.csv", n)]
+    if per_uf and national in names:
+        raise SystemExit(f"ambiguous polling-place ZIP: both {per_uf} and {national}")
+    return extract_member(manifest, rf".*_{year}_{uf}\.csv" if per_uf else re.escape(national)), not per_uf
 
 
 def _cadaster(args: argparse.Namespace) -> int:
@@ -459,10 +555,12 @@ def _cadaster(args: argparse.Namespace) -> int:
 
     manifest = load_manifest(args.directory or find_acquired(args.cadaster_dir, kind=KIND_POLLING_PLACES, year=args.year), kind=KIND_POLLING_PLACES)
     uf = args.uf.upper()
-    member = extract_member(manifest, rf".*_{args.year}_{uf}\.csv")
+    member, national = _polling_member(manifest, args.year, uf)
     layout = detect_layout(member["path"])
     municipalities = [str(m).zfill(5) for m in args.municipality] or None
-    cadaster = parse_cadaster(member["path"], year=args.year, turn=args.turn, uf=uf, municipalities=municipalities)
+    cadaster = parse_cadaster(
+        member["path"], year=args.year, turn=args.turn, uf=uf, municipalities=municipalities, national=national
+    )
     if args.dry_run:
         print(dumps({"status": "dry_run", "csv": {k: member[k] for k in ("name", "size", "sha256")},
                      "layout": layout.as_dict(), "summary": cadaster.summary(), "warnings": cadaster.warnings}))

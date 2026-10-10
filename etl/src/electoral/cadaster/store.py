@@ -34,16 +34,20 @@ from .territories import Territories
 
 SOURCE_TERRITORIES = "tse-open-data-territories"
 SOURCE_CADASTER = "tse-open-data-cadaster"
-REQUIRED_COLUMNS = {("electoral_section", "eligible_federal"), ("polling_place", "coordinates_source"), ("municipality", "tse_name")}
+REQUIRED_COLUMNS = {
+    ("electoral_section", "eligible_federal"), ("electoral_section", "eligible_municipal"),
+    ("polling_place", "coordinates_source"), ("municipality", "tse_name"),
+}
 
 
 def _check_schema(cur: psycopg.Cursor) -> None:
     cur.execute(
         "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = current_schema() AND (table_name, column_name) IN "
-        "(('electoral_section','eligible_federal'),('polling_place','coordinates_source'),('municipality','tse_name'))"
+        "(('electoral_section','eligible_federal'),('electoral_section','eligible_municipal'),"
+        "('polling_place','coordinates_source'),('municipality','tse_name'))"
     )
     if {tuple(r) for r in cur.fetchall()} != REQUIRED_COLUMNS:
-        raise CadasterError("electoral schema missing; apply the EF migration AddElectoralIntelligence (dotnet ef database update)")
+        raise CadasterError("electoral schema missing or outdated; apply the EF migrations (dotnet ef database update)")
 
 
 def _source_file_id(cur: psycopg.Cursor, manifest: dict[str, Any], *, year: int | None, layout: DetectedLayout | None) -> str:
@@ -172,7 +176,10 @@ def import_territories(conn: psycopg.Connection, territories: Territories, manif
 # Cadastro eleitoral
 
 _PLACE_FIELDS = ("name", "address", "neighborhood", "postal_code", "place_type", "latitude", "longitude")
-_SECTION_FIELDS = ("place_code", "is_aggregated", "principal_number", "eligible_federal", "eligible_state", "section_electorate")
+_SECTION_FIELDS = (
+    "place_code", "is_aggregated", "principal_number", "eligible_federal", "eligible_state", "section_electorate",
+    "eligible_municipal",
+)
 
 
 def _round(v: float | None) -> float | None:
@@ -185,7 +192,8 @@ def _canonical(m: MunicipalityCadaster) -> tuple[dict[tuple[int, str], tuple[Any
         for z in m.zones.values() for p in z.places.values()
     }
     sections = {
-        (z.number, s.number): (s.place_code, s.is_aggregated, s.principal_number, s.eligible_federal, s.eligible_state, s.section_electorate)
+        (z.number, s.number): (s.place_code, s.is_aggregated, s.principal_number, s.eligible_federal, s.eligible_state,
+                               s.section_electorate, s.eligible_municipal)
         for z in m.zones.values() for s in z.sections.values()
     }
     return places, sections
@@ -203,7 +211,7 @@ def _stored(cur: psycopg.Cursor, election_id: str, municipality_id: str):
     cur.execute(
         """SELECT z.zone_number, s.section_number, p.tse_location_code, s.is_aggregated,
                   CASE WHEN s.is_aggregated THEN s.principal_section_number END,
-                  s.eligible_federal, s.eligible_state, s.section_electorate
+                  s.eligible_federal, s.eligible_state, s.section_electorate, s.eligible_municipal
              FROM electoral_section s JOIN electoral_zone z ON z.id = s.zone_id LEFT JOIN polling_place p ON p.id = s.polling_place_id
             WHERE s.election_id=%s AND s.municipality_id=%s""",
         (election_id, municipality_id),
@@ -279,18 +287,20 @@ def _write_municipality(cur, *, election_id, municipality_id, mun: MunicipalityC
         cur.executemany(
             """INSERT INTO electoral_section (election_id, municipality_id, zone_id, polling_place_id, section_number,
                                               principal_section_number, is_aggregated, eligible_federal, eligible_state,
-                                              section_electorate, source_file_id, ingestion_run_id, source_line, source_row_hash)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                              section_electorate, source_file_id, ingestion_run_id, source_line, source_row_hash,
+                                              eligible_municipal)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                ON CONFLICT (election_id, municipality_id, zone_id, section_number) DO UPDATE SET
                  polling_place_id=EXCLUDED.polling_place_id, principal_section_number=EXCLUDED.principal_section_number,
                  is_aggregated=EXCLUDED.is_aggregated, eligible_federal=EXCLUDED.eligible_federal, eligible_state=EXCLUDED.eligible_state,
-                 section_electorate=EXCLUDED.section_electorate, source_file_id=EXCLUDED.source_file_id,
+                 section_electorate=EXCLUDED.section_electorate, eligible_municipal=EXCLUDED.eligible_municipal,
+                 source_file_id=EXCLUDED.source_file_id,
                  ingestion_run_id=EXCLUDED.ingestion_run_id, source_line=EXCLUDED.source_line, source_row_hash=EXCLUDED.source_row_hash,
                  updated_at=now()""",
             [
                 (election_id, municipality_id, zone_id, place_ids[s.place_code], s.number,
                  s.principal_number if s.is_aggregated else s.number, s.is_aggregated, s.eligible_federal, s.eligible_state,
-                 s.section_electorate, source_id, run_id, s.line, s.row_hash)
+                 s.section_electorate, source_id, run_id, s.line, s.row_hash, s.eligible_municipal)
                 for s in sorted(z.sections.values(), key=lambda x: x.number)
             ],
         )
@@ -435,7 +445,7 @@ def load_zone_snapshot(conn: psycopg.Connection, *, year: int, turn: int, uf: st
             cur.execute(
                 """SELECT s.section_number, p.tse_location_code, s.is_aggregated, s.principal_section_number,
                           s.eligible_federal, s.eligible_state, s.section_electorate, COALESCE(s.source_line, 0), COALESCE(s.source_row_hash, ''),
-                          p.name
+                          p.name, s.eligible_municipal
                      FROM electoral_section s
                      JOIN election e ON e.id = s.election_id
                      JOIN municipality m ON m.id = s.municipality_id
@@ -445,7 +455,9 @@ def load_zone_snapshot(conn: psycopg.Connection, *, year: int, turn: int, uf: st
                 (year, turn, uf.upper(), code, zone),
             )
             for r in cur.fetchall():
-                zc.sections[r[0]] = SectionRecord(zone, r[0], r[1], r[2], r[3] if r[2] else None, r[4], r[5], r[6], r[7], r[8])
+                zc.sections[r[0]] = SectionRecord(
+                    zone, r[0], r[1], r[2], r[3] if r[2] else None, r[4], r[5], r[6], r[7], r[8], eligible_municipal=r[10]
+                )
                 zc.places.setdefault(r[1], PlaceRecord(zone, r[1], r[9], None, None, None, None, None, None))
     return snapshot_dict(tse_code=code, zone_numbers=zones, zone=zc, source={"kind": "database", "year": year, "turn": turn})
 

@@ -310,8 +310,9 @@ const POLITICIAN: PoliticianDetail = {
 
 function renderProfile(status: Parameters<typeof PoliticianProfile>[0]["status"]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ candidacies: [] }), { status: 200 }))));
-  render(
+  const xray = { candidacies: [], insights: [], evolution: [], assetsEvolution: [], officialHistory: [], freshness: { stale: false, refreshedAt: null, note: "" }, definitions: {} };
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify(xray), { status: 200 }))));
+  return render(
     <QueryClientProvider client={client}>
       <PoliticianProfile politician={POLITICIAN} elections={[]} assets={[]} sources={[]} status={status} />
     </QueryClientProvider>,
@@ -356,10 +357,13 @@ describe("perfil", () => {
     expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(within(tablist).getByRole("tab", { name: "Score" }).id);
   });
 
-  it("deep link ?aba=eleicoes abre direto no desempenho (sem passar pela visão geral)", () => {
-    window.history.replaceState(null, "", "/politico/pol-1?aba=eleicoes");
-    renderProfile(undefined);
-    expect(screen.getByRole("tab", { name: "Desempenho eleitoral" }).getAttribute("aria-selected")).toBe("true");
+  it("deep link ?aba=eleicoes (ou ?aba=raio-x) abre direto no Raio X (sem passar pela visão geral)", () => {
+    for (const aba of ["eleicoes", "raio-x"]) {
+      window.history.replaceState(null, "", `/politico/pol-1?aba=${aba}`);
+      const { unmount } = renderProfile(undefined);
+      expect(screen.getByRole("tab", { name: "Raio X eleitoral" }).getAttribute("aria-selected")).toBe("true");
+      unmount();
+    }
   });
 
   it("identidade compartilhada: avatar e nome levam os nomes de transição", () => {

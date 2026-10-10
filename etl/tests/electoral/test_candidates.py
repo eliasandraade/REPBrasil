@@ -40,7 +40,7 @@ def cpf(seed: int) -> str:
 
 BASE = dict.fromkeys(CANDIDATES_COLUMNS, "#NULO") | {
     "DT_GERACAO": "01/01/2099", "HH_GERACAO": "10:00:00", "ANO_ELEICAO": "2099", "CD_TIPO_ELEICAO": "2",
-    "NM_TIPO_ELEICAO": "ELEIÇÃO ORDINÁRIA", "NR_TURNO": "1", "DT_ELEICAO": "04/10/2099",
+    "NM_TIPO_ELEICAO": "ELEIÇÃO ORDINÁRIA", "NR_TURNO": "1", "DT_ELEICAO": "01/01/2099",
     "NR_CPF_CANDIDATO": "", "DS_EMAIL": "NÃO DIVULGÁVEL", "CD_SITUACAO_CANDIDATURA": "-3",
     "DS_SITUACAO_CANDIDATURA": "#NE", "TP_AGREMIACAO": "PARTIDO ISOLADO", "NR_FEDERACAO": "-1",
     "SQ_COLIGACAO": "1", "NM_COLIGACAO": "PARTIDO ISOLADO", "DT_NASCIMENTO": "01/01/1970",
@@ -162,7 +162,7 @@ def test_source_row_hash_is_computed_with_the_cpf_redacted(tmp_path):
     assert doc_a not in repr(a)
 
 
-RUNOFF = {"NR_TURNO": "2", "CD_ELEICAO": "999003", "DT_ELEICAO": "25/10/2099", "CD_SIT_TOT_TURNO": "-1", "DS_SIT_TOT_TURNO": "#NULO"}
+RUNOFF = {"NR_TURNO": "2", "CD_ELEICAO": "999003", "DT_ELEICAO": "15/01/2099", "CD_SIT_TOT_TURNO": "-1", "DS_SIT_TOT_TURNO": "#NULO"}
 
 
 def test_official_file_with_both_rounds_imports_only_the_requested_turn(tmp_path):
@@ -172,10 +172,10 @@ def test_official_file_with_both_rounds_imports_only_the_requested_turn(tmp_path
     beta_1 = BETA
     beta_2 = BETA | RUNOFF
     rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, [ALFA, beta_1, beta_2]))
-    selected, other = select_candidacies(rows, year=2099, turn=1, units={"BR"})
+    selected, other, _ = select_candidacies(rows, year=2099, turn=1, units={"BR"})
     assert [(r.tse_candidate_id, r.turn) for r in selected] == [(9001, 1), (9002, 1)]
     assert other == {2: 1}
-    selected_2, other_2 = select_candidacies(rows, year=2099, turn=2, units={"BR"})
+    selected_2, other_2, _ = select_candidacies(rows, year=2099, turn=2, units={"BR"})
     assert [(r.tse_candidate_id, r.turn, r.election_code) for r in selected_2] == [(9002, 2, 999003)]
     assert other_2 == {1: 2}
     other_year, _ = parse_file(write_csv(tmp_path / "x.csv", CANDIDATES_COLUMNS, [ALFA | {"ANO_ELEICAO": "2098"}]))
@@ -229,13 +229,13 @@ def conn():
         yield c
 
 
-def run_import(conn, tmp_path, br, xx, history=(), sha="c", supersede=False, key=KEY):
+def run_import(conn, tmp_path, br, xx, history=(), sha="c", supersede=False, key=KEY, turn=1):
     tmp_path.mkdir(parents=True, exist_ok=True)
     br_rows, layout = parse_file(write_csv(tmp_path / "consulta_cand_2099_BR.csv", CANDIDATES_COLUMNS, br))
     xx_rows, _ = parse_file(write_csv(tmp_path / "consulta_cand_2099_XX.csv", CANDIDATES_COLUMNS, xx))
     hist, hist_layout = parse_history_file(write_csv(tmp_path / "historico_candidatura_2099_XX.csv", HISTORY_COLUMNS, list(history)))
     return import_candidates(
-        conn, year=2099, turn=1, units={"BR", "XX"}, candidates=br_rows + xx_rows,
+        conn, year=2099, turn=turn, units={"BR", "XX"}, candidates=br_rows + xx_rows,
         candidates_manifest=manifest("tse-open-data-candidates", sha), candidates_layout=layout,
         history=hist, history_manifest=manifest("tse-open-data-candidacy-history", "d"), history_layout=hist_layout,
         key=key, supersede=supersede,
@@ -363,3 +363,86 @@ def test_import_skips_rows_of_another_round_and_reports_them(conn, tmp_path):
     assert conn.execute("SELECT count(*) FROM candidacy WHERE tse_candidate_id = 9002").fetchone()[0] == 1
     assert conn.execute("SELECT count(*) FROM contest WHERE tse_election_code = 999003").fetchone()[0] == 0
 
+
+@db
+def test_the_same_official_file_imports_each_turn_once(conn, tmp_path):
+    """Regressão (carga de 2022): o arquivo oficial traz os dois turnos; o 2º turno não é "já importado"."""
+    conn.execute("INSERT INTO election (year, round, election_date, tse_cycle) VALUES (2099, 2, '2099-01-15', 'ele2099')")
+    rows = [ALFA, BETA, BETA | RUNOFF]
+    assert run_import(conn, tmp_path / "t1", rows, [GAMA])["status"] == "succeeded"
+    second = run_import(conn, tmp_path / "t2", rows, [GAMA], turn=2)
+    assert (second["status"], second["candidacies"], second["other_turn_rows"]) == ("succeeded", 1, {"1": 3})
+    assert run_import(conn, tmp_path / "t2-again", rows, [GAMA], turn=2)["status"] == "already_imported"
+    # uma candidatura por turno (disputas diferentes), a mesma pessoa
+    assert conn.execute(
+        "SELECT count(*), count(DISTINCT person_id) FROM candidacy WHERE tse_candidate_id = 9002").fetchone() == (2, 1)
+
+
+
+@db
+def test_substitution_is_linked_by_the_official_inserted_in_urn_flag_and_names_ignore_punctuation(conn, tmp_path):
+    """Substituição de candidatura mantém o número na disputa: o complementar oficial diz qual foi à urna."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    twin = state(9104, 1111, "OUTRA PESSOA COM O MESMO NÚMERO", "DEPUTADA FICTÍCIA GAMA", cpf(100000005))
+    delta = state(9102, 2222, "DEPUTADO FICTÍCIO DELTA REIS", "DEPUTADO FICTÍCIO-DELTA.", cpf(100000004))  # só pontuação
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, twin, delta])
+    for sq, inserted in ((9101, "SIM"), (9104, "NÃO")):
+        conn.execute(
+            """INSERT INTO candidacy_source_record (candidacy_id, record_kind, payload, source_file_id, ingestion_run_id,
+                                                   source_member, source_line, source_row_hash)
+               SELECT id, 'complement', jsonb_build_object('inserted_in_urn', %s::text), source_file_id, ingestion_run_id,
+                      'consulta_cand_complementar_2099_XX.csv', 2, repeat('a', 64)
+                 FROM candidacy WHERE tse_candidate_id = %s""",
+            (inserted, sq),
+        )
+    report = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert (report["linked"], report["resolved_by_inserted_in_urn"], report["ambiguous"], report["name_mismatch"]) == (4, 1, [], [])
+    methods = dict(conn.execute(
+        "SELECT c.tse_candidate_id, vc.method FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id"))
+    assert methods == {9001: "contest_number", 9002: "contest_number", 9101: "contest_number_inserted_in_urn",
+                       9102: "contest_number"}
+    assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
+
+
+def _complement(conn, flags: dict[int, tuple[str, str]]) -> None:
+    """Complementar oficial fictício: SQ → (inserido na urna, substituída)."""
+    for sq, (inserted, substituted) in flags.items():
+        conn.execute(
+            """INSERT INTO candidacy_source_record (candidacy_id, record_kind, payload, source_file_id, ingestion_run_id,
+                                                   source_member, source_line, source_row_hash)
+               SELECT id, 'complement', jsonb_build_object('inserted_in_urn', %s::text, 'substituted', %s::text),
+                      source_file_id, ingestion_run_id, 'consulta_cand_complementar_2099_XX.csv', 2, repeat('b', 64)
+                 FROM candidacy WHERE tse_candidate_id = %s""",
+            (inserted, substituted, sq),
+        )
+
+
+@db
+def test_substitution_after_urn_loading_is_linked_by_the_official_substituted_flag(conn, tmp_path):
+    """Titular falecido depois da carga das urnas: as duas constam como inseridas; vale a não substituída."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    deceased = state(9104, 1111, "TITULAR FALECIDA", "DEPUTADA TITULAR", cpf(100000005))
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, deceased])
+    _complement(conn, {9101: ("SIM", "N"), 9104: ("SIM", "S")})
+    report = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert (report["resolved_by_substitution"], report["ambiguous"], report["name_mismatch"]) == (1, [], [])
+    method = conn.execute(
+        """SELECT vc.method FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id
+            WHERE c.tse_candidate_id = 9101""").fetchone()
+    assert method == ("contest_number_substitution",)
+
+
+@db
+def test_substitution_flag_never_overrides_a_ballot_name_conflict(conn, tmp_path):
+    """Os sinalizadores apontam a candidatura; o nome de urna do BU ainda precisa conferir (senão, sem vínculo)."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    other = state(9104, 1111, "OUTRA PESSOA", "OUTRO NOME DE URNA", cpf(100000005))
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, other])
+    _complement(conn, {9101: ("SIM", "S"), 9104: ("SIM", "N")})  # o BU traz o nome da 9101
+    report = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert report["resolved_by_substitution"] == 0
+    assert [m["ballot_name"] for m in report["name_mismatch"]] == ["OUTRO NOME DE URNA"]
+    linked = conn.execute(
+        """SELECT count(*) FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id
+            WHERE c.tse_candidate_id IN (9101, 9104)""").fetchone()
+    assert linked == (0,)

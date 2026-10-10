@@ -210,7 +210,7 @@ def scan(
             header = next(reader)
         except StopIteration as exc:
             raise LayoutError("empty CSV") from exc
-        if tuple(header) != layout.columns:
+        if tuple(header) != (layout.source_columns or layout.columns):
             raise LayoutError("header changed between detection and parsing")
         width = len(header)
         for fields in reader:

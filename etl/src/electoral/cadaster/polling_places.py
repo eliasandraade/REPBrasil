@@ -5,10 +5,11 @@ Uma linha por seção eleitoral × turno. Semântica (leiame oficial do dataset)
 - `CD_TIPO_SECAO_AGREGADA`: 1 Principal, 2 Agregada, 3 Distribuída de ofício;
   -1 fora de período eleitoral.
 - `NR_SECAO_PRINCIPAL`: só para agregadas; -1 nos demais casos.
-- `QT_ELEITOR_ELEICAO_FEDERAL` / `_ESTADUAL`: aptos da URNA após agregações,
+- `QT_ELEITOR_ELEICAO_FEDERAL` / `_ESTADUAL` / `_MUNICIPAL`: aptos da URNA após agregações,
   distribuições e transferências temporárias. "Para as seções distribuídas de
   ofício e agregadas, esse quantitativo é zero" — isto é, contado na
-  principal. Gravamos NULL nas agregadas (nunca "zero eleitores").
+  principal. Gravamos NULL nas agregadas (nunca "zero eleitores"). Em eleição geral
+  o municipal vem 0; em eleição municipal, federal e estadual vêm 0 (sem disputa).
 - `QT_ELEITOR_SECAO`: eleitorado originalmente vinculado à seção — outra
   medida, guardada só como dado da fonte.
 - `NR_LATITUDE` / `NR_LONGITUDE`: coordenadas gravadas no cadastro do TSE;
@@ -25,9 +26,9 @@ from __future__ import annotations
 import csv
 import hashlib
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..open_data.layout import DetectedLayout, detect_csv_layout
@@ -109,6 +110,7 @@ class SectionRecord:
     section_electorate: int | None  # QT_ELEITOR_SECAO (outra medida)
     line: int
     row_hash: str
+    eligible_municipal: int | None = None  # aptos da urna para cargos municipais (11/13)
 
 
 @dataclass
@@ -139,6 +141,7 @@ class Cadaster:
     municipalities: dict[str, MunicipalityCadaster]
     rows_read: int
     rows_matching: int
+    rows_other_uf: int = 0  # CSV nacional: linhas de outras UFs puladas
     warnings: list[dict[str, object]] = field(default_factory=list)
 
     def municipality(self, tse_code: str | int) -> MunicipalityCadaster | None:
@@ -153,7 +156,7 @@ class Cadaster:
             "uf": self.uf,
             "election_date": self.election_date,
             "generated_at": self.generated_at,
-            "rows": {"read": self.rows_read, "matching": self.rows_matching},
+            "rows": {"read": self.rows_read, "matching": self.rows_matching, "other_uf": self.rows_other_uf},
             "municipalities": len(self.municipalities),
             "zones": len({(m.tse_code, z) for m in self.municipalities.values() for z in m.zones}),
             "polling_places": len(places),
@@ -180,6 +183,33 @@ def _iso_date(raw: str, line: int) -> str:
     return f"{m[3]}-{m[2]}-{m[1]}"
 
 
+def _resolve_coordinates(
+    result: dict[str, MunicipalityCadaster],
+    published: dict[tuple[str, int, str], set[tuple[float, float]]],
+    unpublished: Counter[tuple[str, int, str]],
+) -> list[dict[str, object]]:
+    """Coordenadas de cada local a partir das linhas das suas seções.
+
+    Uma única coordenada publicada vale para o local, mesmo que outras linhas não a publiquem (-1);
+    coordenadas publicadas diferentes para o mesmo local ⇒ nenhuma (não se escolhe uma). Ambos os
+    casos geram aviso; nada é inventado.
+    """
+    warnings: list[dict[str, object]] = []
+    for (municipality, zone_n, place_code), coordinates in sorted(published.items()):
+        zone = result[municipality].zones[zone_n]
+        where = {"municipality": municipality, "zone": zone_n, "polling_place": place_code}
+        if len(coordinates) > 1:
+            warnings.append({"code": "polling_place_coordinates_conflict", **where,
+                             "coordinates": [list(c) for c in sorted(coordinates)]})
+            continue
+        ((lat, lon),) = coordinates
+        zone.places[place_code] = replace(zone.places[place_code], latitude=lat, longitude=lon)
+        if unpublished[(municipality, zone_n, place_code)]:
+            warnings.append({"code": "polling_place_coordinates_partial", **where,
+                             "rows_without_coordinates": unpublished[(municipality, zone_n, place_code)]})
+    return warnings
+
+
 def parse_cadaster(
     csv_path: Path,
     *,
@@ -187,8 +217,13 @@ def parse_cadaster(
     turn: int,
     uf: str,
     municipalities: Iterable[str | int] | None = None,
+    national: bool = False,
 ) -> Cadaster:
-    """Lê o CSV da UF em streaming e monta o cadastro de um turno (opcionalmente só alguns municípios)."""
+    """Lê o CSV da UF em streaming e monta o cadastro de um turno (opcionalmente só alguns municípios).
+
+    `national=True`: até 2024 o TSE publica um único CSV nacional (`eleitorado_local_votacao_<ano>.csv`);
+    as linhas de outras UFs são puladas e contadas. Num arquivo da UF, outra UF continua sendo erro.
+    """
     layout = detect_layout(csv_path)
     uf = uf.upper()
     wanted = {str(m).zfill(5) for m in municipalities} if municipalities else None
@@ -197,7 +232,10 @@ def parse_cadaster(
     descriptions: Counter[str] = Counter()
     generated: Counter[str] = Counter()
     warnings: list[dict[str, object]] = []
-    rows_read = rows_matching = 0
+    rows_read = rows_matching = rows_other_uf = 0
+    # Coordenadas publicadas por local (município, zona, local); resolvidas depois de ler todas as linhas.
+    published: dict[tuple[str, int, str], set[tuple[float, float]]] = defaultdict(set)
+    unpublished: Counter[tuple[str, int, str]] = Counter()
     i = _IDX
     with csv_path.open("r", encoding=layout.encoding, newline="") as fh:
         reader = csv.reader(fh, delimiter=layout.delimiter, quotechar=layout.quotechar)
@@ -209,6 +247,9 @@ def parse_cadaster(
             if fields[i["NR_TURNO"]].strip() != str(turn):
                 continue
             if fields[i["SG_UF"]].strip().upper() != uf:
+                if national:
+                    rows_other_uf += 1
+                    continue
                 raise CadasterError(f"line {line}: SG_UF {fields[i['SG_UF']]!r} in the {uf} file")
             municipality = fields[i["CD_MUNICIPIO"]].strip().zfill(5)
             if wanted is not None and municipality not in wanted:
@@ -243,10 +284,13 @@ def parse_cadaster(
 
             federal = _int(fields[i["QT_ELEITOR_ELEICAO_FEDERAL"]], "QT_ELEITOR_ELEICAO_FEDERAL", line)
             state = _int(fields[i["QT_ELEITOR_ELEICAO_ESTADUAL"]], "QT_ELEITOR_ELEICAO_ESTADUAL", line)
+            municipal = _int(fields[i["QT_ELEITOR_ELEICAO_MUNICIPAL"]], "QT_ELEITOR_ELEICAO_MUNICIPAL", line)
             if aggregated:
-                if federal != 0 or state != 0:
-                    raise CadasterError(f"line {line}: aggregated section {section_n} has non-zero urn electorate ({federal}/{state})")
-                federal = state = None  # contado na principal; ≠ zero eleitores
+                if federal != 0 or state != 0 or municipal != 0:
+                    raise CadasterError(
+                        f"line {line}: aggregated section {section_n} has non-zero urn electorate ({federal}/{state}/{municipal})"
+                    )
+                federal = state = municipal = None  # contado na principal; ≠ zero eleitores
 
             place_code = fields[i["NR_LOCAL_VOTACAO"]].strip()
             if not re.fullmatch(r"\d+", place_code):
@@ -277,9 +321,14 @@ def parse_cadaster(
             if mun is None:
                 mun = result[municipality] = MunicipalityCadaster(municipality, (_text(fields[i["NM_MUNICIPIO"]]) or ""))
             zone = mun.zones.setdefault(zone_n, ZoneCadaster(zone_n))
-            existing = zone.places.setdefault(place_code, place)
-            if existing != place:
+            # Identidade do local: todos os atributos, exceto as coordenadas (algumas linhas não as publicam).
+            existing = zone.places.setdefault(place_code, replace(place, latitude=None, longitude=None))
+            if existing != replace(place, latitude=None, longitude=None):
                 raise CadasterError(f"line {line}: polling place {zone_n}/{place_code} has conflicting attributes across rows")
+            if lat is None or lon is None:
+                unpublished[(municipality, zone_n, place_code)] += 1
+            else:
+                published[(municipality, zone_n, place_code)].add((lat, lon))
             if section_n in zone.sections:
                 raise CadasterError(f"line {line}: duplicate section {municipality}/{zone_n}/{section_n} (line {zone.sections[section_n].line})")
             zone.sections[section_n] = SectionRecord(
@@ -293,6 +342,7 @@ def parse_cadaster(
                 section_electorate=_int(fields[i["QT_ELEITOR_SECAO"]], "QT_ELEITOR_SECAO", line, allow_absent=True),
                 line=line,
                 row_hash=_row_hash(fields),
+                eligible_municipal=municipal,
             )
 
     if wanted is not None:
@@ -303,6 +353,7 @@ def parse_cadaster(
         raise CadasterError(f"no rows for {uf} turn {turn} in {csv_path.name}")
     if len(dates) != 1 or len(generated) != 1:
         raise CadasterError(f"mixed election dates {sorted(dates)} or generation timestamps {sorted(generated)} in one turn")
+    warnings.extend(_resolve_coordinates(result, published, unpublished))
 
     for mun in result.values():
         for zone in mun.zones.values():
@@ -328,6 +379,7 @@ def parse_cadaster(
         municipalities=result,
         rows_read=rows_read,
         rows_matching=rows_matching,
+        rows_other_uf=rows_other_uf,
         warnings=warnings,
     )
 
@@ -359,6 +411,7 @@ def snapshot_dict(*, tse_code: str, zone_numbers: list[int], zone: ZoneCadaster 
                 "aggregated_sections": [] if s.is_aggregated else zone.aggregated_of(s.number),
                 "total_eligible_federal": s.eligible_federal,
                 "total_eligible_state": s.eligible_state,
+                "total_eligible_municipal": s.eligible_municipal,
             })
     return {
         "source": source,

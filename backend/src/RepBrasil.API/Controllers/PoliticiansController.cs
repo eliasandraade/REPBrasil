@@ -28,6 +28,7 @@ public class PoliticiansController : ControllerBase
     private readonly GetPoliticianScoreQuery _getScoreQuery;
     private readonly GetPoliticianScoreHistoryQuery _getScoreHistoryQuery;
     private readonly CandidacyService _candidacies;
+    private readonly XrayService _xray;
     private readonly ApplicationDbContext _db;
 
     public PoliticiansController(
@@ -39,6 +40,7 @@ public class PoliticiansController : ControllerBase
         GetPoliticianScoreQuery getScoreQuery,
         GetPoliticianScoreHistoryQuery getScoreHistoryQuery,
         CandidacyService candidacies,
+        XrayService xray,
         ApplicationDbContext db)
     {
         _searchQuery = searchQuery;
@@ -49,6 +51,7 @@ public class PoliticiansController : ControllerBase
         _getScoreQuery = getScoreQuery;
         _getScoreHistoryQuery = getScoreHistoryQuery;
         _candidacies = candidacies;
+        _xray = xray;
         _db = db;
     }
 
@@ -144,6 +147,22 @@ public class PoliticiansController : ControllerBase
     /// Candidaturas oficiais (TSE) ligadas a este perfil, com partido/cargo DAQUELA eleição e
     /// desempenho por município a partir do Boletim de Urna. Dados descritivos: não afetam o Score.
     /// </summary>
+    /// <summary>Raio X eleitoral do perfil: candidaturas, votação, chapa, bens, contas, histórico, evolução e insights.</summary>
+    [HttpGet("{id:guid}/xray")]
+    [ProducesResponseType(typeof(XrayResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetXray(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            return Ok(await _xray.BuildAsync(id, ct));
+        }
+        catch (ElectoralNotFoundException e)
+        {
+            return NotFound(new { message = e.Message });
+        }
+    }
+
     [HttpGet("{id:guid}/candidacies")]
     [ProducesResponseType(typeof(PoliticianCandidaciesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

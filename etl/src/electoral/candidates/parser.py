@@ -43,7 +43,7 @@ ELECTED_BY_OUTCOME: dict[int, bool | None] = {
     6: None,   # 2º TURNO — indefinido no 1º turno
 }
 
-SCOPE_BY_ABRANGENCIA = {"FEDERAL": "federal", "ESTADUAL": "state"}
+SCOPE_BY_ABRANGENCIA = {"FEDERAL": "federal", "ESTADUAL": "state", "MUNICIPAL": "municipal"}
 
 
 class CandidateRowError(ValueError):
@@ -68,6 +68,17 @@ def code(raw: str, column: str, line: int) -> int | None:
     return None if number < 0 else number
 
 
+def iso_date(raw: str, line: int) -> str | None:
+    """DD/MM/AAAA → AAAA-MM-DD; sentinela ⇒ None; qualquer outro formato é erro."""
+    value = text(raw)
+    if value is None:
+        return None
+    parts = value.split("/")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts) or len(parts[2]) != 4:
+        raise CandidateRowError(line, f"date {value!r} is not DD/MM/YYYY")
+    return f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+
+
 def required_int(raw: str, column: str, line: int) -> int:
     number = code(raw, column, line)
     if number is None:
@@ -85,6 +96,10 @@ class CandidateRow:
     turn: int
     election_code: int
     election_description: str | None
+    # CD_TIPO_ELEICAO: 2 = ordinária, 1 = suplementar (o arquivo do ano traz as suplementares
+    # realizadas depois, com o mesmo ANO_ELEICAO); DT_ELEICAO em ISO.
+    election_type_code: int | None
+    election_date: str | None
     scope: str
     uf: str
     electoral_unit: str
@@ -119,12 +134,22 @@ def parse_candidate(fields: list[str], line: int, columns: tuple[str, ...], memb
     abrangencia = f["TP_ABRANGENCIA"].strip().upper()
     if abrangencia not in SCOPE_BY_ABRANGENCIA:
         raise CandidateRowError(line, f"unknown TP_ABRANGENCIA {abrangencia!r}")
+    scope = SCOPE_BY_ABRANGENCIA[abrangencia]
     unit = f["SG_UE"].strip().upper()
     uf = f["SG_UF"].strip().upper()
-    if len(unit) != 2 or len(uf) != 2:
-        raise CandidateRowError(line, f"SG_UE/SG_UF must be 2-letter codes, found {unit!r}/{uf!r}")
-    if SCOPE_BY_ABRANGENCIA[abrangencia] == "federal" and unit != "BR":
+    if len(uf) != 2:
+        raise CandidateRowError(line, f"SG_UF must be a 2-letter code, found {uf!r}")
+    if not unit:
+        raise CandidateRowError(line, "SG_UE is required")
+    if scope == "federal" and unit != "BR":
         raise CandidateRowError(line, f"federal contest with electoral unit {unit!r}")
+    if scope == "state" and len(unit) != 2:
+        raise CandidateRowError(line, f"state contest with electoral unit {unit!r}")
+    if scope == "municipal":
+        # SG_UE municipal = código TSE do município; normalizado com 5 dígitos, igual ao BU.
+        if not unit.isdigit() or len(unit) > 5:
+            raise CandidateRowError(line, f"municipal contest with electoral unit {unit!r} (expected a TSE municipality code)")
+        unit = unit.zfill(5)
     full_name, ballot_name = text(f["NM_CANDIDATO"]), text(f["NM_URNA_CANDIDATO"])
     office_name = text(f["DS_CARGO"])
     if not full_name or not ballot_name or not office_name:
@@ -139,7 +164,9 @@ def parse_candidate(fields: list[str], line: int, columns: tuple[str, ...], memb
         turn=required_int(f["NR_TURNO"], "NR_TURNO", line),
         election_code=required_int(f["CD_ELEICAO"], "CD_ELEICAO", line),
         election_description=text(f["DS_ELEICAO"]),
-        scope=SCOPE_BY_ABRANGENCIA[abrangencia],
+        election_type_code=code(f["CD_TIPO_ELEICAO"], "CD_TIPO_ELEICAO", line),
+        election_date=iso_date(f["DT_ELEICAO"], line),
+        scope=scope,
         uf=uf,
         electoral_unit=unit,
         office_code=required_int(f["CD_CARGO"], "CD_CARGO", line),
@@ -168,7 +195,11 @@ def parse_candidate(fields: list[str], line: int, columns: tuple[str, ...], memb
 
 @dataclass(frozen=True)
 class HistoryRow:
-    """Uma candidatura anterior (SQ_CANDIDATO) da pessoa da candidatura atual (SQ_CANDIDATO_ATUAL)."""
+    """Uma candidatura anterior (SQ_CANDIDATO) da pessoa da candidatura atual (SQ_CANDIDATO_ATUAL).
+
+    O arquivo não traz CPF: só a relação oficial entre SQ_CANDIDATO e os dados públicos da
+    candidatura anterior (cargo, unidade, número, nome de urna, partido, resultado).
+    """
 
     line: int
     current_tse_candidate_id: int
@@ -178,12 +209,23 @@ class HistoryRow:
     tse_candidate_id: int
     office_name: str | None
     electoral_unit: str
+    source_member: str = ""
+    office_code: int | None = None
+    unit_name: str | None = None
+    candidate_number: int | None = None
+    ballot_name: str | None = None
+    party_acronym: str | None = None
+    round_outcome: str | None = None
 
 
-def parse_history(fields: list[str], line: int, columns: tuple[str, ...]) -> HistoryRow:
+def parse_history(fields: list[str], line: int, columns: tuple[str, ...], member: str = "") -> HistoryRow:
     if len(fields) != len(columns):
         raise CandidateRowError(line, f"expected {len(columns)} fields, found {len(fields)}")
     f = dict(zip(columns, fields, strict=True))
+    unit = f["SG_UE"].strip().upper()
+    # SG_UE municipal = código TSE do município: mesma normalização das candidaturas e do BU.
+    if unit.isdigit():
+        unit = unit.zfill(5)
     return HistoryRow(
         line=line,
         current_tse_candidate_id=required_int(f["SQ_CANDIDATO_ATUAL"], "SQ_CANDIDATO_ATUAL", line),
@@ -192,7 +234,14 @@ def parse_history(fields: list[str], line: int, columns: tuple[str, ...]) -> His
         turn=required_int(f["NR_TURNO"], "NR_TURNO", line),
         tse_candidate_id=required_int(f["SQ_CANDIDATO"], "SQ_CANDIDATO", line),
         office_name=text(f["DS_CARGO"]),
-        electoral_unit=f["SG_UE"].strip().upper(),
+        electoral_unit=unit,
+        source_member=member,
+        office_code=code(f["CD_CARGO"], "CD_CARGO", line),
+        unit_name=text(f["NM_UE"]),
+        candidate_number=code(f["NR_CANDIDATO"], "NR_CANDIDATO", line),
+        ballot_name=text(f["NM_URNA_CANDIDATO"]),
+        party_acronym=text(f["SG_PARTIDO"]),
+        round_outcome=text(f["DS_SIT_TOT_TURNO"]),
     )
 
 

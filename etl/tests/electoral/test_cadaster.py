@@ -14,6 +14,7 @@ então o BU fictício reconcilia contra ele pelo caminho genérico.
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import io
 import json
@@ -126,6 +127,24 @@ def test_out_of_range_coordinates_are_dropped_with_a_warning(tmp_path):
     assert c.warnings and c.warnings[0]["code"] == "invalid_coordinates"
 
 
+def test_place_coordinates_published_in_only_some_rows_are_resolved_without_guessing(tmp_path):
+    """Caso real (CE 2024): só uma das linhas de seção do local publica a coordenada; as outras trazem -1."""
+    official = '"-4,0000001";"-39,0000001"'
+    partial = cadaster(write(tmp_path, POLLING_TEXT.replace(official, '"-1";"-1"', 1)))
+    place = partial.municipality(99999).zones[9].places["9001"]  # type: ignore[union-attr]
+    assert (place.latitude, place.longitude) == (-4.0000001, -39.0000001)
+    assert [w["code"] for w in partial.warnings if w.get("polling_place") == "9001"] == ["polling_place_coordinates_partial"]
+    # duas coordenadas publicadas diferentes para o mesmo local: nenhuma é escolhida
+    conflict = cadaster(write(tmp_path, POLLING_TEXT.replace(official, '"-4,5";"-39,5"', 1)))
+    assert conflict.municipality(99999).zones[9].places["9001"].latitude is None  # type: ignore[union-attr]
+    (warning,) = [w for w in conflict.warnings if w["code"] == "polling_place_coordinates_conflict"]
+    assert warning["coordinates"] == [[-4.5, -39.5], [-4.0000001, -39.0000001]]
+    # outro atributo de identidade divergente continua bloqueando (não é o mesmo local)
+    renamed = write(tmp_path, POLLING_TEXT.replace('"ESCOLA FICTÍCIA UM"', '"ESCOLA FICTÍCIA UM ANEXO"', 1))
+    with pytest.raises(CadasterError, match="polling place 9/9001 has conflicting attributes"):
+        cadaster(renamed)
+
+
 def test_municipality_filter_and_missing_municipality(tmp_path):
     c = cadaster(municipalities=["99998"])
     assert list(c.municipalities) == ["99998"]
@@ -208,18 +227,44 @@ class FakeSource:
         raise AssertionError
 
 
-def make_zip() -> bytes:
+PER_UF_MEMBERS = (
+    ("eleitorado_local_votacao_2099_XX.csv", POLLING.read_bytes()),
+    ("eleitorado_local_votacao_2099_YY.csv", b"outra UF"),
+    ("leiame.pdf", b"%PDF fictitious"),
+)
+
+
+def make_zip(members: tuple[tuple[str, bytes], ...] = PER_UF_MEMBERS) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:  # data fixa ⇒ bytes determinísticos
-        for name, data in (("eleitorado_local_votacao_2099_XX.csv", POLLING.read_bytes()),
-                           ("eleitorado_local_votacao_2099_YY.csv", b"outra UF"), ("leiame.pdf", b"%PDF fictitious")):
+        for name, data in members:
             z.writestr(zipfile.ZipInfo(name, date_time=(2099, 1, 1, 0, 0, 0)), data, zipfile.ZIP_DEFLATED)
     return buf.getvalue()
 
 
-def acquire(tmp_path: Path):
+def acquire(tmp_path: Path, data: bytes | None = None):
     resource = select_resource(package(), CadasterResourceSpec.polling_places(2099))
-    return acquire_resource(resource, tmp_path / "cadaster", source=FakeSource(make_zip()), now=lambda: "2099-01-03T00:00:00+00:00")
+    return acquire_resource(resource, tmp_path / "cadaster", source=FakeSource(data or make_zip()),
+                            now=lambda: "2099-01-03T00:00:00+00:00")
+
+
+def national_csv() -> bytes:
+    """CSV nacional (formato até 2024): as linhas da UF XX e uma linha de outra UF."""
+    header, first = list(csv.reader(io.StringIO(POLLING_TEXT), delimiter=";"))[:2]
+    other = list(first)
+    other[header.index("SG_UF")], other[header.index("CD_MUNICIPIO")] = "YY", "88888"
+    out = io.StringIO()
+    csv.writer(out, delimiter=";", quoting=csv.QUOTE_ALL, lineterminator="\r\n").writerow(other)
+    return (POLLING_TEXT + out.getvalue()).encode("latin-1")
+
+
+def test_national_file_keeps_only_the_requested_uf_and_counts_the_rest(tmp_path):
+    path = write(tmp_path, national_csv().decode("latin-1"), name="eleitorado_local_votacao_2099.csv")
+    base, national = cadaster().summary(), cadaster(path, national=True).summary()
+    assert national["rows"] == {"read": base["rows"]["read"] + 1, "matching": base["rows"]["matching"], "other_uf": 1}
+    assert {k: v for k, v in national.items() if k != "rows"} == {k: v for k, v in base.items() if k != "rows"}
+    with pytest.raises(CadasterError, match="SG_UF 'YY' in the XX file"):
+        cadaster(path)  # num arquivo da UF, outra UF continua sendo erro
 
 
 def test_discovery_uses_ckan_metadata_and_official_hosts():
@@ -255,6 +300,30 @@ def test_cli_dry_run_reconciles_every_zone_from_the_official_cadaster(tmp_path, 
     reports = json.loads(capsys.readouterr().out)
     assert [r["scope"]["zone"] for r in reports] == [9]  # zona omitida ⇒ todas as zonas do cadastro
     assert reports[0]["sections"]["aggregation"] == {"1": [2, 3], "5": [6]}
+
+
+def test_bu_dry_run_reconciles_against_the_national_cadaster_file(tmp_path, capsys):
+    """Regressão: o dry-run do BU (cadastro lido do CSV adquirido) também aceita o arquivo nacional de 2022/2024."""
+    a = acquire(tmp_path, make_zip((("eleitorado_local_votacao_2099.csv", national_csv()), ("leiame.pdf", b"%PDF fictitious"))))
+    bu = acquired(tmp_path / "bu")
+    code = main(["import-open-data-bu", str(bu.directory), "--municipality", "99999", "--dry-run", "--cadaster-dir", str(a.directory.parent)])
+    assert code == 0
+    reports = json.loads(capsys.readouterr().out)
+    assert [r["scope"]["zone"] for r in reports] == [9]
+    assert reports[0]["sections"]["aggregation"] == {"1": [2, 3], "5": [6]}
+
+
+def test_cli_reads_the_national_cadaster_file_and_refuses_an_ambiguous_zip(tmp_path, capsys):
+    national = (("eleitorado_local_votacao_2099.csv", national_csv()), ("leiame.pdf", b"%PDF fictitious"))
+    a = acquire(tmp_path / "national", make_zip(national))
+    assert main(["import-electoral-cadaster", str(a.directory), "--year", "2099", "--turn", "1", "--uf", "XX", "--dry-run"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["csv"]["name"] == "eleitorado_local_votacao_2099.csv"
+    assert report["summary"]["rows"]["other_uf"] == 1
+    assert report["summary"]["sections"] == cadaster().summary()["sections"]
+    both = acquire(tmp_path / "both", make_zip((PER_UF_MEMBERS[0], *national)))
+    with pytest.raises(SystemExit, match="ambiguous polling-place ZIP"):
+        main(["import-electoral-cadaster", str(both.directory), "--year", "2099", "--turn", "1", "--uf", "XX", "--dry-run"])
 
 
 def test_cli_answers_cadaster_missing_instead_of_inferring(tmp_path, capsys, monkeypatch):

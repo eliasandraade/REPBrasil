@@ -18,7 +18,7 @@ import { AssetsTab } from "./tabs/AssetsTab";
 import { MetadataTab } from "./tabs/MetadataTab";
 import { ScoreTab } from "./tabs/ScoreTab";
 import { CamaraTab } from "./tabs/CamaraTab";
-import { ElectoralPerformanceTab } from "./tabs/ElectoralPerformanceTab";
+import { XrayTab } from "@/components/xray/XrayTab";
 
 type TabId = "overview" | "elections" | "electoral" | "assets" | "metadata" | "score" | "camara";
 
@@ -98,9 +98,9 @@ export function InitialAvatar({ name }: Readonly<{ name: string }>) {
 
 function initialTab(hasCamara: boolean): TabId {
   if (typeof window === "undefined") return "overview";
-  // Deep link vindo do explorador eleitoral: abre direto no desempenho (sem passar pela visão geral).
+  // Deep link vindo do explorador eleitoral: abre direto no Raio X (sem passar pela visão geral).
   const aba = new URLSearchParams(window.location.search).get("aba");
-  if (aba === "eleicoes") return "electoral";
+  if (aba === "eleicoes" || aba === "raio-x") return "electoral";
   if (aba === "camara" && hasCamara) return "camara";
   return "overview";
 }
@@ -118,7 +118,7 @@ export function PoliticianProfile({
   const TABS: TabDef<TabId>[] = [
     { id: "overview", label: "Visão Geral" },
     { id: "elections", label: "Eleições" },
-    { id: "electoral", label: "Desempenho eleitoral" },
+    { id: "electoral", label: "Raio X eleitoral" },
     { id: "assets", label: "Patrimônio" },
     { id: "metadata", label: "Fontes" },
     { id: "score", label: "Score" },
@@ -231,7 +231,7 @@ export function PoliticianProfile({
           />
         )}
         {activeTab === "elections" && <ElectionTab elections={elections} />}
-        {activeTab === "electoral" && <ElectoralPerformanceTab politicianId={politician.id} />}
+        {activeTab === "electoral" && <XrayTab politicianId={politician.id} />}
         {activeTab === "assets" && <AssetsTab assets={assets} />}
         {activeTab === "metadata" && (
           <MetadataTab politician={politician} sources={sources} />

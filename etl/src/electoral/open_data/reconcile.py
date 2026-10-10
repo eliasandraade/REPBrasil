@@ -73,7 +73,11 @@ def reconcile_with_cadastro(zone: NormalizedZone, cadastro: dict[str, Any]) -> R
             aggregated[number] = bu_agg
 
         eligible = zone.eligible_by_scope(number)
-        expected = {"federal": record.get("total_eligible_federal"), "state": record.get("total_eligible_state")}
+        expected = {
+            "federal": record.get("total_eligible_federal"),
+            "state": record.get("total_eligible_state"),
+            "municipal": record.get("total_eligible_municipal"),
+        }
         for scope, value in eligible.items():
             if value is None or expected[scope] is None:
                 continue  # ausência não é comparada como zero
