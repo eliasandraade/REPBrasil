@@ -122,6 +122,49 @@ def _source(
     )
 
 
+def ensure_indicator_catalog(conn: Any) -> None:
+    """Upsert the indicators needed by this preset before loading values.
+
+    This deliberately duplicates the migration's catalog rows so the one-shot
+    ingestion remains safe when Railway starts ETL and API deployments in
+    parallel. The migration stays the source of truth for fresh databases.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO electoral.indicator
+            (code, name, unit, provider, description, derived, derivation)
+        VALUES
+            (
+                'ibge.literacy_rate_15_plus',
+                'Taxa de alfabetização (15+)',
+                '%',
+                'IBGE/SIDRA',
+                'Taxa municipal de alfabetização das pessoas de 15 anos ou mais no Censo Demográfico 2022.',
+                false,
+                NULL
+            ),
+            (
+                'derived.illiteracy_rate_15_plus',
+                'Taxa de analfabetismo (15+)',
+                '%',
+                'REPBrasil',
+                'Complemento da taxa oficial de alfabetização municipal das pessoas de 15 anos ou mais.',
+                true,
+                '100 - ibge.literacy_rate_15_plus'
+            )
+        ON CONFLICT (code) DO UPDATE SET
+            name = EXCLUDED.name,
+            unit = EXCLUDED.unit,
+            provider = EXCLUDED.provider,
+            description = EXCLUDED.description,
+            derived = EXCLUDED.derived,
+            derivation = EXCLUDED.derivation
+        """
+    )
+    conn.commit()
+
+
 def municipality_codes(conn: Any, uf: str) -> set[str]:
     cursor = conn.cursor()
     cursor.execute(
@@ -154,7 +197,7 @@ def ingest_censo_2022_core(
 ) -> IngestionResult:
     """Load population, literacy and derived illiteracy for one UF.
 
-    All remote payloads are acquired and validated before the first database
+    All remote payloads are acquired and validated before the first observation
     write. A missing municipality therefore aborts the run instead of silently
     producing a partial socioeconomic profile.
     """
@@ -187,6 +230,8 @@ def ingest_censo_2022_core(
         maximum=Decimal(100),
     )
     illiteracy = derive_illiteracy_rate(literacy)
+
+    ensure_indicator_catalog(conn)
 
     population_stats = load_observations(
         conn,
