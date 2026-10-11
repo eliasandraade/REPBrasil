@@ -6,6 +6,12 @@ using RepBrasil.Application.Interfaces;
 
 namespace RepBrasil.Infrastructure.Repositories;
 
+/// <summary>
+/// Cliente do worker do lake eleitoral (Parquet). O token (quando configurado no worker com
+/// REPBRASIL_LAKE_TOKEN) vai em <c>Authorization: Bearer</c>, configurado no <see cref="HttpClient"/>.
+/// Falha de rede, timeout ou resposta não-2xx viram <see cref="ElectoralUnavailableException"/> (503
+/// "indisponível"): o corpo da resposta do worker nunca é repassado ao cliente da API.
+/// </summary>
 public sealed class ElectoralLakeClient(HttpClient http) : IElectoralLakeClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -19,6 +25,13 @@ public sealed class ElectoralLakeClient(HttpClient http) : IElectoralLakeClient
         public long ValidVotes { get; init; }
     }
 
+    /// <summary>Configura o token do worker (vazio ⇒ sem cabeçalho, para workers sem token).</summary>
+    public static void ConfigureAuthorization(HttpClient client, string? token)
+    {
+        if (!string.IsNullOrWhiteSpace(token))
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Trim());
+    }
+
     private async Task<T> PostAsync<T>(string path, object body, string context, CancellationToken ct)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(body, JsonOptions);
@@ -29,18 +42,32 @@ public sealed class ElectoralLakeClient(HttpClient http) : IElectoralLakeClient
         {
             Content = content,
         };
-        using var response = await http.SendAsync(request, ct);
 
-        if (!response.IsSuccessStatusCode)
+        HttpResponseMessage response;
+        try
         {
-            var responseBody = await response.Content.ReadAsStringAsync(ct);
-            throw new HttpRequestException(
-                $"Electoral lake returned {(int)response.StatusCode} for {context}: {responseBody}",
-                null,
-                response.StatusCode);
+            response = await http.SendAsync(request, ct);
+        }
+        catch (HttpRequestException e)
+        {
+            throw new ElectoralUnavailableException($"electoral lake unreachable for {context}", e);
+        }
+        catch (TaskCanceledException e) when (!ct.IsCancellationRequested)
+        {
+            throw new ElectoralUnavailableException($"electoral lake timed out for {context}", e);
         }
 
-        return (await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct))!;
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new ElectoralUnavailableException(
+                    $"electoral lake returned {(int)response.StatusCode} for {context}",
+                    new HttpRequestException(null, null, response.StatusCode));
+            }
+
+            return (await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct))!;
+        }
     }
 
     public async Task<IReadOnlyList<VoteRow>> ResultVotesAsync(long resultId, string uf, CancellationToken ct) =>

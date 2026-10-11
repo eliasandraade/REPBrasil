@@ -149,19 +149,12 @@ public class PoliticiansController : ControllerBase
     /// </summary>
     /// <summary>Raio X eleitoral do perfil: candidaturas, votação, chapa, bens, contas, histórico, evolução e insights.</summary>
     [HttpGet("{id:guid}/xray")]
+    [ElectoralErrors]
     [ProducesResponseType(typeof(XrayResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetXray(Guid id, CancellationToken ct)
-    {
-        try
-        {
-            return Ok(await _xray.BuildAsync(id, ct));
-        }
-        catch (ElectoralNotFoundException e)
-        {
-            return NotFound(new { message = e.Message });
-        }
-    }
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> GetXray(Guid id, CancellationToken ct) =>
+        Ok(await _xray.BuildAsync(id, ct));
 
     [HttpGet("{id:guid}/candidacies")]
     [ProducesResponseType(typeof(PoliticianCandidaciesResponse), StatusCodes.Status200OK)]

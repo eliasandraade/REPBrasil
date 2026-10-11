@@ -153,6 +153,14 @@ public sealed class ElectoralErrorsAttribute : ExceptionFilterAttribute
             {
                 StatusCode = StatusCodes.Status500InternalServerError,
             },
+            ElectoralUnavailableException => new ObjectResult(new
+            {
+                message = "Dados eleitorais arquivados temporariamente indisponíveis. Tente novamente em instantes.",
+                status = "unavailable",
+            })
+            {
+                StatusCode = StatusCodes.Status503ServiceUnavailable,
+            },
             _ => context.Result,
         };
         context.ExceptionHandled = context.Result is not null;

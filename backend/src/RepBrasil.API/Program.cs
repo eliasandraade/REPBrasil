@@ -26,10 +26,13 @@ builder.Services.AddScoped<GetPoliticianScoreQuery>();
 builder.Services.AddScoped<GetPoliticianScoreHistoryQuery>();
 
 var lakeBaseUrl = builder.Configuration["ElectoralLake:BaseUrl"] ?? "http://electoral-lake.railway.internal:8080";
+// Mesmo segredo do worker (REPBRASIL_LAKE_TOKEN); ElectoralLake__Token tem precedência.
+var lakeToken = builder.Configuration["ElectoralLake:Token"] ?? builder.Configuration["REPBRASIL_LAKE_TOKEN"];
 builder.Services.AddHttpClient<IElectoralLakeClient, ElectoralLakeClient>(client =>
 {
     client.BaseAddress = new Uri(lakeBaseUrl, UriKind.Absolute);
     client.Timeout = TimeSpan.FromSeconds(15);
+    ElectoralLakeClient.ConfigureAuthorization(client, lakeToken);
 });
 builder.Services.AddScoped<ElectoralReadRepository>();
 builder.Services.AddScoped<IElectoralReadRepository, HybridElectoralReadRepository>();

@@ -23,6 +23,7 @@ c. nada disso ⇒ sem pessoa e sem perfil. Nunca por nome; nunca um perfil inven
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import unicodedata
@@ -662,6 +663,12 @@ def backfill_history(
 # 3 = + substituição depois da carga das urnas (as duas constam como inseridas): vale a única que o
 #     complementar não marca como substituída (ST_SUBSTITUIDO = N).
 LINK_RULES = 3
+# Versão do cálculo da impressão digital das entradas do vínculo (migration 013). A idempotência do lote
+# é a impressão digital do CONTEÚDO que decide o vínculo — votáveis, candidaturas casáveis, sinalizadores
+# do complementar e regra —, não só o lote de candidaturas: um complementar importado depois (carga real
+# de 2024: 69 ambíguos → 68 "inserido na urna" + 1 substituição) precisa gerar um lote novo sem invalidar
+# nada à mão.
+LINK_INPUTS_VERSION = 1
 _ORDINALS = str.maketrans("", "", "ªº")
 _NOT_ALNUM = re.compile(r"[^0-9A-Z]+")
 
@@ -771,6 +778,101 @@ def _link_votable(cur: psycopg.Cursor, election_id: str, uf: str, run_id: str, v
         report[_RESOLVED_BY[method]] += 1
 
 
+def _digest(rows: Iterable[Iterable[Any]]) -> str:
+    """SHA-256 canônico de linhas já ordenadas (cada valor em texto; None ≠ '')."""
+    h = hashlib.sha256()
+    for row in rows:
+        h.update(json.dumps([None if v is None else str(v) for v in row], ensure_ascii=False).encode("utf-8"))
+        h.update(b"\n")
+    return h.hexdigest()
+
+
+def _archived_scope(cur: psycopg.Cursor, year: int, turn: int, uf: str) -> bool:
+    """Escopo cujos fatos de voto detalhados foram arquivados no lake (Parquet) e podados do Postgres."""
+    cur.execute("SELECT to_regclass('electoral_archive.derived_archive_scope') IS NOT NULL")
+    if not cur.fetchone()[0]:
+        return False
+    cur.execute(
+        "SELECT 1 FROM electoral_archive.derived_archive_scope WHERE year = %s AND turn = %s AND uf = %s",
+        (year, turn, uf),
+    )
+    return cur.fetchone() is not None
+
+
+def _scope_votables(cur: psycopg.Cursor, year: int, turn: int, uf: str, archived: bool) -> list[tuple]:
+    """Votáveis nominais com votos em urnas desta UF neste pleito/turno.
+
+    Escopo quente: lidos dos fatos (`section_office_vote`). Escopo arquivado: os fatos detalhados foram
+    podados depois de conferidos contra o Parquet; o agregado persistente auditado
+    (`electoral_archive.votable_zone_votes`) guarda exatamente os mesmos votáveis — sem ele, o vínculo
+    de um escopo arquivado acharia zero votáveis e registraria um lote "vazio" falso."""
+    if archived:
+        cur.execute(
+            """SELECT v.id, v.election_code, v.office_code, v.number, v.name, v.municipality_tse_code
+                 FROM votable v
+                WHERE v.vote_kind = 'candidate'
+                  AND EXISTS (SELECT 1 FROM electoral_archive.votable_zone_votes a
+                               WHERE a.votable_id = v.id AND a.year = %s AND a.turn = %s AND a.uf = %s)
+                ORDER BY v.id""",
+            (year, turn, uf),
+        )
+    else:
+        cur.execute(
+            """SELECT v.id, v.election_code, v.office_code, v.number, v.name, v.municipality_tse_code
+                 FROM votable v
+                WHERE v.vote_kind = 'candidate'
+                  AND EXISTS (SELECT 1 FROM section_office_result r JOIN section_office_vote sv ON sv.result_id = r.id
+                               WHERE sv.votable_id = v.id AND r.year = %s AND r.turn = %s AND r.uf = %s)
+                ORDER BY v.id""",
+            (year, turn, uf),
+        )
+    return cur.fetchall()
+
+
+def _link_inputs(cur: psycopg.Cursor, election_id: str, uf: str, votables: list[tuple]) -> dict[str, Any]:
+    """Tudo o que decide deterministicamente o vínculo da UF, resumido por hash de conteúdo.
+
+    - votáveis do BU do escopo (identidade, número e nome de urna);
+    - candidaturas casáveis (disputas municipais da UF; estaduais/federais da UF e 'BR') com número e nome
+      de urna — muda com uma nova importação ou um `--supersede`;
+    - sinalizadores do complementar oficial mais recente de cada candidatura ("inserido na urna",
+      "substituída") — muda quando o complementar chega depois do BU;
+    - a versão da regra (`LINK_RULES`) e do próprio cálculo (`LINK_INPUTS_VERSION`).
+    Os lotes de origem (candidaturas e complementar) vão no escopo só como proveniência."""
+    # Mesma escolha do complementar que `_COMPLEMENT_FLAGS` (registro mais recente da candidatura).
+    cur.execute(
+        """SELECT c.id, c.contest_id, c.candidate_number, c.ballot_name, c.ingestion_run_id,
+                  rc.id, rc.ingestion_run_id, rc.payload->>'inserted_in_urn', rc.payload->>'substituted'
+             FROM candidacy c JOIN contest k ON k.id = c.contest_id
+             LEFT JOIN LATERAL (SELECT r.id, r.ingestion_run_id, r.payload FROM candidacy_source_record r
+                                 WHERE r.candidacy_id = c.id AND r.record_kind = 'complement'
+                                 ORDER BY r.id DESC LIMIT 1) rc ON true
+            WHERE k.election_id = %s
+              AND ((k.scope = 'municipal' AND k.uf = %s)
+                   OR (k.scope IN ('federal', 'state') AND k.electoral_unit IN (%s, 'BR')))
+            ORDER BY c.id""",
+        (election_id, uf, uf),
+    )
+    candidacies = cur.fetchall()
+    # (id, disputa, número, nome de urna, lote, registro do complementar, lote do complementar, inserido, substituída)
+    decisive = [(c[0], c[1], c[2], c[3], _flag(c[7]), _flag(c[8])) for c in candidacies]
+    inputs = {
+        "version": LINK_INPUTS_VERSION,
+        "link_rules": LINK_RULES,
+        "votables": len(votables),
+        "votables_sha256": _digest(votables),
+        "candidacies": len(candidacies),
+        "candidacies_sha256": _digest(decisive),
+        "complement_records": sum(1 for c in candidacies if c[5] is not None),
+        "candidates_runs": sorted({str(c[4]) for c in candidacies if c[4] is not None}),
+        "complement_runs": sorted({str(c[6]) for c in candidacies if c[6] is not None}),
+    }
+    fingerprint = _digest([(
+        inputs["version"], inputs["link_rules"], inputs["votables_sha256"], inputs["candidacies_sha256"],
+    )])
+    return {"inputs": inputs, "inputs_fingerprint": fingerprint}
+
+
 def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) -> dict[str, Any]:
     """Liga votáveis nominais do BU (urnas da UF) às candidaturas oficiais.
 
@@ -780,6 +882,10 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
     (inserida na urna; não substituída), senão sem vínculo. Nome de urna divergente entre o BU e o
     arquivo de candidatos ⇒ sem vínculo (conflito entre fontes registrado para revisão). Nenhuma
     tabela de votos é alterada.
+
+    Idempotência: o lote é identificado pela impressão digital das entradas (`_link_inputs`). Mesmas
+    entradas ⇒ `already_imported`; complementar, candidaturas, BU ou regra novos ⇒ lote novo, que só
+    acrescenta vínculos (um vínculo existente que passasse a apontar outra candidatura falha fechado).
     """
     uf = uf.upper()
     report: dict[str, Any] = {"status": "succeeded", "year": year, "turn": turn, "uf": uf, "votables": 0,
@@ -796,12 +902,15 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
         latest = cur.fetchone()
         if latest is None:
             raise CandidatesError(f"no candidacies imported for {year}/{turn}; run import-candidates first")
-        link_scope = {"year": year, "turn": turn, "uf": uf, "candidates_run": str(latest[0]), "link_rules": LINK_RULES}
+        archived = _archived_scope(cur, year, turn, uf)
+        votables = _scope_votables(cur, year, turn, uf, archived)
+        fingerprint = _link_inputs(cur, election_id, uf, votables)
+        link_scope = {"year": year, "turn": turn, "uf": uf, "candidates_run": str(latest[0]), "link_rules": LINK_RULES,
+                      "archived_scope": archived, **fingerprint}
         cur.execute(
             """SELECT id FROM ingestion_run WHERE source = %s AND status = 'succeeded' AND election_id = %s
-                 AND scope->>'uf' = %s AND scope->>'candidates_run' = %s
-                 AND (scope->>'link_rules') IS NOT DISTINCT FROM %s::text""",
-            (LINK_SOURCE, election_id, uf, link_scope["candidates_run"], str(LINK_RULES)),
+                 AND scope->>'uf' = %s AND scope->>'inputs_fingerprint' = %s""",
+            (LINK_SOURCE, election_id, uf, fingerprint["inputs_fingerprint"]),
         )
         done = cur.fetchone()
         if done:
@@ -812,17 +921,7 @@ def link_votables(conn: psycopg.Connection, *, year: int, turn: int, uf: str) ->
             (LINK_SOURCE, election_id, Jsonb(link_scope)),
         )
         run_id = str(cur.fetchone()[0])
-        # votáveis nominais que aparecem em urnas desta UF neste pleito/turno
-        cur.execute(
-            """SELECT v.id, v.election_code, v.office_code, v.number, v.name, v.municipality_tse_code
-                 FROM votable v
-                WHERE v.vote_kind = 'candidate'
-                  AND EXISTS (SELECT 1 FROM section_office_result r JOIN section_office_vote sv ON sv.result_id = r.id
-                               WHERE sv.votable_id = v.id AND r.year = %s AND r.turn = %s AND r.uf = %s)
-                ORDER BY v.id""",
-            (year, turn, uf),
-        )
-        votables = cur.fetchall()
+        report["scope"] = link_scope
         report["votables"] = len(votables)
         for votable in votables:
             _link_votable(cur, election_id, uf, run_id, votable, report)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,38 @@ from src.electoral.open_data.layout import detect_layout
 from src.electoral.open_data.pipeline import prepare_import
 from src.electoral.open_data.scope_index import load_or_build_scope_index
 from src.electoral.open_data.store import import_prepared
+
+
+_UF_RE = re.compile(r"^[A-Z]{2}$")
+_URL_CREDENTIALS = re.compile(r"://[^/@\s]+@")
+
+
+def _safe_error(exc: BaseException) -> str:
+    """Mensagem de falha para o arquivo de progresso, sem credenciais de URLs de conexão."""
+    return _URL_CREDENTIALS.sub("://***@", f"{type(exc).__name__}: {exc}")[:2000]
+
+
+def _normalize_uf(value: str) -> str:
+    """UF de duas letras ASCII (nenhum valor livre chega a consultas, relatórios ou caminhos)."""
+    uf = value.strip().upper()
+    if not _UF_RE.fullmatch(uf):
+        raise SystemExit(f"invalid UF {value!r}; expected two ASCII letters")
+    return uf
+
+
+def _validate_manifest(manifest: dict[str, Any], *, year: int, turn: int, uf: str) -> None:
+    """O manifesto precisa ser do recorte pedido e registrar o checksum oficial do TSE conferido."""
+    scope = manifest.get("scope", {})
+    expected = (year, turn, uf)
+    actual = (
+        int(scope.get("year", -1)), int(scope.get("turn", -1)), str(scope.get("uf", "")).upper()
+    )
+    if actual != expected:
+        raise SystemExit(f"manifest scope {actual} does not match requested {expected}")
+    if (manifest.get("official_checksum") or {}).get("verified") is not True:
+        raise SystemExit(
+            "manifest does not record a verified official TSE checksum; acquire the file again"
+        )
 
 
 def _database_url(value: str | None) -> str:
@@ -109,14 +142,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    uf = args.uf.upper()
-    protect_uf = args.protect_uf.upper() if args.protect_uf else None
+    uf = _normalize_uf(args.uf)
+    protect_uf = _normalize_uf(args.protect_uf) if args.protect_uf else None
     manifest, csv_path = load_manifest(args.manifest)
-    scope = manifest.get("scope", {})
-    expected = (args.year, args.turn, uf)
-    actual = (int(scope.get("year", -1)), int(scope.get("turn", -1)), str(scope.get("uf", "")).upper())
-    if actual != expected:
-        raise SystemExit(f"manifest scope {actual} does not match requested {expected}")
+    _validate_manifest(manifest, year=args.year, turn=args.turn, uf=uf)
     verify_file_sha256(csv_path, manifest["csv"]["sha256"])
     # Uma passada indexa o CSV estadual; cada município × zona lê só o seu trecho.
     scope_index = load_or_build_scope_index(
@@ -135,6 +164,26 @@ def main(argv: list[str] | None = None) -> int:
         "votes_imported": 0,
     }
 
+    try:
+        return _run(
+            args, uf=uf, protect_uf=protect_uf, scope_index=scope_index, summary=summary
+        )
+    except BaseException as exc:
+        # O progresso registra a falha (retomável: os escopos concluídos ficam no banco).
+        summary["status"] = "failed"
+        summary["error"] = _safe_error(exc)
+        _write(args.progress, summary)
+        raise
+
+
+def _run(
+    args: argparse.Namespace,
+    *,
+    uf: str,
+    protect_uf: str | None,
+    scope_index: Any,
+    summary: dict[str, Any],
+) -> int:
     with electoral_db.connect(_database_url(args.database_url), autocommit=True) as conn:
         protected_before = _state_stats(conn, year=args.year, turn=args.turn, uf=protect_uf) if protect_uf else None
         pairs = _scopes(conn, year=args.year, turn=args.turn, uf=uf)
@@ -196,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(summary, ensure_ascii=False))
                 return 1
 
+    summary["status"] = "succeeded"
     _write(args.progress, summary)
     _write(args.report, summary)
     print(json.dumps(summary, ensure_ascii=False))
