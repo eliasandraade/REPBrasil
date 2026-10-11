@@ -36,7 +36,8 @@ builder.Services.AddScoped<IElectoralReadRepository, HybridElectoralReadReposito
 builder.Services.AddScoped<ElectoralCatalogService>();
 builder.Services.AddScoped<SectionResultsService>();
 builder.Services.AddScoped<CandidacyService>();
-builder.Services.AddScoped<IElectoralXrayRepository, ElectoralXrayRepository>();
+builder.Services.AddScoped<ElectoralXrayRepository>();
+builder.Services.AddScoped<IElectoralXrayRepository, HybridElectoralXrayRepository>();
 builder.Services.AddScoped<XrayService>();
 builder.Services.AddScoped<TerritoryService>();
 builder.Services.AddScoped<ComparisonService>();
