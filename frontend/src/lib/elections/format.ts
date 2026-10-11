@@ -36,18 +36,27 @@ export function sourceDate(raw: string | null | undefined): string | null {
   return `${d}/${mo}/${y} ${h}:${mi}`;
 }
 
+const PARTICLES = new Set(["da", "de", "do", "das", "dos", "e", "del"]);
+/** "d'água" → "D'Água", "não-me-toque" → "Não-Me-Toque": maiúscula no início e após hífen/apóstrofo. */
+const titleWord = (w: string) => w.replace(/(^|[-'’])(\p{L})/gu, (_, p: string, c: string) => p + c.toUpperCase());
+
 /**
- * Nomes publicados pelo TSE vêm em caixa alta; a capitalização é só de
- * apresentação (identidade nunca depende dela).
+ * Nomes publicados pelo TSE vêm em CAIXA ALTA ou com toda palavra capitalizada ("Juazeiro Do Norte").
+ * Apresentação: partículas soltas (da, de, do, das, dos, e, del) em minúscula, exceto na 1ª palavra; em
+ * caixa alta, cada palavra é capitalizada antes. A grafia oficial (acentos, hífens, apóstrofos) é preservada
+ * e a identidade nunca depende do nome.
  */
 export function displayName(name: string | null | undefined): string {
   if (!name) return UNAVAILABLE;
-  if (name !== name.toUpperCase()) return name;
-  const lower = new Set(["da", "de", "do", "das", "dos", "e"]);
+  const upper = name === name.toUpperCase();
   return name
-    .toLowerCase()
+    .trim()
     .split(/\s+/)
-    .map((w, i) => (i > 0 && lower.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .map((w, i) => {
+      const lower = w.toLowerCase();
+      if (i > 0 && PARTICLES.has(lower)) return lower;
+      return upper ? titleWord(lower) : w;
+    })
     .join(" ");
 }
 

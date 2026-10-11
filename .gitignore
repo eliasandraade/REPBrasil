@@ -64,3 +64,6 @@ desktop.ini
 
 # MapLibre worker copiado em predev/prebuild (scripts/copy-maplibre-worker.mjs)
 frontend/public/maplibre/
+
+# Brand Kit: quadro oficial copiado só para derivar os assets (não versionado)
+frontend/scripts/brand/source/

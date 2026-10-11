@@ -91,8 +91,8 @@ export function ProfileTabs<T extends string>({
   };
 
   return (
-    <div className="rounded-xl border border-white/8 bg-card">
-      <div className="border-b border-white/8">
+    <div className="rounded-xl border border-line bg-surface">
+      <div className="border-b border-line">
         <div ref={listRef} role="tablist" aria-label="Seções do perfil" className="relative flex overflow-x-auto">
           {tabs.map((tab) => {
             const selected = tab.id === active;
@@ -108,8 +108,8 @@ export function ProfileTabs<T extends string>({
                 data-tab={tab.id}
                 onClick={() => onChange(tab.id)}
                 onKeyDown={onKeyDown}
-                className={`relative flex-shrink-0 px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-colors duration-[var(--motion-acknowledge)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${
-                  selected ? "text-brand" : "text-slate-500 hover:text-slate-300"
+                className={`relative flex-shrink-0 px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-colors duration-[var(--motion-acknowledge)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
+                  selected ? "text-accent-text" : "text-fg-muted hover:text-fg-soft"
                 }`}
               >
                 {tab.label}
@@ -120,7 +120,7 @@ export function ProfileTabs<T extends string>({
             ref={indicatorRef}
             aria-hidden="true"
             data-testid="tab-indicator"
-            className="tab-indicator pointer-events-none absolute bottom-0 left-0 h-0.5 w-[100px] origin-left bg-brand"
+            className="tab-indicator pointer-events-none absolute bottom-0 left-0 h-0.5 w-[100px] origin-left bg-accent"
           />
         </div>
       </div>

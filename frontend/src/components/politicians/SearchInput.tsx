@@ -41,7 +41,7 @@ export function SearchInput({
   return (
     <div className="relative">
       {/* Search icon */}
-      <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+      <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-fg-muted">
         <svg
           width="17"
           height="17"
@@ -62,7 +62,7 @@ export function SearchInput({
         defaultValue={defaultValue}
         onChange={handleChange}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-white/10 bg-card-elevated py-3.5 pl-11 pr-4 text-sm text-slate-200 placeholder:text-slate-600 transition-colors duration-[var(--motion-acknowledge)] hover:border-brand/30 focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
+        className="w-full rounded-xl border border-line bg-subtle py-3.5 pl-11 pr-4 text-sm text-fg-soft placeholder:text-fg-muted transition-colors duration-[var(--motion-acknowledge)] hover:border-accent/30 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/20"
         aria-label="Buscar político"
         aria-busy={pending}
       />

@@ -1,0 +1,87 @@
+{
+  "source": {
+    "file": "REPBrasil_Brand_Kit_Official/assets/brand-guidelines.png",
+    "sha256": "1884bd876b9bb1866e4f4a3ccdd4b71ed974269bfd781c1de1eee7761444d0c1"
+  },
+  "method": "crop + white-background matting + resize; no redrawing (scripts/brand/derive_assets.py)",
+  "clear_space_x_ratio_of_symbol_width": 0.2615,
+  "assets": {
+    "symbol.png": {
+      "width": 283,
+      "height": 267
+    },
+    "symbol-micro.png": {
+      "width": 62,
+      "height": 59
+    },
+    "wordmark.png": {
+      "width": 626,
+      "height": 121
+    },
+    "wordmark-negative.png": {
+      "width": 626,
+      "height": 121
+    },
+    "descriptor.png": {
+      "width": 628,
+      "height": 33
+    },
+    "descriptor-negative.png": {
+      "width": 628,
+      "height": 33
+    },
+    "logo-primary.png": {
+      "width": 950,
+      "height": 267
+    },
+    "logo-primary-negative.png": {
+      "width": 950,
+      "height": 267
+    },
+    "logo-horizontal.png": {
+      "width": 947,
+      "height": 267
+    },
+    "logo-horizontal-negative.png": {
+      "width": 947,
+      "height": 267
+    },
+    "logo-monochrome-navy.png": {
+      "width": 146,
+      "height": 163
+    },
+    "logo-monochrome-black.png": {
+      "width": 144,
+      "height": 162
+    },
+    "logo-monochrome-white.png": {
+      "width": 146,
+      "height": 163
+    },
+    "favicon-16.png": {
+      "width": 16,
+      "height": 16
+    },
+    "favicon-32.png": {
+      "width": 32,
+      "height": 32
+    },
+    "icon-192.png": {
+      "width": 192,
+      "height": 192
+    },
+    "icon-512.png": {
+      "width": 512,
+      "height": 512
+    },
+    "icon-maskable-512.png": {
+      "width": 512,
+      "height": 512
+    },
+    "apple-touch-icon.png": {
+      "width": 180,
+      "height": 180
+    }
+  },
+  "master_vectors": "missing — owner to provide official SVG/PDF masters (docs/BRAND.md)"
+}

@@ -50,6 +50,32 @@ def fetch_municipalities(uf: str, client: httpx.Client | None = None) -> list[Ib
             client.close()
 
 
+def fetch_all_municipalities(client: httpx.Client | None = None) -> list[IbgeMunicipality]:
+    """Todos os municípios do Brasil (código IBGE e nome oficial) numa só consulta."""
+    own = client is None
+    client = client or httpx.Client(timeout=60)
+    try:
+        r = client.get(f"{IBGE_API_BASE}/municipios")
+        r.raise_for_status()
+        return parse_municipalities(r.json())
+    finally:
+        if own:
+            client.close()
+
+
+def fetch_states(client: httpx.Client | None = None) -> list[IbgeMunicipality]:
+    """UFs (código IBGE de 2 dígitos e nome oficial)."""
+    own = client is None
+    client = client or httpx.Client(timeout=30)
+    try:
+        r = client.get(f"{IBGE_API_BASE}/estados")
+        r.raise_for_status()
+        return parse_municipalities(r.json())
+    finally:
+        if own:
+            client.close()
+
+
 def compare_registry(
     ibge: list[IbgeMunicipality], registry: list[tuple[int | None, str]]
 ) -> dict[str, Any]:

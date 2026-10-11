@@ -3,8 +3,10 @@
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { bboxOf, boundsForLevel, loadTerritoryGeo, type GeoStatus, type TerritoryGeo } from "@/lib/elections/geo";
+import { MAP_CHROME, type DataTheme } from "@/lib/dataviz/palette";
 import { layerSignature, type MapLayerView } from "@/lib/elections/map-layers";
 import type { ExplorerLevel } from "@/lib/elections/route";
+import { useResolvedTheme } from "@/components/theme/theme";
 import { duration, easingFn } from "@/motion/tokens";
 
 const SURVEY_EASING = easingFn("traverse");
@@ -49,36 +51,50 @@ type Props = {
   layer?: MapLayerView | null;
 };
 
-const COLORS = {
-  base: "#0a0f16",
-  land: "#16212f",
-  highlight: "#123b33",
-  border: "#e2e8f0",
-  accent: "#0dd48e",
-  point: "#0d1520",
-  pointStroke: "#38e8b0",
-} as const;
+/** Tema resolvido no momento da criação do mapa (o efeito de tema repinta depois). */
+const currentTheme = (): DataTheme =>
+  typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light";
 
-const STYLE: StyleSpecification = {
+const styleFor = (theme: DataTheme): StyleSpecification => ({
   version: 8,
   sources: {},
-  layers: [{ id: "background", type: "background", paint: { "background-color": COLORS.base } }],
-};
+  layers: [{ id: "background", type: "background", paint: { "background-color": MAP_CHROME[theme].background } }],
+});
 
 // Cor temática (feature-state "color") tem precedência; sem camada, destaque de disponibilidade.
-const fillPaint = {
-  "fill-color": [
+const fillColor = (theme: DataTheme) =>
+  [
     "to-color",
-    ["coalesce", ["feature-state", "color"], ["case", ["boolean", ["feature-state", "selected"], false], COLORS.highlight, COLORS.land]],
-  ],
-  "fill-opacity": 1,
-} as const;
-const linePaint = { "line-color": COLORS.border, "line-opacity": 0.14, "line-width": 1 } as const;
-const focusPaint = {
-  "line-color": COLORS.accent,
-  "line-width": 1.5,
-  "line-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0],
-} as const;
+    ["coalesce", ["feature-state", "color"], ["case", ["boolean", ["feature-state", "selected"], false], MAP_CHROME[theme].landSelected, MAP_CHROME[theme].land]],
+  ] as const;
+const fillPaint = (theme: DataTheme) => ({ "fill-color": fillColor(theme), "fill-opacity": 1 }) as const;
+const linePaint = (theme: DataTheme) => ({ "line-color": MAP_CHROME[theme].border, "line-opacity": MAP_CHROME[theme].borderOpacity, "line-width": 1 }) as const;
+const focusPaint = (theme: DataTheme) =>
+  ({
+    "line-color": MAP_CHROME[theme].selection,
+    "line-width": 1.5,
+    "line-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0],
+  }) as const;
+
+/** Repinta o cromo do mapa no tema atual (troca claro/escuro sem remontar o mapa). */
+function applyChrome(map: MapLibreMap, theme: DataTheme) {
+  const c = MAP_CHROME[theme];
+  const set = (layer: string, prop: string, value: unknown) => {
+    if (map.getLayer(layer)) map.setPaintProperty(layer, prop as never, value as never);
+  };
+  set("background", "background-color", c.background);
+  for (const prefix of ["uf", "mun"]) {
+    set(`${prefix}-fill`, "fill-color", fillColor(theme));
+    set(`${prefix}-line`, "line-color", c.border);
+    set(`${prefix}-line`, "line-opacity", c.borderOpacity);
+    set(`${prefix}-focus`, "line-color", c.selection);
+  }
+  for (const layer of ["place-clusters", "place-points"]) {
+    set(layer, "circle-color", c.point);
+    set(layer, "circle-stroke-color", c.pointStroke);
+  }
+  set("layer-place-points", "circle-stroke-color", c.background);
+}
 
 function webglAvailable() {
   if (typeof window === "undefined" || typeof WebGLRenderingContext === "undefined") return false;
@@ -90,6 +106,9 @@ function webglAvailable() {
   }
 }
 
+const CONTROL =
+  "focus-ring flex h-8 w-8 items-center justify-center text-sm font-semibold text-fg-soft hover:bg-fg/10 hover:text-fg [&+button]:border-t [&+button]:border-line";
+
 export function TerritoryMap(props: Props) {
   const container = useRef<HTMLDivElement>(null);
   const tooltip = useRef<HTMLDivElement>(null);
@@ -100,7 +119,31 @@ export function TerritoryMap(props: Props) {
   const selected = useRef<Array<{ source: string; id: number }>>([]);
   const colored = useRef<number[]>([]);
   const hovered = useRef<{ source: string; id: number } | null>(null);
+  // o usuário mexeu no mapa (arrastar/zoom): reenquadrar sozinho deixaria de respeitar a escolha dele
+  const interacted = useRef(false);
   const [status, setStatus] = useState<GeoStatus>("loading");
+  const theme = useResolvedTheme();
+
+  // Tema claro/escuro: repinta o cromo sem remontar (camada temática chega já colorida no tema).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map?.isStyleLoaded()) applyChrome(map, theme);
+  }, [theme]);
+
+  /** Enquadra o território atual (país, UF ou município) — no carregamento, na troca de rota e ao redimensionar. */
+  const fitScope = (map: MapLibreMap, animate: boolean) => {
+    const geo = geoRef.current;
+    if (!geo) return;
+    const p = latest.current;
+    const [w, s, e, n] = boundsForLevel(geo, p.level, { state: p.scope.state, municipality: p.scope.municipality });
+    map.fitBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      { padding: 32, duration: animate && !p.reduced ? duration.survey : 0, easing: SURVEY_EASING, maxZoom: p.level === "country" ? 5 : 13 },
+    );
+  };
 
   useEffect(() => {
     if (!webglAvailable()) {
@@ -108,6 +151,7 @@ export function TerritoryMap(props: Props) {
       return;
     }
     let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
     void (async () => {
       let geo: TerritoryGeo;
       try {
@@ -122,7 +166,7 @@ export function TerritoryMap(props: Props) {
       geoRef.current = geo;
       const map = new maplibre.Map({
         container: container.current,
-        style: STYLE,
+        style: styleFor(currentTheme()),
         bounds: bboxOf(geo.ufs.features),
         attributionControl: false,
         dragRotate: false,
@@ -134,6 +178,22 @@ export function TerritoryMap(props: Props) {
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
       mapRef.current = map;
+      for (const ev of ["dragstart", "zoomstart"] as const)
+        map.on(ev, (e: { originalEvent?: unknown }) => {
+          if (e.originalEvent) interacted.current = true;
+        });
+      // O contêiner muda de tamanho depois da montagem (painel lateral carregando, grade, rotação do celular):
+      // o MapLibre só escuta a janela, então o canvas ficava num canto. Redimensiona e reenquadra.
+      let frame = 0;
+      resizeObserver = new ResizeObserver(() => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => {
+          if (mapRef.current !== map) return;
+          map.resize();
+          if (!interacted.current) fitScope(map, false);
+        });
+      });
+      resizeObserver.observe(container.current);
       map.on("load", () => {
         map.addSource("ufs", { type: "geojson", data: geo.ufs as never });
         map.addSource("mun", { type: "geojson", data: geo.municipalities as never });
@@ -145,21 +205,22 @@ export function TerritoryMap(props: Props) {
           clusterRadius: 36,
           clusterMaxZoom: 14,
         });
-        map.addLayer({ id: "uf-fill", type: "fill", source: "ufs", paint: fillPaint as never });
-        map.addLayer({ id: "uf-line", type: "line", source: "ufs", paint: linePaint });
-        map.addLayer({ id: "uf-focus", type: "line", source: "ufs", paint: focusPaint as never });
-        map.addLayer({ id: "mun-fill", type: "fill", source: "mun", paint: fillPaint as never, layout: { visibility: "none" } });
-        map.addLayer({ id: "mun-line", type: "line", source: "mun", paint: linePaint, layout: { visibility: "none" } });
-        map.addLayer({ id: "mun-focus", type: "line", source: "mun", paint: focusPaint as never, layout: { visibility: "none" } });
+        const theme = currentTheme();
+        map.addLayer({ id: "uf-fill", type: "fill", source: "ufs", paint: fillPaint(theme) as never });
+        map.addLayer({ id: "uf-line", type: "line", source: "ufs", paint: linePaint(theme) });
+        map.addLayer({ id: "uf-focus", type: "line", source: "ufs", paint: focusPaint(theme) as never });
+        map.addLayer({ id: "mun-fill", type: "fill", source: "mun", paint: fillPaint(theme) as never, layout: { visibility: "none" } });
+        map.addLayer({ id: "mun-line", type: "line", source: "mun", paint: linePaint(theme), layout: { visibility: "none" } });
+        map.addLayer({ id: "mun-focus", type: "line", source: "mun", paint: focusPaint(theme) as never, layout: { visibility: "none" } });
         map.addLayer({
           id: "place-clusters",
           type: "circle",
           source: "places",
           filter: ["has", "point_count"],
           paint: {
-            "circle-color": COLORS.point,
+            "circle-color": MAP_CHROME[theme].point,
             "circle-radius": 16,
-            "circle-stroke-color": COLORS.pointStroke,
+            "circle-stroke-color": MAP_CHROME[theme].pointStroke,
             "circle-stroke-width": 1,
             "circle-opacity-transition": { duration: duration.traverse, delay: 0 },
             "circle-stroke-opacity-transition": { duration: duration.traverse, delay: 0 },
@@ -171,9 +232,9 @@ export function TerritoryMap(props: Props) {
           source: "places",
           filter: ["!", ["has", "point_count"]],
           paint: {
-            "circle-color": COLORS.point,
+            "circle-color": MAP_CHROME[theme].point,
             "circle-radius": 7,
-            "circle-stroke-color": COLORS.pointStroke,
+            "circle-stroke-color": MAP_CHROME[theme].pointStroke,
             "circle-stroke-width": 1.5,
             "circle-opacity-transition": { duration: duration.traverse, delay: 0 },
             "circle-stroke-opacity-transition": { duration: duration.traverse, delay: 0 },
@@ -187,7 +248,7 @@ export function TerritoryMap(props: Props) {
           paint: {
             "circle-color": ["to-color", ["get", "color"]],
             "circle-radius": 6,
-            "circle-stroke-color": COLORS.base,
+            "circle-stroke-color": MAP_CHROME[theme].background,
             "circle-stroke-width": 1,
           },
         });
@@ -209,7 +270,7 @@ export function TerritoryMap(props: Props) {
           const parts: HTMLElement[] = [title];
           if (detail) {
             const line = document.createElement("span");
-            line.className = "block font-normal text-slate-400";
+            line.className = "block font-normal text-fg-muted";
             line.textContent = detail;
             parts.push(line);
           }
@@ -265,9 +326,11 @@ export function TerritoryMap(props: Props) {
     })();
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scopeKey = JSON.stringify(props.scope);
@@ -350,41 +413,58 @@ export function TerritoryMap(props: Props) {
 
   useEffect(() => {
     const map = mapRef.current;
-    const geo = geoRef.current;
-    if (status !== "ready" || !map || !geo) return;
-    const [w, s, e, n] = boundsForLevel(geo, props.level, { state: props.scope.state, municipality: props.scope.municipality });
-    map.fitBounds(
-      [
-        [w, s],
-        [e, n],
-      ],
-      { padding: 32, duration: props.reduced ? 0 : duration.survey, easing: SURVEY_EASING, maxZoom: props.level === "country" ? 5 : 13 },
-    );
+    if (status !== "ready" || !map) return;
+    interacted.current = false; // novo território: volta a enquadrar sozinho
+    fitScope(map, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, props.routeKey, props.scope.state, props.scope.municipality]);
 
+  const zoomBy = (delta: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    interacted.current = true;
+    map.easeTo({ zoom: map.getZoom() + delta, duration: props.reduced ? 0 : duration.acknowledge });
+  };
+  const refit = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    interacted.current = false;
+    fitScope(map, true);
+  };
+
   return (
-    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-white/8 bg-background">
+    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-line bg-canvas">
       <div ref={container} className="absolute inset-0" data-testid="territory-map" role="region" aria-label="Mapa territorial" />
       <div
         ref={tooltip}
         aria-hidden="true"
-        className="pointer-events-none absolute left-0 top-0 z-10 max-w-[220px] rounded-md border border-white/10 bg-slate-950/95 px-2 py-1 text-xs font-medium text-slate-100 opacity-0 shadow-lg transition-opacity motion-reduce:transition-none"
+        className="pointer-events-none absolute left-0 top-0 z-10 max-w-[220px] rounded-md border border-line bg-canvas/95 px-2 py-1 text-xs font-medium text-fg opacity-0 shadow-lg transition-opacity motion-reduce:transition-none"
         data-testid="territory-hover-label"
       />
+      {status === "ready" && (
+        <div className="absolute right-3 top-3 z-10 flex flex-col overflow-hidden rounded-md border border-line bg-canvas/90" data-testid="map-controls">
+          <button type="button" onClick={() => zoomBy(1)} aria-label="Aproximar o mapa" title="Aproximar" className={CONTROL}>+</button>
+          <button type="button" onClick={() => zoomBy(-1)} aria-label="Afastar o mapa" title="Afastar" className={CONTROL}>−</button>
+          <button type="button" onClick={refit} aria-label="Enquadrar o território" title="Enquadrar o território" className={CONTROL}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 8V5a2 2 0 0 1 2-2h3" /><path d="M16 3h3a2 2 0 0 1 2 2v3" /><path d="M21 16v3a2 2 0 0 1-2 2h-3" /><path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+            </svg>
+          </button>
+        </div>
+      )}
       {status !== "ready" && (
-        <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-xs text-slate-500">
+        <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-xs text-fg-muted">
           {status === "loading" && "Carregando malha territorial oficial (IBGE)…"}
           {status === "error" && "Malha territorial indisponível. A navegação pelas listas continua funcionando."}
           {status === "unsupported" && "Mapa indisponível neste navegador (WebGL). A navegação pelas listas continua funcionando."}
         </div>
       )}
       {props.layer && (props.layer.legend.length > 0 || props.layer.gradient) && (
-        <div className="pointer-events-none absolute bottom-6 right-3 z-10 max-w-[240px] rounded-md border border-white/10 bg-slate-950/90 px-2.5 py-2 text-[10px] text-slate-300" data-testid="map-legend">
+        <div className="pointer-events-none absolute bottom-6 right-3 z-10 max-w-[240px] rounded-md border border-line bg-canvas/90 px-2.5 py-2 text-[10px] text-fg-soft" data-testid="map-legend">
           {props.layer.gradient && (
             <div>
               <div className="h-1.5 w-40 rounded" style={{ background: `linear-gradient(90deg, ${props.layer.gradient.from}, ${props.layer.gradient.to})` }} />
-              <div className="mt-0.5 flex justify-between text-slate-500">
+              <div className="mt-0.5 flex justify-between text-fg-muted">
                 <span>{props.layer.gradient.min}</span>
                 <span>{props.layer.gradient.max}</span>
               </div>
@@ -398,7 +478,7 @@ export function TerritoryMap(props: Props) {
           ))}
         </div>
       )}
-      <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-slate-600">Malhas: IBGE · Locais: TSE (só coordenadas oficiais)</p>
+      <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-fg-muted">Malhas: IBGE · Locais: TSE (só coordenadas oficiais)</p>
     </div>
   );
 }

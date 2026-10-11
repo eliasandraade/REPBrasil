@@ -17,6 +17,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..names import official_case
 from ..open_data.layout import detect_csv_layout
 from .errors import CadasterError
 
@@ -111,7 +112,7 @@ def parse_territories(csv_path: Path) -> Territories:
             uf = row["SG_UF"].upper()
             if not re.fullmatch(r"[A-Z]{2}", uf):
                 raise CadasterError(f"line {line}: invalid SG_UF {uf!r}")
-            state = StateRecord(uf, row["NM_UF"], _int(row["CD_UF_IBGE"], "CD_UF_IBGE", line), _int(row["CD_UF_TSE"], "CD_UF_TSE", line))
+            state = StateRecord(uf, official_case(row["NM_UF"]), _int(row["CD_UF_IBGE"], "CD_UF_IBGE", line), _int(row["CD_UF_TSE"], "CD_UF_TSE", line))
             if states.setdefault(uf, state) != state:
                 raise CadasterError(f"line {line}: conflicting data for UF {uf}: {states[uf]} vs {state}")
             tse = row["CD_MUNICIPIO_TSE"]
@@ -128,7 +129,8 @@ def parse_territories(csv_path: Path) -> Territories:
             ibge_seen[ibge] = key
             if not row["NM_MUNICIPIO_IBGE"]:
                 raise CadasterError(f"line {line}: empty NM_MUNICIPIO_IBGE")
-            raw[key] = (ibge, row["NM_MUNICIPIO_IBGE"], row["NM_MUNICIPIO_TSE"])
+            # nome de exibição: partículas em minúscula ("Juazeiro do Norte"); o nome TSE fica como publicado
+            raw[key] = (ibge, official_case(row["NM_MUNICIPIO_IBGE"]), row["NM_MUNICIPIO_TSE"])
     if not raw:
         raise CadasterError("territory file has no rows")
     if len(generated) != 1:

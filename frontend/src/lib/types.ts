@@ -6,6 +6,8 @@ export interface PoliticianSummary {
   partyAcronym: string | null;
   office: string | null;
   state: string | null;
+  /** Endereço público permanente (/politicos/<slug>). */
+  slug: string | null;
 }
 
 export interface PoliticianDetail {
@@ -22,6 +24,22 @@ export interface PoliticianDetail {
   candidacyStatus: string | null;
   createdAt: string;
   sourceUpdatedAt: string | null;
+  /** Endereço público permanente (/politicos/<slug>). */
+  slug: string | null;
+  /** Candidatura oficial mais recente (camada eleitoral); null para cadastro sem candidatura. */
+  latestCandidacy?: LatestCandidacy | null;
+}
+
+export interface LatestCandidacy {
+  year: number;
+  round: number;
+  officeCode: number;
+  officeName: string;
+  unitName: string | null;
+  uf: string | null;
+  party: string | null;
+  outcome: string | null;
+  elected: boolean | null;
 }
 
 export interface PagedResult<T> {

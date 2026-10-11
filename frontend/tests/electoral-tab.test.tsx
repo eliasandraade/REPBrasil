@@ -21,9 +21,13 @@ vi.mock("next/navigation", () => ({
 
 import { ComparisonView } from "@/components/elections/ComparisonView";
 import { TerritoryCandidates } from "@/components/elections/TerritoryCandidates";
-import { XrayTab } from "@/components/xray/XrayTab";
+import { PoliticianProfile } from "@/components/politicians/PoliticianProfile";
+import { RecordsPanel, TerritoryPanel } from "@/components/xray/CandidacyPanels";
+import { XrayTimeline } from "@/components/xray/XrayTimeline";
+import { ProfileOverview } from "@/components/politicians/ProfileOverview";
 import { useReducedMotion } from "@/lib/elections/reduced-motion";
 import { buildLayerView, CATEGORICAL, layerSignature } from "@/lib/elections/map-layers";
+import { CATEGORICAL as THEMED, CHOROPLETH_SLOTS, OTHER, SEQUENTIAL } from "@/lib/dataviz/palette";
 import { levelCount, MAX_COMPARE, parseSelection, signed, signedPercent, toggleSelection, votesText } from "@/lib/elections/xray";
 
 const ID = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -117,34 +121,67 @@ afterEach(() => {
 });
 
 describe("Raio X do perfil", () => {
-  it("mostra candidaturas com estados explícitos — nunca zero inventado", async () => {
-    stubFetch(xrayRoutes(XRAY));
-    render(
+  const POLITICIAN = {
+    id: "pol-1", name: "Candidata Fictícia de Tal", ballotName: "Candidata Fictícia", tseId: "1", camaraId: null, senateId: null,
+    state: "CE", partyAcronym: "XX", partyName: null, office: "PREFEITO", candidacyStatus: null, createdAt: "2026-01-01",
+    sourceUpdatedAt: null, slug: "candidata-ficticia",
+  };
+
+  function renderProfile() {
+    return render(
       <QueryClientProvider client={client()}>
-        <XrayTab politicianId="pol-1" />
+        <PoliticianProfile politician={POLITICIAN} elections={[]} assets={[]} sources={[]} />
       </QueryClientProvider>,
     );
-    await screen.findByTestId("xray");
+  }
+
+  it("histórico: candidaturas da mais recente à mais antiga, com estados explícitos — nunca zero inventado", () => {
+    render(<XrayTimeline data={XRAY} onOpen={() => {}} />);
     const cards = screen.getAllByTestId("xray-candidacy");
     expect(cards).toHaveLength(4);
     expect(within(cards[0]).getByTestId("xray-votes").textContent).toBe("45.000");
+    expect(cards[cards.length - 1].getAttribute("data-candidacy")).toBe(ID(2)); // 2022 por último
     // vereadora sem BU importado: rótulo do estado, nunca "0"
     const vereadora = document.querySelector(`[data-candidacy="${ID(4)}"]`)!;
     expect(within(vereadora as HTMLElement).getByTestId("xray-votes").textContent).toBe("sem Boletim de Urna");
     // vice: votos da chapa, explicitamente
     expect(screen.getByTestId("xray-ticket").textContent).toContain("Chapa: 2.500.000 votos");
-    // evolução: comparável com delta; cargo diferente sem delta
-    expect(screen.getByTestId("xray-evolution").textContent).toContain("+5.000 votos (+12,5%)");
-    expect(screen.getByTestId("xray-evolution").textContent).toContain("cargo diferente: sem delta direto");
-    expect(screen.getByTestId("xray-evolution").textContent).toContain("não indica irregularidade");
-    expect(screen.getByTestId("insight-list").textContent).toContain("3º lugar entre 480");
     expect(screen.getByTestId("xray-history").textContent).toContain("não importada nesta base");
-    // detalhe territorial: zero nunca inventado para território sem BU
+  });
+
+  it("visão geral: insights em destaque e evolução — comparável com saldo, cargo diferente sem saldo", async () => {
+    stubFetch(xrayRoutes(XRAY));
+    render(
+      <QueryClientProvider client={client()}>
+        <ProfileOverview data={XRAY} onOpenTerritory={() => {}} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId("insight-list").textContent).toContain("3º lugar entre 480");
+    expect(screen.getByRole("heading", { name: "O que os dados mostram" })).toBeTruthy();
+    const evolution = screen.getByTestId("xray-evolution").textContent;
+    expect(evolution).toContain("+5.000 votos (+12,5%)");
+    expect(evolution).toContain("cargo diferente: sem delta direto");
+    expect(evolution).toContain("não indica irregularidade");
+    // onde teve mais votos: só territórios com voto apurado (sem cobertura não vira zero nem entra no ranking)
+    const top = await screen.findByTestId("profile-top-places");
+    expect(top.textContent).toContain("Fortaleza");
+    expect(top.textContent).not.toContain("Caucaia");
+  });
+
+  it("território: zero nunca inventado para território sem BU", async () => {
+    stubFetch(xrayRoutes(XRAY));
+    render(
+      <QueryClientProvider client={client()}>
+        <TerritoryPanel c={XRAY.candidacies[0]} />
+      </QueryClientProvider>,
+    );
     const list = await screen.findByTestId("xray-territory-list");
     expect(list.textContent).toContain("30.000");
     expect(list.textContent).toContain("sem Boletim de Urna");
-    // registros oficiais: redes declaradas ao TSE e onde o TSE publica propostas e certidões
-    fireEvent.click(screen.getByRole("tab", { name: "Registros" }));
+  });
+
+  it("registros oficiais: redes declaradas ao TSE (nofollow) e onde o TSE publica propostas e certidões", () => {
+    render(<RecordsPanel c={XRAY.candidacies[0]} />);
     const social = within(screen.getByTestId("xray-records")).getByRole("link", { name: "https://example.org/perfil" });
     expect(social.getAttribute("rel")).toContain("nofollow");
     const documents = screen.getByTestId("xray-official-documents");
@@ -159,7 +196,7 @@ describe("Raio X do perfil", () => {
     const fetchMock = stubFetch(xrayRoutes({ ...XRAY, candidacies: [president], evolution: [], assetsEvolution: [] }));
     render(
       <QueryClientProvider client={client()}>
-        <XrayTab politicianId="pol-1" />
+        <TerritoryPanel c={president} />
       </QueryClientProvider>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Fortaleza" }));
@@ -170,15 +207,9 @@ describe("Raio X do perfil", () => {
     });
   });
 
-  it("seleção de comparação respeita o máximo de 5 candidaturas", async () => {
+  it("seleção de comparação respeita o máximo de 5 candidaturas", () => {
     const many = { ...XRAY, candidacies: [1, 2, 5, 6, 7, 8].map((n) => candidacy(n)) };
-    stubFetch(xrayRoutes(many));
-    render(
-      <QueryClientProvider client={client()}>
-        <XrayTab politicianId="pol-1" />
-      </QueryClientProvider>,
-    );
-    await screen.findByTestId("xray");
+    render(<XrayTimeline data={many} onOpen={() => {}} />);
     const boxes = screen.getAllByRole("checkbox", { name: "comparar" }) as HTMLInputElement[];
     expect(boxes.filter((b) => b.checked)).toHaveLength(MAX_COMPARE);
     fireEvent.click(boxes[5]);
@@ -186,6 +217,34 @@ describe("Raio X do perfil", () => {
     expect(boxes.filter((b) => b.checked)).toHaveLength(MAX_COMPARE);
     const link = screen.getByRole("link", { name: "Comparar evolução →" });
     expect(link.getAttribute("href")?.split("c=")[1].split("&")[0].split(",")).toHaveLength(MAX_COMPARE);
+  });
+
+  it("cabeçalho: quem a pessoa é nas urnas, pela candidatura oficial mais recente (não pelo cadastro antigo)", async () => {
+    window.history.replaceState(null, "", "/politicos/candidata-ficticia");
+    stubFetch(xrayRoutes(XRAY));
+    renderProfile();
+    const current = await screen.findByTestId("profile-current");
+    expect(current.textContent).toContain("Deputado Estadual · Ceará · Eleições 2026");
+    expect(current.textContent).toContain("Eleito por QP");
+    expect(current.textContent).not.toContain("Prefeito");
+    const facts = screen.getByTestId("profile-facts").textContent;
+    expect(facts).toContain("45.000");
+    expect(facts).toContain("3º de 480");
+    expect(facts).toContain("2 de 3"); // vice (chapa) não conta como resultado próprio
+    expect(screen.queryByTestId("profile-legacy")).toBeNull();
+  });
+
+  it("do histórico ao território da candidatura, com aba e candidatura na URL (link compartilhável)", async () => {
+    window.history.replaceState(null, "", "/politicos/candidata-ficticia?aba=historico");
+    stubFetch(xrayRoutes(XRAY));
+    renderProfile();
+    const cards = await screen.findAllByTestId("xray-candidacy");
+    fireEvent.click(within(cards[0]).getByRole("button", { name: "Território, bens e contas →" }));
+    expect(screen.getByRole("tab", { name: "Território" }).getAttribute("aria-selected")).toBe("true");
+    await screen.findByTestId("xray-territory-list");
+    await waitFor(() => expect(window.location.search).toBe(`?aba=territorio&candidatura=${ID(1)}`));
+    fireEvent.click(screen.getByRole("tab", { name: "Visão geral" }));
+    await waitFor(() => expect(window.location.search).toBe(""));
   });
 });
 
@@ -225,7 +284,7 @@ describe("território → candidaturas", () => {
     );
     await screen.findByText("Vereadora Um");
     expect(screen.getByText("fora da urna")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Vereadora Um" }).getAttribute("href")).toBe("/politico/pol-11?aba=raio-x");
+    expect(screen.getByRole("link", { name: "Vereadora Um" }).getAttribute("href")).toBe("/politicos/pol-11?aba=raio-x");
     fireEvent.change(screen.getByLabelText("Cargo"), { target: { value: "13" } });
     fireEvent.change(screen.getByLabelText("Eleito"), { target: { value: "1" } });
     await waitFor(() => {
@@ -263,7 +322,7 @@ describe("camadas do mapa", () => {
 
   it("intensidade é sequencial; crescimento e queda divergem; sem valor fica sem cor", () => {
     const intensity = buildLayerView({ ...base, layer: "intensity", features: [feature(1, 100), feature(2, 50), feature(3, null)], legend: [] });
-    expect(intensity.municipalities["1"].color).toBe("#0dd48e");
+    expect(intensity.municipalities["1"].color).toBe(SEQUENTIAL.light.high);
     expect(intensity.municipalities["3"].color).toBeNull();
     expect(intensity.municipalities["3"].text).toBe("sem Boletim de Urna");
     expect(intensity.gradient).not.toBeNull();
@@ -310,11 +369,37 @@ describe("camadas do mapa", () => {
       features: [feature(1, 80, ID(1), "PREFEITO 1"), feature(2, 40, ID(9), "PREFEITO 9")],
     });
     expect(view.legend).toEqual([]);
-    expect(view.gradient).toEqual({ from: "#1b3a3a", to: "#0dd48e", min: "40,00%", max: "80,00%" });
-    expect(view.municipalities["1"].color).toBe("#0dd48e");
+    expect(view.gradient).toEqual({ from: SEQUENTIAL.light.low, to: SEQUENTIAL.light.high, min: "40,00%", max: "80,00%" });
+    expect(view.municipalities["1"].color).toBe(SEQUENTIAL.light.high);
     expect(view.municipalities["2"].text).toBe("PREFEITO 9 · 40,00%");
     expect(view.note).toContain("9 vencedores diferentes");
     expect(view.note).not.toContain("ordem da legenda"); // sem legenda neste modo
+  });
+
+  it("coroplético: só os 3 primeiros vencedores ganham cor; o resto vira Outros, com nome no tooltip", () => {
+    const legend = Array.from({ length: 5 }, (_, i) => ({ category: ID(i + 1), label: `CANDIDATURA ${i + 1}`, rank: i + 1 }));
+    const view = buildLayerView({
+      ...base, layer: "winner", min: 40, max: 80, legend,
+      features: [feature(1, 60, ID(1), "CANDIDATURA 1"), feature(2, 50, ID(5), "CANDIDATURA 5")],
+    });
+    expect(view.municipalities["1"].color).toBe(CATEGORICAL[0]);
+    expect(view.municipalities["2"].color).toBe(OTHER.light);
+    expect(view.municipalities["2"].text).toContain("CANDIDATURA 5");
+    expect(view.legend).toHaveLength(CHOROPLETH_SLOTS + 1);
+    expect(view.legend.at(-1)?.label).toContain("Outros (2)");
+  });
+
+  it("tema escuro usa os passos validados do escuro, nunca as cores de marca", () => {
+    const view = buildLayerView({ ...base, layer: "intensity", features: [feature(1, 100)], legend: [] }, "dark");
+    expect(view.municipalities["1"].color).toBe(SEQUENTIAL.dark.high);
+    const winner = buildLayerView(
+      { ...base, layer: "winner", legend: [{ category: ID(1), label: "A", rank: 1 }], features: [feature(1, 60, ID(1), "A")] },
+      "dark",
+    );
+    expect(winner.municipalities["1"].color).toBe(THEMED.dark[0]);
+    for (const brand of ["#0B2D5B", "#0F9D58", "#00BAA6"]) {
+      expect([...THEMED.light, ...THEMED.dark].map((c) => c.toUpperCase())).not.toContain(brand);
+    }
   });
 
   it("crescimento e queda: a legenda diz o que o cinza significa em cada camada", () => {
@@ -413,6 +498,63 @@ describe("comparação", () => {
     expect(matrix.textContent).toContain("composição da seção mudou");
     expect(screen.getByTestId("compare-overtakes").textContent).toContain("CANDIDATA A passou à frente de CANDIDATO B");
     expect(screen.getByTestId("insight-list").textContent).toContain("passou à frente");
+  });
+
+  it("CSV da matriz: estado no lugar de zero, vírgula decimal, ';' e BOM; A × B só com duas da mesma eleição", async () => {
+    const { comparisonCsv } = await import("@/lib/elections/compare-csv");
+    const columns = [...COMPARE.candidacies];
+    const sem = { ...COMPARE.territories[1], cells: [{ ...COMPARE.territories[1].cells[0], votes: null, share: null, state: "no_coverage" as const }] };
+    const csv = comparisonCsv({ ...COMPARE, territories: [COMPARE.territories[0], sem] }, columns, "section");
+    const lines = csv.split("\r\n");
+    expect(csv.charCodeAt(0)).toBe(0xfeff); // BOM: o Excel abre em UTF-8
+    expect(lines[0]).toContain("Seção;Candidata A (Deputado Estadual 2022) — votos;Candidata A (Deputado Estadual 2022) — % dos válidos");
+    expect(lines[1]).toBe("Zona 1 · seção 100;10;10;20;20;20;20;15;15;comparável");
+    expect(lines[2]).toContain("sem Boletim de Urna"); // ausência não vira 0
+    expect(lines[2]).toContain("sem candidatura");
+
+    nav.search = `c=${[1, 3].map(ID).join(",")}&uf=CE&nivel=municipality`;
+    stubFetch(() => ({ ...COMPARE, level: "municipality", candidacies: [COMPARE.candidacies[0], COMPARE.candidacies[2]], territories: [] }));
+    const { unmount } = render(
+      <QueryClientProvider client={client()}>
+        <ComparisonView />
+      </QueryClientProvider>,
+    );
+    await screen.findByTestId("compare-actions");
+    expect(screen.queryByRole("link", { name: "Ver A × B no mapa →" })).toBeNull(); // eleições diferentes
+    unmount();
+    nav.search = `c=${[1, 2].map(ID).join(",")}&uf=CE&nivel=municipality`;
+    stubFetch(() => ({ ...COMPARE, level: "municipality", candidacies: [COMPARE.candidacies[0], COMPARE.candidacies[1]], territories: [] }));
+    render(
+      <QueryClientProvider client={client()}>
+        <ComparisonView />
+      </QueryClientProvider>,
+    );
+    const map = await screen.findByRole("link", { name: "Ver A × B no mapa →" });
+    expect(map.getAttribute("href")).toBe(`/eleicoes/2022/1/ce?camada=ab&a=${ID(1)}&b=${ID(2)}`);
+    expect(screen.getAllByText(/entre as selecionadas/)).toHaveLength(2);
+  });
+
+  it("comparação vazia: explica e monta aqui mesmo (busca a pessoa, escolhe a candidatura, URL atualizada)", async () => {
+    nav.search = "";
+    stubFetch((url) => {
+      if (url.includes("/api/v1/search")) {
+        return { query: "candidata", filter: { year: null, round: null, officeCode: null, officeName: null }, order: ["politicians"], territories: [], parties: [], elections: [],
+          politicians: [{ id: "pol-1", name: "Candidata Fictícia", ballotName: "Candidata", slug: "candidata", rank: 1, candidacy: null }] };
+      }
+      return XRAY;
+    });
+    render(
+      <QueryClientProvider client={client()}>
+        <ComparisonView />
+      </QueryClientProvider>,
+    );
+    const empty = screen.getByTestId("compare-empty");
+    expect(empty.textContent).toContain("Escolha até 5 candidaturas");
+    fireEvent.change(within(empty).getByRole("searchbox"), { target: { value: "candidata" } });
+    fireEvent.click(await within(empty).findByRole("button", { name: "Candidata" }, { timeout: 3000 }));
+    const add = await within(empty).findAllByRole("button", { name: "Adicionar" });
+    fireEvent.click(add[0]);
+    expect(nav.replace).toHaveBeenCalledWith(`/eleicoes/comparar?c=${ID(1)}&uf=CE`, { scroll: false });
   });
 
   it("mais de 5 candidaturas na URL: alerta e só as 5 primeiras vão à API", async () => {

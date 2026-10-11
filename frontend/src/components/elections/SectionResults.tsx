@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { displayName, formatCount, formatPercent, pad3, sectionLabel, shortHash, sourceDate, zoneLabel, UNAVAILABLE } from "@/lib/elections/format";
 import { buildElectionsPath, type ExplorerRoute } from "@/lib/elections/route";
 import type { Metrics, SectionResultsResponse, VoteItem } from "@/lib/elections/types";
 import { rememberIdentity } from "@/motion/identity";
+import { SourceBadge } from "@/components/ui/SourceBadge";
+import { Term } from "@/components/ui/Term";
+import type { GlossaryId } from "@/lib/glossary";
 import { TransitionLink } from "@/motion/navigation";
 
 export type VoteTypeFilter = "todos" | "nominal" | "legenda" | "branco" | "nulo";
@@ -27,11 +29,11 @@ const METRIC_HELP: Record<keyof Metrics, string> = {
   null: "Votos nulos. — quando a fonte não permite confirmar o zero.",
 };
 
-function Metric({ label, value, help }: { label: string; value: number | null; help: string }) {
+function Metric({ label, value, help, term }: Readonly<{ label: string; value: number | null; help: string; term?: GlossaryId }>) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card-elevated/50 p-3" title={help}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
-      <p className="value-arrive text-lg font-bold text-slate-100" aria-label={value === null ? `${label}: não informado pela fonte` : undefined}>
+    <div className="rounded-lg border border-line bg-subtle/50 p-3" title={term ? undefined : help}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">{term ? <Term id={term}>{label}</Term> : label}</p>
+      <p className="value-arrive text-lg font-bold text-fg" aria-label={value === null ? `${label}: não informado pela fonte` : undefined}>
         {formatCount(value)}
       </p>
     </div>
@@ -41,20 +43,20 @@ function Metric({ label, value, help }: { label: string; value: number | null; h
 function VoteRow({ v }: { v: VoteItem }) {
   const name = v.voteType === "branco" || v.voteType === "nulo" ? v.votable.name ?? v.voteType : displayName(v.votable.name);
   return (
-    <li className="rounded-lg border border-white/8 bg-card-elevated/40 px-3 py-2" data-vote={v.votable.number} data-vote-type={v.voteType}>
+    <li className="rounded-lg border border-line bg-subtle/40 px-3 py-2" data-vote={v.votable.number} data-vote-type={v.voteType}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm text-slate-200">
-            <span className="mr-1.5 font-mono text-xs text-slate-500">{v.votable.number}</span>
+          <p className="truncate text-sm text-fg-soft">
+            <span className="mr-1.5 font-mono text-xs text-fg-muted">{v.votable.number}</span>
             {v.candidacy?.politicianId && v.profileAvailable ? (
               // Do voto à pessoa: o nome é o elemento compartilhado com o cabeçalho do perfil.
               <TransitionLink
-                href={`/politico/${v.candidacy.politicianId}?aba=eleicoes`}
+                href={`/politicos/${v.candidacy.politicianId}?aba=eleicoes`}
                 direction="deeper"
                 shareIdentity
                 data-vt="name"
                 onClick={() => rememberIdentity(v.candidacy?.politicianId, name)}
-                className="mi-underline focus-ring rounded font-medium text-slate-100 hover:text-brand"
+                className="mi-underline focus-ring rounded font-medium text-fg hover:text-accent-text"
                 data-testid="candidate-profile-link"
               >
                 {name}
@@ -63,20 +65,20 @@ function VoteRow({ v }: { v: VoteItem }) {
               <span className="font-medium">{name}</span>
             )}
           </p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-fg-muted">
             {v.voteType === "nominal" ? "Nominal" : v.voteType === "legenda" ? "Legenda" : v.voteType === "branco" ? "Branco" : v.voteType === "nulo" ? "Nulo" : v.voteTypeSource.description}
             {v.party?.acronym ? ` · ${v.party.acronym}` : ""}
             {v.voteType === "nominal" && !v.profileAvailable && <span data-testid="no-profile"> · perfil não vinculado</span>}
           </p>
         </div>
         <div className="flex-shrink-0 text-right">
-          <p className="text-sm font-semibold text-slate-100">{formatCount(v.votes)}</p>
-          <p className="text-[11px] text-slate-500">{v.percentage === null ? "" : formatPercent(v.percentage)}</p>
+          <p className="text-sm font-semibold text-fg">{formatCount(v.votes)}</p>
+          <p className="text-[11px] text-fg-muted">{v.percentage === null ? "" : formatPercent(v.percentage)}</p>
         </div>
       </div>
       {v.percentage !== null && (
-        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
-          <div className="h-full rounded-full bg-slate-400/60" style={{ width: `${Math.min(100, v.percentage)}%` }} />
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-fg/5" aria-hidden="true">
+          <div className="h-full rounded-full bg-fg-muted/50" style={{ width: `${Math.min(100, v.percentage)}%` }} />
         </div>
       )}
     </li>
@@ -113,17 +115,16 @@ export function SectionResults({
   closeHref: string;
   onRetry: () => void;
 }) {
-  const [showSource, setShowSource] = useState(false);
   const section = route.section!;
   const header = (
     <div className="mb-4 flex items-start justify-between gap-3">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">
           {zoneLabel(route.zone!)} · {municipalityName}
         </p>
-        <h2 className="text-lg font-bold text-slate-100">{sectionLabel(section)}</h2>
+        <h2 className="text-lg font-bold text-fg">{sectionLabel(section)}</h2>
       </div>
-      <Link href={closeHref} className="rounded-md border border-white/10 px-2 py-1 text-xs text-slate-400 hover:border-white/25 hover:text-slate-200" aria-label="Fechar resultado da seção">
+      <Link href={closeHref} className="rounded-md border border-line px-2 py-1 text-xs text-fg-muted hover:border-line-strong hover:text-fg-soft" aria-label="Fechar resultado da seção">
         Fechar
       </Link>
     </div>
@@ -133,15 +134,15 @@ export function SectionResults({
     return (
       <section aria-label="Resultados da seção" data-testid="section-results" data-aggregated="true">
         {header}
-        <div className="rounded-lg border border-white/10 bg-card-elevated/50 p-4 text-sm text-slate-300">
-          <p className="mb-1 font-medium text-slate-100">Seção agregada</p>
-          <p className="mb-3 text-slate-400">
+        <div className="rounded-lg border border-line bg-subtle/50 p-4 text-sm text-fg-soft">
+          <p className="mb-1 font-medium text-fg">Seção agregada</p>
+          <p className="mb-3 text-fg-muted">
             Os eleitores da {sectionLabel(section)} votaram na urna da seção principal {pad3(principalNumber)}. A seção agregada não
             tem votos próprios — o resultado é o da urna principal (nunca somado em duplicidade).
           </p>
           <Link
             href={buildElectionsPath({ ...route, section: principalNumber })}
-            className="inline-flex rounded-lg border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/15"
+            className="inline-flex rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent-text hover:bg-accent/15"
             aria-label={`Ver seção principal ${pad3(principalNumber)}`}
           >
             Ver seção principal {pad3(principalNumber)} →
@@ -164,15 +165,15 @@ export function SectionResults({
         </div>
         <div className="mb-4 grid grid-cols-3 gap-2" aria-hidden="true">
           {["Aptos", "Comparecimento", "Abstenções", "Válidos", "Brancos", "Nulos"].map((label) => (
-            <div key={label} className="rounded-lg border border-white/8 bg-card-elevated/50 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
+            <div key={label} className="rounded-lg border border-line bg-subtle/50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">{label}</p>
               <div className="skeleton mt-1.5 h-5 w-12" />
             </div>
           ))}
         </div>
         <ul className="space-y-1.5" aria-hidden="true">
           {[0, 1, 2, 3, 4].map((i) => (
-            <li key={i} className="rounded-lg border border-white/8 bg-card-elevated/40 px-3 py-2">
+            <li key={i} className="rounded-lg border border-line bg-subtle/40 px-3 py-2">
               <div className="skeleton mb-1.5 h-4 w-2/5" />
               <div className="skeleton h-3 w-1/4" />
             </li>
@@ -187,10 +188,10 @@ export function SectionResults({
     return (
       <section aria-label="Resultados da seção" data-testid="section-results" data-status="error">
         {header}
-        <div className="rounded-lg border border-white/10 bg-card-elevated/50 p-4 text-sm">
-          <p className="font-medium text-slate-200">Não foi possível carregar o resultado.</p>
-          <p className="mb-3 text-slate-500">Falha de comunicação não significa zero votos: nenhum número é exibido.</p>
-          <button type="button" onClick={onRetry} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-300 hover:border-white/30">
+        <div className="rounded-lg border border-line bg-subtle/50 p-4 text-sm">
+          <p className="font-medium text-fg-soft">Não foi possível carregar o resultado.</p>
+          <p className="mb-3 text-fg-muted">Falha de comunicação não significa zero votos: nenhum número é exibido.</p>
+          <button type="button" onClick={onRetry} className="rounded-lg border border-line-strong px-3 py-1.5 text-xs text-fg-soft hover:border-line-strong">
             Tentar novamente
           </button>
         </div>
@@ -202,7 +203,7 @@ export function SectionResults({
     return (
       <section aria-label="Resultados da seção" data-testid="section-results" data-status={data.status}>
         {header}
-        <div className="rounded-lg border border-white/10 bg-card-elevated/50 p-4 text-sm text-slate-400">
+        <div className="rounded-lg border border-line bg-subtle/50 p-4 text-sm text-fg-muted">
           {data.status === "not_ingested"
             ? "O Boletim de Urna desta zona ainda não foi importado. Sem resultado não há números — nem zero."
             : "O cadastro eleitoral deste município ainda não foi importado."}
@@ -219,8 +220,8 @@ export function SectionResults({
       {header}
 
       {(data.aggregatedSections?.length ?? 0) > 0 && (
-        <p className="mb-3 text-[11px] text-slate-500">
-          Urna com seções agregadas: {data.aggregatedSections!.map(pad3).join(", ")} (aptos e votos já incluídos).
+        <p className="mb-3 text-[11px] text-fg-muted">
+          Urna com <Term id="secao-agregada">seções agregadas</Term>: {data.aggregatedSections!.map(pad3).join(", ")} (aptos e votos já incluídos).
         </p>
       )}
 
@@ -236,7 +237,7 @@ export function SectionResults({
               data-office={o.code}
               onClick={() => onOffice(o.code)}
               className={`focus-ring rounded-md border px-2.5 py-1 text-xs font-medium transition-colors duration-[var(--motion-acknowledge)] ${
-                active ? "border-brand bg-brand/10 text-brand" : "border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-200"
+                active ? "border-accent bg-accent/10 text-accent-text" : "border-line text-fg-muted hover:border-line-strong hover:text-fg-soft"
               }`}
             >
               {o.name ?? `Cargo ${o.code}`}
@@ -246,10 +247,10 @@ export function SectionResults({
       </div>
 
       <div className="mb-4 grid grid-cols-3 gap-2" data-testid="metrics">
-        <Metric label="Aptos" value={m.eligible} help={METRIC_HELP.eligible} />
+        <Metric label="Aptos" value={m.eligible} help={METRIC_HELP.eligible} term="aptos" />
         <Metric label="Comparecimento" value={m.turnout} help={METRIC_HELP.turnout} />
-        <Metric label="Abstenções" value={m.abstentions} help={METRIC_HELP.abstentions} />
-        <Metric label="Válidos" value={m.valid} help={METRIC_HELP.valid} />
+        <Metric label="Abstenções" value={m.abstentions} help={METRIC_HELP.abstentions} term="abstencao" />
+        <Metric label="Válidos" value={m.valid} help={METRIC_HELP.valid} term="votos-validos" />
         <Metric label="Brancos" value={m.blank} help={METRIC_HELP.blank} />
         <Metric label="Nulos" value={m.null} help={METRIC_HELP.null} />
       </div>
@@ -263,7 +264,7 @@ export function SectionResults({
             data-vote-filter={t.value}
             onClick={() => onVoteType(t.value)}
             className={`focus-ring rounded-full border px-2.5 py-0.5 text-[11px] transition-colors duration-[var(--motion-acknowledge)] ${
-              voteType === t.value ? "border-white/30 bg-white/10 text-slate-100" : "border-white/10 text-slate-500 hover:text-slate-300"
+              voteType === t.value ? "border-line-strong bg-fg/10 text-fg" : "border-line text-fg-muted hover:text-fg-soft"
             }`}
           >
             {t.label}
@@ -271,9 +272,11 @@ export function SectionResults({
         ))}
       </div>
 
-      <p className="mb-2 text-[11px] text-slate-500">Percentual sobre os votos válidos da urna no cargo; brancos e nulos não recebem percentual.</p>
+      <p className="mb-2 text-[11px] text-fg-muted">
+        Percentual sobre os <Term id="votos-validos">votos válidos</Term> da urna no cargo; brancos e nulos não recebem percentual.
+      </p>
       {votes.length === 0 ? (
-        <p className="py-4 text-center text-sm text-slate-500">Nenhum voto deste tipo nesta urna.</p>
+        <p className="py-4 text-center text-sm text-fg-muted">Nenhum voto deste tipo nesta urna.</p>
       ) : (
         <ul className="list-arrive space-y-1.5" data-testid="vote-list" key={`${section}|${data.selectedOffice?.code}|${voteType}`}>
           {votes.map((v) => (
@@ -282,40 +285,21 @@ export function SectionResults({
         </ul>
       )}
 
-      <div className="mt-4 rounded-lg border border-white/8 bg-card/60 px-3 py-2 text-[11px] text-slate-500" data-testid="source-badge">
-        <div className="flex items-center justify-between gap-2">
-          <span>
-            Fonte: <span className="text-slate-300">Tribunal Superior Eleitoral</span> · Boletim de Urna (Dados Abertos)
-          </span>
-          <button type="button" onClick={() => setShowSource((s) => !s)} className="text-brand underline-offset-2 hover:underline" aria-expanded={showSource}>
-            {showSource ? "ocultar" : "proveniência"}
-          </button>
-        </div>
-        {showSource && (
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            <dt>Recurso</dt>
-            <dd className="text-slate-300">{p.resourceName}</dd>
-            <dt>Arquivo</dt>
-            <dd>
-              <a href={p.url} className="break-all text-slate-300 hover:text-brand" rel="noopener noreferrer" target="_blank">
-                {p.url}
-              </a>
-            </dd>
-            <dt>SHA-256 ZIP</dt>
-            <dd className="font-mono text-slate-300" title={p.sourceFileSha256}>{shortHash(p.sourceFileSha256)}</dd>
-            <dt>Checksum oficial</dt>
-            <dd className="text-slate-300">{p.officialChecksum.verified ? `${p.officialChecksum.algorithm} conferido` : UNAVAILABLE}</dd>
-            <dt>Gerado pelo TSE</dt>
-            <dd className="text-slate-300">{sourceDate(p.sourceGeneratedAt) ?? UNAVAILABLE}</dd>
-            <dt>Lote</dt>
-            <dd className="font-mono text-slate-300">{p.importBatchId}</dd>
-            <dt>Urna</dt>
-            <dd className="text-slate-300">
-              {data.urn?.number ?? UNAVAILABLE}
-              {data.urn?.type ? ` · ${data.urn.type}` : ""}
-            </dd>
-          </dl>
-        )}
+      <div className="mt-4">
+        <SourceBadge
+          testId="source-badge"
+          publisher="Tribunal Superior Eleitoral"
+          dataset="Boletim de Urna (Dados Abertos)"
+          details={[
+            { label: "Recurso", value: p.resourceName },
+            { label: "Arquivo", value: p.url, href: p.url },
+            { label: "SHA-256 ZIP", value: shortHash(p.sourceFileSha256), title: p.sourceFileSha256, mono: true },
+            { label: "Checksum oficial", value: p.officialChecksum.verified ? `${p.officialChecksum.algorithm} conferido` : UNAVAILABLE },
+            { label: "Gerado pelo TSE", value: sourceDate(p.sourceGeneratedAt) ?? UNAVAILABLE },
+            { label: "Lote", value: p.importBatchId, mono: true },
+            { label: "Urna", value: `${data.urn?.number ?? UNAVAILABLE}${data.urn?.type ? ` · ${data.urn.type}` : ""}` },
+          ]}
+        />
       </div>
     </section>
   );

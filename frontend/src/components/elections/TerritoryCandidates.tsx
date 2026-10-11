@@ -81,7 +81,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
   });
   const data = query.data;
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
-  const select = "rounded-md border border-white/10 bg-background px-2 py-1 text-xs text-slate-200 focus:border-brand/40 focus:outline-none";
+  const select = "rounded-md border border-line bg-canvas px-2 py-1 text-xs text-fg-soft focus:border-accent/40 focus:outline-none";
 
   return (
     <div data-testid="territory-candidates">
@@ -156,31 +156,31 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
         </div>
       </div>
 
-      <p className="mb-2 text-[11px] text-slate-500">
+      <p className="mb-2 text-[11px] text-fg-muted">
         {data ? `${formatCount(data.total)} candidaturas` : "Carregando…"} · seleção para comparar: {props.selection.length}/{MAX_COMPARE}
-        {props.limitHit && <span className="text-amber-300"> · limite atingido</span>}
+        {props.limitHit && <span className="text-warn"> · limite atingido</span>}
       </p>
-      {data?.freshness.stale && <p className="mb-2 text-[11px] text-amber-300/80">{data.freshness.note}</p>}
-      {query.isError && <p className="text-xs text-slate-400">Não foi possível carregar as candidaturas do território.</p>}
+      {data?.freshness.stale && <p className="mb-2 text-[11px] text-warn/80">{data.freshness.note}</p>}
+      {query.isError && <p className="text-xs text-fg-muted">Não foi possível carregar as candidaturas do território.</p>}
 
       <ul className="max-h-[52vh] space-y-1 overflow-y-auto pr-1" data-testid="candidate-list" aria-busy={query.isFetching}>
         {data?.items.map((c) => {
           const compared = props.selection.includes(c.candidacyId);
           return (
-            <li key={c.candidacyId} className="rounded-lg border border-white/8 bg-card-elevated/50 px-3 py-2" data-candidacy={c.candidacyId} data-state={c.state}>
+            <li key={c.candidacyId} className="rounded-lg border border-line bg-subtle/50 px-3 py-2" data-candidacy={c.candidacyId} data-state={c.state}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-slate-200">
-                    {c.rank !== null && <span className="mr-1 font-mono text-[10px] text-slate-600">{c.rank}º</span>}
+                  <p className="truncate text-sm text-fg-soft">
+                    {c.rank !== null && <span className="mr-1 font-mono text-[10px] text-fg-muted">{c.rank}º</span>}
                     {c.politicianId ? (
-                      <Link href={`/politico/${c.politicianId}?aba=raio-x`} className="hover:text-brand">
+                      <Link href={`/politicos/${c.politicianId}?aba=raio-x`} className="hover:text-accent-text">
                         {displayName(c.ballotName)}
                       </Link>
                     ) : (
                       displayName(c.ballotName)
                     )}
                   </p>
-                  <p className="truncate text-[11px] text-slate-500">
+                  <p className="truncate text-[11px] text-fg-muted">
                     {displayName(c.contest.officeName)}
                     {c.contest.unit.scope === "municipal" ? ` · ${c.contest.unit.name}` : ""} · nº {c.number}
                     {c.party?.acronym ? ` · ${c.party.acronym}` : ""}
@@ -188,19 +188,19 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
                   </p>
                 </div>
                 <div className="flex-shrink-0 text-right">
-                  <p className="text-sm font-semibold text-slate-100">
-                    {c.votes === null ? <span className="text-[11px] font-normal text-slate-500">{CELL_STATE_LABEL[c.state]}</span> : formatCount(c.votes)}
+                  <p className="text-sm font-semibold text-fg">
+                    {c.votes === null ? <span className="text-[11px] font-normal text-fg-muted">{CELL_STATE_LABEL[c.state]}</span> : formatCount(c.votes)}
                   </p>
-                  {c.share !== null && <p className="text-[10px] text-slate-500">{formatPercent(c.share)}</p>}
+                  {c.share !== null && <p className="text-[10px] text-fg-muted">{formatPercent(c.share)}</p>}
                 </div>
               </div>
               <div className="mt-1 flex items-center gap-3 text-[11px]">
-                <label className="flex cursor-pointer items-center gap-1 text-slate-400">
-                  <input type="checkbox" checked={compared} onChange={() => props.onToggleCompare(c.candidacyId)} className="accent-[#0dd48e]" />
+                <label className="flex cursor-pointer items-center gap-1 text-fg-muted">
+                  <input type="checkbox" checked={compared} onChange={() => props.onToggleCompare(c.candidacyId)} className="accent-[rgb(var(--accent))]" />
                   <span>comparar</span>
                 </label>
                 {c.votes !== null && (
-                  <button type="button" onClick={() => props.onShowOnMap(c.candidacyId)} className="text-brand hover:underline">
+                  <button type="button" onClick={() => props.onShowOnMap(c.candidacyId)} className="text-accent-text hover:underline">
                     ver no mapa
                   </button>
                 )}
@@ -210,19 +210,19 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
         })}
       </ul>
       {data && pages > 1 && (
-        <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded border border-white/10 px-2 py-0.5 disabled:opacity-40">
+        <div className="mt-2 flex items-center justify-between text-xs text-fg-muted">
+          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded border border-line px-2 py-0.5 disabled:opacity-40">
             ← Anterior
           </button>
           <span>
             Página {page} de {pages}
           </span>
-          <button type="button" disabled={page >= pages} onClick={() => setPage(page + 1)} className="rounded border border-white/10 px-2 py-0.5 disabled:opacity-40">
+          <button type="button" disabled={page >= pages} onClick={() => setPage(page + 1)} className="rounded border border-line px-2 py-0.5 disabled:opacity-40">
             Próxima →
           </button>
         </div>
       )}
-      <p className="mt-2 text-[10px] text-slate-600">
+      <p className="mt-2 text-[10px] text-fg-muted">
         Votos no território = Boletins de Urna vigentes. Posição dentro da mesma disputa, no território. &ldquo;Sem Boletim de Urna&rdquo; e &ldquo;fora da
         urna&rdquo; nunca viram zero.
       </p>

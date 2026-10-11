@@ -2,67 +2,245 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens do REPBrasil (Brand Kit Oficial — docs/BRAND.md).
+ *
+ * - Cores de marca são constantes; a interface consome só tokens SEMÂNTICOS.
+ * - Tokens semânticos guardam canais RGB ("11 31 51") para o Tailwind compor opacidade:
+ *   `bg-surface`, `text-fg/80`, `border-line`… (tailwind.config.ts).
+ * - Tema: claro por padrão; escuro pelo sistema operacional OU por `data-theme="dark"` no <html>.
+ *   `data-theme="light"` vence o sistema escuro. Os dois blocos escuros abaixo são idênticos
+ *   (o teste de tokens confere a paridade).
+ * - Texto interativo: o teal oficial (#00BAA6) tem 2,3:1 sobre o canvas claro — reprovado como TEXTO.
+ *   No tema claro, texto interativo usa a variação acessível `--accent-text` (#00756A, 5,25:1); o teal
+ *   oficial continua nas superfícies, indicadores e no anel de foco. Não é mudança de paleta: é o token
+ *   semântico `interactive.text` exigido pela acessibilidade.
+ */
+
 @layer base {
   :root {
+    color-scheme: light;
+
+    /* Marca (fixas — nunca semântica de dado, partido ou vencedor) */
+    --brand-navy: #0b2d5b;
+    --brand-green: #0f9d58;
+    --brand-teal: #00baa6;
+    --brand-white: #ffffff;
+
+    /* Superfícies */
+    --canvas: 245 248 251; /* #F5F8FB */
+    --surface: 255 255 255; /* #FFFFFF */
+    --surface-subtle: 238 243 247; /* #EEF3F7 */
+
+    /* Texto */
+    --text-primary: 11 31 51; /* #0B1F33 */
+    --text-soft: 43 65 87; /* #2B4157 — ênfase secundária, 9,9:1 */
+    --text-secondary: 95 113 132; /* #5F7184 — 4,7:1 no canvas */
+
+    /* Bordas e foco */
+    --border: 220 229 237; /* #DCE5ED */
+    --border-strong: 184 199 213; /* #B8C7D5 */
+    --focus: 0 186 166; /* #00BAA6 */
+    --focus-inner: 11 45 91; /* navy: garante 3:1 do anel sobre fundos claros */
+
+    /* Interação */
+    --accent: 0 186 166; /* teal oficial: preenchimentos, indicadores, seleção */
+    --accent-text: 0 117 106; /* #00756A: texto/links interativos (5,25:1) */
+    --on-accent: 7 26 46; /* texto sobre teal */
+    --action: 11 45 91; /* botão primário: navy domina no claro */
+    --on-action: 255 255 255;
+
+    /* Estados (nunca sozinhos: sempre com rótulo ou ícone) */
+    --warn: 138 75 0; /* #8A4B00 */
+    --danger: 180 35 24; /* #B42318 */
+    --info: 29 95 168; /* #1D5FA8 */
+    --positive: 11 122 68; /* #0B7A44 */
+
+    /* Espaçamento (base 4px) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+    --space-20: 80px;
+    --space-24: 96px;
+
+    /* Raios */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-pill: 999px;
+
+    /* Sombras discretas: hierarquia vem de superfície e borda, não de elevação */
+    --shadow-sm: 0 1px 2px rgb(11 31 51 / 0.06);
+    --shadow-md: 0 2px 8px rgb(11 31 51 / 0.08);
+    --shadow-lg: 0 8px 24px rgb(11 31 51 / 0.1);
+
+    /* Motion de marca (o sistema de motion do produto está em src/motion) */
+    --rep-motion-fast: 160ms;
+    --rep-motion-base: 240ms;
+    --rep-motion-context: 360ms;
+    --rep-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  :root[data-theme="dark"] {
     color-scheme: dark;
+    --canvas: 7 26 46; /* #071A2E */
+    --surface: 13 39 68; /* #0D2744 */
+    --surface-subtle: 16 47 80; /* #102F50 */
+    --text-primary: 247 250 252; /* #F7FAFC */
+    --text-soft: 213 224 234; /* #D5E0EA */
+    --text-secondary: 169 187 203; /* #A9BBCB */
+    --border: 29 58 86; /* #1D3A56 */
+    --border-strong: 46 83 121; /* #2E5379 */
+    --focus: 35 214 194; /* #23D6C2 */
+    --focus-inner: 7 26 46;
+    --accent: 0 186 166;
+    --accent-text: 35 214 194; /* #23D6C2 */
+    --on-accent: 7 26 46;
+    --action: 0 186 166; /* navy some sobre o canvas escuro: ação primária vira teal */
+    --on-action: 7 26 46;
+    --warn: 245 181 68; /* #F5B544 */
+    --danger: 255 138 128; /* #FF8A80 */
+    --info: 124 180 240; /* #7CB4F0 */
+    --positive: 76 195 138; /* #4CC38A */
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-md: 0 2px 8px rgb(0 0 0 / 0.35);
+    --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.4);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --canvas: 7 26 46; /* #071A2E */
+      --surface: 13 39 68; /* #0D2744 */
+      --surface-subtle: 16 47 80; /* #102F50 */
+      --text-primary: 247 250 252; /* #F7FAFC */
+      --text-soft: 213 224 234; /* #D5E0EA */
+      --text-secondary: 169 187 203; /* #A9BBCB */
+      --border: 29 58 86; /* #1D3A56 */
+      --border-strong: 46 83 121; /* #2E5379 */
+      --focus: 35 214 194; /* #23D6C2 */
+      --focus-inner: 7 26 46;
+      --accent: 0 186 166;
+      --accent-text: 35 214 194; /* #23D6C2 */
+      --on-accent: 7 26 46;
+      --action: 0 186 166; /* navy some sobre o canvas escuro: ação primária vira teal */
+      --on-action: 7 26 46;
+      --warn: 245 181 68; /* #F5B544 */
+      --danger: 255 138 128; /* #FF8A80 */
+      --info: 124 180 240; /* #7CB4F0 */
+      --positive: 76 195 138; /* #4CC38A */
+      --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+      --shadow-md: 0 2px 8px rgb(0 0 0 / 0.35);
+      --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.4);
+    }
   }
 
   html {
     height: 100%;
-    /* Canvas escuro: durante uma View Transition as camadas em opacidade parcial
-       deixam o canvas aparecer; sem cor própria ele surgia como um véu claro. */
-    background-color: #0a0f16;
+    /* Canvas próprio: durante uma View Transition as camadas em opacidade parcial deixam o canvas
+       aparecer; sem cor própria ele surgia como um véu. */
+    background-color: rgb(var(--canvas));
   }
 
   body {
-    background-color: #0a0f16;
-    color: #e2e8f0;
+    background-color: rgb(var(--canvas));
+    color: rgb(var(--text-primary));
+    font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.015em;
+  }
+
+  /* Números de dados: tabulares (colunas alinhadas, sem "pular" ao atualizar) */
+  .tabular,
+  table td,
+  table th {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
+  }
+
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 99px;
+    background: rgb(var(--text-primary) / 0.14);
+    border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgb(var(--text-primary) / 0.24);
   }
 }
 
 @layer utilities {
-  .text-gradient-brand {
-    background: linear-gradient(135deg, #0dd48e 0%, #38e8b0 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+  /*
+   * Acessibilidade: o texto secundário oficial (#5F7184) sobre a superfície sutil oficial (#EEF3F7) dá
+   * 4,495:1 — abaixo de WCAG AA por 0,005. Só nessa combinação, no tema claro, o texto secundário desce
+   * um passo (#5C6E81, 4,6:1). Proposta de marca registrada para decisão do proprietário (docs/BRAND.md).
+   */
+  :root[data-theme="light"] .bg-subtle {
+    --text-secondary: 92 110 129;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:where(:not([data-theme="dark"])) .bg-subtle {
+      --text-secondary: 92 110 129;
+    }
+  }
+
+  /* Logo: área de proteção mínima 1X (X = largura da haste vertical do R ≈ 0,26 da largura do símbolo). */
+  .brand-clear {
+    padding: calc(var(--brand-x, 8px));
+  }
+
+  /* Ícones de tema: só um dos dois aparece (sem divergência de hidratação). */
+  .theme-light-only {
+    display: revert;
+  }
+  .theme-dark-only {
+    display: none;
+  }
+  :root[data-theme="dark"] .theme-light-only {
+    display: none;
+  }
+  :root[data-theme="dark"] .theme-dark-only {
+    display: revert;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .theme-light-only {
+      display: none;
+    }
+    :root:where(:not([data-theme="light"])) .theme-dark-only {
+      display: revert;
+    }
   }
 
   .bg-grid-pattern {
     background-image:
-      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      linear-gradient(rgb(var(--text-primary) / 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--text-primary) / 0.035) 1px, transparent 1px);
     background-size: 40px 40px;
   }
-
-  .glow-brand {
-    box-shadow: 0 0 28px rgba(13, 212, 142, 0.3);
-  }
-
-  .hero-gradient {
-    background: radial-gradient(
-      ellipse 80% 60% at 50% -10%,
-      rgba(13, 212, 142, 0.08) 0%,
-      transparent 70%
-    );
-  }
-
 }
-

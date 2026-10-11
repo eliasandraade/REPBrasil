@@ -43,6 +43,12 @@ describe("formatação: ausente nunca vira zero", () => {
   it("apresentação não muda identidade", () => {
     expect(displayName("LUIZ GASTÃO DA SILVA")).toBe("Luiz Gastão da Silva");
     expect(displayName("Já Formatado")).toBe("Já Formatado");
+    // partículas: também em nomes já capitalizados palavra a palavra (TSE: "Juazeiro Do Norte")
+    expect(displayName("Juazeiro Do Norte")).toBe("Juazeiro do Norte");
+    expect(displayName("Andre Fernandes De Moura")).toBe("Andre Fernandes de Moura");
+    expect(displayName("OLHO D'ÁGUA DO BORGES")).toBe("Olho D'Água do Borges");
+    expect(displayName("NÃO-ME-TOQUE")).toBe("Não-Me-Toque");
+    expect(displayName("Herval d'Oeste")).toBe("Herval d'Oeste"); // grafia oficial preservada
     // resultado oficial: caixa de frase com a sigla preservada (nunca "Eleito Por Qp")
     expect(outcomeLabel("ELEITO POR QP")).toBe("Eleito por QP");
     expect(outcomeLabel("NÃO ELEITO")).toBe("Não eleito");

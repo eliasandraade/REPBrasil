@@ -26,11 +26,46 @@ const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 
 function Notice({ title, children, action }: { title: string; children?: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/8 bg-card px-5 py-8 text-center" data-testid="explorer-notice">
-      <p className="font-medium text-slate-200">{title}</p>
-      {children && <p className="mt-1 text-sm text-slate-500">{children}</p>}
+    <div className="rounded-xl border border-line bg-surface px-5 py-8 text-center" data-testid="explorer-notice">
+      <p className="font-medium text-fg-soft">{title}</p>
+      {children && <p className="mt-1 text-sm text-fg-muted">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
+  );
+}
+
+/**
+ * Troca de eleição sem perder o lugar: mantém UF e município; zona e seção mudam de uma eleição para outra e
+ * caem; cargo, camada e seleção também (candidaturas são de cada eleição).
+ */
+function ElectionSwitcher({ route }: Readonly<{ route: ExplorerRoute }>) {
+  const router = useRouter();
+  const search = useSearchParams();
+  const { data } = useQuery({ queryKey: ["el-elections"], queryFn: electionsApi.elections, staleTime: 10 * 60_000 });
+  const elections = data?.elections ?? [];
+  const current = `${route.year}-${route.round}`;
+  if (elections.length < 2 || !elections.some((e) => `${e.year}-${e.round}` === current)) return null;
+  return (
+    <label className="flex items-center gap-2 text-xs text-fg-muted">
+      Eleição
+      <select
+        value={current}
+        onChange={(e) => {
+          const [year, round] = e.target.value.split("-").map(Number);
+          const painel = search.get("painel");
+          const path = buildElectionsPath({ year, round, state: route.state, municipality: route.municipality });
+          router.push(painel ? `${path}?painel=${encodeURIComponent(painel)}` : path, { scroll: false });
+        }}
+        className="focus-ring rounded-md border border-line bg-surface px-2 py-1 text-xs text-fg-soft"
+        data-testid="election-switcher"
+      >
+        {elections.map((e) => (
+          <option key={`${e.year}-${e.round}`} value={`${e.year}-${e.round}`}>
+            {e.year} · {e.round}º turno
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -119,11 +154,17 @@ export function ElectionsExplorer() {
   const uf = parsed?.state ?? null;
   const munKey = parsed?.municipality ?? null;
 
-  const statesQ = useQuery({ queryKey: ["el-states", year, round], queryFn: () => electionsApi.states(year, round), enabled: !!parsed });
+  const statesQ = useQuery({
+    queryKey: ["el-states", year, round],
+    queryFn: () => electionsApi.states(year, round),
+    enabled: !!parsed,
+    retry: (n, e) => !isNotFound(e) && n < 1,
+  });
   const munsQ = useQuery({
     queryKey: ["el-muns", year, round, uf],
     queryFn: () => electionsApi.municipalities(year, round, uf!),
     enabled: !!parsed && !!uf,
+    retry: (n, e) => !isNotFound(e) && n < 1,
   });
   const munQ = useQuery({
     queryKey: ["el-mun", year, round, uf, munKey],
@@ -271,7 +312,7 @@ export function ElectionsExplorer() {
   );
 
   if (!parsed) {
-    return <Notice title="Endereço inválido" action={<Link href="/eleicoes" className="text-sm text-brand hover:underline">Ir para Eleições</Link>} />;
+    return <Notice title="Endereço inválido" action={<Link href="/eleicoes" className="text-sm text-accent-text hover:underline">Ir para Eleições</Link>} />;
   }
 
   const route: ExplorerRoute = { ...parsed, municipality: canonical ?? undefined };
@@ -307,7 +348,7 @@ export function ElectionsExplorer() {
     panel = (
       <Notice
         title="Território não encontrado"
-        action={<Link href={buildElectionsPath(parentRoute(route))} className="text-sm text-brand hover:underline">Voltar um nível</Link>}
+        action={<Link href={buildElectionsPath(parentRoute(route))} className="text-sm text-accent-text hover:underline">Voltar um nível</Link>}
       >
         Este endereço não corresponde a um território do cadastro oficial importado.
       </Notice>
@@ -320,7 +361,7 @@ export function ElectionsExplorer() {
           <button
             type="button"
             onClick={() => [statesQ, munsQ, munQ, zoneQ].forEach((q) => q.isError && q.refetch())}
-            className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-300 hover:border-white/30"
+            className="rounded-lg border border-line-strong px-3 py-1.5 text-xs text-fg-soft hover:border-line-strong"
           >
             Tentar novamente
           </button>
@@ -332,10 +373,10 @@ export function ElectionsExplorer() {
   } else if (panelMode === "candidates" && ufCode && level !== "country") {
     panel = (
       <div>
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-fg-muted">
           {[stateRow?.name, mun?.municipality.name, route.zone != null ? zoneLabel(route.zone) : null].filter(Boolean).join(" · ")}
         </p>
-        <h2 className="mb-3 text-lg font-bold leading-tight text-slate-100">Candidaturas no território</h2>
+        <h2 className="mb-3 text-lg font-bold leading-tight text-fg">Candidaturas no território</h2>
         <TerritoryCandidates
           year={route.year}
           round={route.round}
@@ -378,32 +419,35 @@ export function ElectionsExplorer() {
   const cadasterDate = sourceDate(zoneQ.data?.provenance?.sourceGeneratedAt ?? mun?.provenance?.sourceGeneratedAt);
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 sm:px-6" data-level={level}>
+    <main className="min-h-screen bg-canvas px-4 py-6 sm:px-6" data-level={level}>
       <div className="mx-auto max-w-7xl">
-        <nav aria-label="Navegação territorial" className="mb-4 flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="breadcrumb">
-          <Link href="/eleicoes" className="focus-ring rounded hover:text-slate-300">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <nav aria-label="Navegação territorial" className="flex flex-wrap items-center gap-1 text-xs text-fg-muted" data-testid="breadcrumb">
+          <Link href="/eleicoes" className="focus-ring rounded hover:text-fg-soft">
             Eleições
           </Link>
           {crumbs.map((c, i) => (
             <span key={c.href} ref={extendCrumb} className="flex items-center gap-1">
               <span aria-hidden="true">/</span>
               {i === crumbs.length - 1 ? (
-                <span className="text-slate-300" aria-current="page">
+                <span className="text-fg-soft" aria-current="page">
                   {c.label}
                 </span>
               ) : (
-                <Link href={c.href} className="focus-ring rounded hover:text-slate-300">
+                <Link href={c.href} className="focus-ring rounded hover:text-fg-soft">
                   {c.label}
                 </Link>
               )}
             </span>
           ))}
         </nav>
+        <ElectionSwitcher route={route} />
+        </div>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(320px,420px)_1fr]">
-          <aside className="rounded-xl border border-white/8 bg-card p-4" aria-label="Exploração territorial" data-testid="explorer-panel">
+          <aside className="rounded-xl border border-line bg-surface p-4" aria-label="Exploração territorial" data-testid="explorer-panel">
             {level !== "country" && !notFound && (
-              <div role="tablist" aria-label="Conteúdo do painel" className="mb-3 flex gap-1 rounded-lg border border-white/8 bg-background/40 p-0.5 text-xs">
+              <div role="tablist" aria-label="Conteúdo do painel" className="mb-3 flex gap-1 rounded-lg border border-line bg-canvas/40 p-0.5 text-xs">
                 {(
                   [
                     ["territory", "Território"],
@@ -416,7 +460,7 @@ export function ElectionsExplorer() {
                     role="tab"
                     aria-selected={panelMode === id}
                     onClick={() => setParam("painel", id === "candidates" ? "candidaturas" : null)}
-                    className={`flex-1 rounded-md px-2 py-1 ${panelMode === id ? "bg-brand/15 text-brand" : "text-slate-400 hover:text-slate-200"}`}
+                    className={`flex-1 rounded-md px-2 py-1 ${panelMode === id ? "bg-accent/15 text-accent-text" : "text-fg-muted hover:text-fg-soft"}`}
                   >
                     {label}
                   </button>
@@ -429,7 +473,7 @@ export function ElectionsExplorer() {
           </aside>
           <div className="relative min-h-[360px] lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]">
             {showResults ? (
-              <div className="h-full overflow-y-auto rounded-xl border border-white/8 bg-card p-4">
+              <div className="h-full overflow-y-auto rounded-xl border border-line bg-surface p-4">
                 <SectionResults
                   route={route}
                   municipalityName={mun ? `${mun.municipality.name}/${mun.municipality.uf}` : ""}
@@ -484,7 +528,7 @@ export function ElectionsExplorer() {
           onClear={() => setParam("c", null)}
         />
 
-        <p className="mt-4 text-[11px] text-slate-600">
+        <p className="mt-4 text-[11px] text-fg-muted">
           Fonte: Tribunal Superior Eleitoral (cadastro eleitoral e Boletins de Urna, Dados Abertos) e IBGE (malhas).
           {cadasterDate && ` Cadastro gerado pelo TSE em ${cadasterDate}.`} Dados eleitorais são descritivos e não alteram o Score.
           {route.section != null && sectionDetail?.isAggregated && ` Seção ${pad3(route.section)} agregada.`}

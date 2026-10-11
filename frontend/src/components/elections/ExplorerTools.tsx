@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useResolvedTheme } from "@/components/theme/theme";
 import Link from "next/link";
 import { useMemo } from "react";
 import { buildLayerView, LAYER_LABEL, type MapLayerView } from "@/lib/elections/map-layers";
@@ -51,7 +52,8 @@ export function useMapLayer(year: number, round: number, uf: string | null, muni
     enabled: !!params,
     staleTime: 60_000,
   });
-  const view: MapLayerView | null = useMemo(() => (q.data && params ? buildLayerView(q.data) : null), [q.data, params]);
+  const theme = useResolvedTheme();
+  const view: MapLayerView | null = useMemo(() => (q.data && params ? buildLayerView(q.data, theme) : null), [q.data, params, theme]);
   return { view, response: q.data ?? null, loading: q.isFetching, error: q.isError, ready: !!params };
 }
 
@@ -76,7 +78,7 @@ export function MapLayerBar({
   error: boolean;
   disabled: boolean;
 }>) {
-  const select = "rounded-md border border-white/10 bg-background px-2 py-1 text-xs text-slate-200 focus:border-brand/40 focus:outline-none";
+  const select = "rounded-md border border-line bg-canvas px-2 py-1 text-xs text-fg-soft focus:border-accent/40 focus:outline-none";
   const options = (value: string | null, onPick: (v: string | null) => void, label: string) => (
     <select aria-label={label} className={select} value={value ?? ""} onChange={(e) => onPick(e.target.value || null)}>
       <option value="">{label}</option>
@@ -88,15 +90,15 @@ export function MapLayerBar({
     </select>
   );
   return (
-    <div className="mb-2 rounded-xl border border-white/8 bg-card p-2.5" data-testid="map-layer-bar">
+    <div className="mb-2 rounded-xl border border-line bg-surface p-2.5" data-testid="map-layer-bar">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Camada</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">Camada</span>
         <button
           type="button"
           aria-pressed={state.layer === null}
           disabled={disabled}
           onClick={() => onChange({ layer: null })}
-          className={`rounded border px-2 py-0.5 text-[11px] ${state.layer === null ? "border-brand bg-brand/15 text-brand" : "border-white/10 text-slate-400"}`}
+          className={`rounded border px-2 py-0.5 text-[11px] ${state.layer === null ? "border-accent bg-accent/15 text-accent-text" : "border-line text-fg-muted"}`}
         >
           Território
         </button>
@@ -107,7 +109,7 @@ export function MapLayerBar({
             aria-pressed={state.layer === l}
             disabled={disabled}
             onClick={() => onChange({ layer: l })}
-            className={`rounded border px-2 py-0.5 text-[11px] disabled:opacity-40 ${state.layer === l ? "border-brand bg-brand/15 text-brand" : "border-white/10 text-slate-400 hover:border-white/25"}`}
+            className={`rounded border px-2 py-0.5 text-[11px] disabled:opacity-40 ${state.layer === l ? "border-accent bg-accent/15 text-accent-text" : "border-line text-fg-muted hover:border-line-strong"}`}
           >
             {LAYER_LABEL[l]}
           </button>
@@ -138,14 +140,14 @@ export function MapLayerBar({
               {options(state.b, (v) => onChange({ b: v }), "B")}
             </>
           )}
-          {loading && <span className="text-[11px] text-slate-500">carregando…</span>}
-          {error && <span className="text-[11px] text-amber-300">camada indisponível</span>}
+          {loading && <span className="text-[11px] text-fg-muted">carregando…</span>}
+          {error && <span className="text-[11px] text-warn">camada indisponível</span>}
         </div>
       )}
       {state.layer && state.layer !== "winner" && selection.length === 0 && !state.candidacy && (
-        <p className="mt-1.5 text-[11px] text-slate-500">Marque candidaturas para comparar (lista Candidaturas) ou use &ldquo;ver no mapa&rdquo;.</p>
+        <p className="mt-1.5 text-[11px] text-fg-muted">Marque candidaturas para comparar (lista Candidaturas) ou use &ldquo;ver no mapa&rdquo;.</p>
       )}
-      {note && <p className="mt-1.5 text-[11px] text-slate-500">{note}</p>}
+      {note && <p className="mt-1.5 text-[11px] text-fg-muted">{note}</p>}
     </div>
   );
 }
@@ -165,25 +167,25 @@ export function CompareTray({
 }>) {
   if (selection.length === 0) return null;
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-brand/20 bg-card px-3 py-2 text-xs" data-testid="compare-tray">
-      <span className="font-semibold text-slate-300">
+    <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-accent/20 bg-surface px-3 py-2 text-xs" data-testid="compare-tray">
+      <span className="font-semibold text-fg-soft">
         Comparar ({selection.length}/{MAX_COMPARE})
       </span>
       {selection.map((id) => (
-        <span key={id} className="flex items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-slate-300">
+        <span key={id} className="flex items-center gap-1 rounded border border-line bg-fg/5 px-1.5 py-0.5 text-fg-soft">
           {names.get(id) ?? "Candidatura"}
-          <button type="button" aria-label="Remover da comparação" onClick={() => onRemove(id)} className="text-slate-500 hover:text-slate-200">
+          <button type="button" aria-label="Remover da comparação" onClick={() => onRemove(id)} className="text-fg-muted hover:text-fg-soft">
             ×
           </button>
         </span>
       ))}
-      <button type="button" onClick={onClear} className="text-slate-500 hover:text-slate-300">
+      <button type="button" onClick={onClear} className="text-fg-muted hover:text-fg-soft">
         limpar
       </button>
       {uf && (
         <Link
           href={`/eleicoes/comparar?c=${serializeSelection(selection)}&uf=${uf.toUpperCase()}&nivel=municipality`}
-          className="ml-auto rounded-md border border-brand/30 bg-brand/10 px-2.5 py-1 font-medium text-brand hover:bg-brand/15"
+          className="ml-auto rounded-md border border-accent/30 bg-accent/10 px-2.5 py-1 font-medium text-accent-text hover:bg-accent/15"
         >
           Comparar →
         </Link>

@@ -1,0 +1,48 @@
+:root {
+  --rep-brand-navy: #0B2D5B;
+  --rep-brand-green: #0F9D58;
+  --rep-brand-teal: #00BAA6;
+  --rep-brand-white: #FFFFFF;
+
+  --rep-bg-canvas: #F5F8FB;
+  --rep-bg-surface: #FFFFFF;
+  --rep-bg-subtle: #EEF3F7;
+  --rep-text-primary: #0B1F33;
+  --rep-text-secondary: #5F7184;
+  --rep-border-default: #DCE5ED;
+  --rep-focus-ring: #00BAA6;
+
+  --rep-radius-sm: 8px;
+  --rep-radius-md: 12px;
+  --rep-radius-lg: 16px;
+  --rep-radius-xl: 24px;
+  --rep-radius-pill: 999px;
+
+  --rep-space-1: 4px;
+  --rep-space-2: 8px;
+  --rep-space-3: 12px;
+  --rep-space-4: 16px;
+  --rep-space-5: 20px;
+  --rep-space-6: 24px;
+  --rep-space-8: 32px;
+  --rep-space-10: 40px;
+  --rep-space-12: 48px;
+  --rep-space-16: 64px;
+  --rep-space-20: 80px;
+  --rep-space-24: 96px;
+
+  --rep-motion-fast: 160ms;
+  --rep-motion-base: 240ms;
+  --rep-motion-context: 360ms;
+  --rep-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[data-theme="dark"], .dark {
+  --rep-bg-canvas: #071A2E;
+  --rep-bg-surface: #0D2744;
+  --rep-bg-subtle: #102F50;
+  --rep-text-primary: #F7FAFC;
+  --rep-text-secondary: #A9BBCB;
+  --rep-border-default: #1D3A56;
+  --rep-focus-ring: #23D6C2;
+}
