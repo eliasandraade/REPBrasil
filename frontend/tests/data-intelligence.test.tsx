@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DataExplorer } from "@/components/data/DataExplorer";
 
@@ -44,5 +44,18 @@ describe("Data Intelligence", () => {
     expect(screen.getByTestId("correlation-table").textContent).toContain("General Sampaio");
     expect(screen.getByTestId("clusters").textContent).toContain("determinístico");
     expect(screen.getByText(/Fonte da observação mais recente exibida/).textContent).toContain("IBGE");
+  });
+
+  it("never keeps the same indicator selected on both axes", async () => {
+    render(<DataExplorer />);
+    const x = await screen.findByLabelText("Indicador X") as HTMLSelectElement;
+    const y = screen.getByLabelText("Indicador Y") as HTMLSelectElement;
+    await waitFor(() => expect(x.value).toBe("ibge.population"));
+    expect(y.value).toBe("atlas.idhm");
+
+    fireEvent.change(x, { target: { value: "atlas.idhm" } });
+
+    await waitFor(() => expect(y.value).toBe("ibge.population"));
+    expect(x.value).not.toBe(y.value);
   });
 });
