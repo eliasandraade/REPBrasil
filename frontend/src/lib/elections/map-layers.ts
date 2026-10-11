@@ -77,6 +77,10 @@ function shareText(f: MapFeature): string {
 
 /** Partido: participação no cargo; fora da disputa municipal o motivo, nunca zero. */
 function partyText(f: MapFeature): string {
+  const covered = num(f.details.zonesCovered);
+  const expected = num(f.details.zonesExpected);
+  if (f.state === "partial_coverage" && covered !== null && expected !== null)
+    return `cobertura parcial: ${formatCount(covered)} de ${formatCount(expected)} zonas com Boletim de Urna`;
   if (f.value === null) return stateText(f.state);
   const elected = num(f.details.elected);
   const head = `${formatPercent(f.value)} dos válidos · ${formatCount(num(f.details.votes))} votos`;

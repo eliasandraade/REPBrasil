@@ -308,7 +308,9 @@ export function ElectionsExplorer() {
       })
       .sort((a, b) => b.votes - a.votes || a.label.localeCompare(b.label, "pt-BR"));
   }, [partiesQ.data, layerState.office, year, round]);
-  const mapLayer = useMapLayer(year, round, ufCode, munTse, layerState);
+  // número de partido vindo da URL que não concorreu no cargo escolhido (ex.: cargo trocado): não é pedido ao mapa
+  const partyListed = !layerState.party || partyOptions.some((o) => o.value === layerState.party);
+  const mapLayer = useMapLayer(year, round, ufCode, munTse, partyListed ? layerState : { ...layerState, party: null });
 
   const scope: MapScope = useMemo(
     () => ({

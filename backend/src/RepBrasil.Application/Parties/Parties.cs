@@ -21,7 +21,7 @@ public sealed class PartyOfficeRow
     public string? Federations { get; init; }
     public int Candidacies { get; init; }
     public int Elected { get; init; }
-    /// <summary>Votos nominais nos números do partido (null = sem Boletim de Urna do cargo na UF).</summary>
+    /// <summary>Votos nominais nos números do partido (null = sem Boletim de Urna do cargo na UF, ou partido fora da urna).</summary>
     public long? NominalVotes { get; init; }
     public long? LegendVotes { get; init; }
     /// <summary>Válidos do cargo na UF (nominais + legenda); null = sem Boletim de Urna.</summary>
@@ -44,6 +44,14 @@ public sealed class PartyTerritoryRow
     /// <summary>Candidaturas do partido na disputa municipal (null para cargos estaduais e federais).</summary>
     public int? Candidacies { get; init; }
     public int? Elected { get; init; }
+    /// <summary>
+    /// Partido na urna ali: candidatura não marcada como fora da urna no complementar do TSE (município, nos cargos
+    /// municipais; a UF/o país, nos demais) ou voto no BU. Falso ⇒ o número não estava na urna (nunca zero).
+    /// </summary>
+    public bool OnBallot { get; init; }
+    /// <summary>Zonas do cadastro no território × zonas com BU importado do cargo: parcial ⇒ sem participação.</summary>
+    public int ZonesExpected { get; init; }
+    public int ZonesCovered { get; init; }
 }
 
 public sealed class PartyCandidateRow
@@ -165,9 +173,9 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
         return value;
     }
 
-    /// <summary>Votos do partido no cargo: nominais + legenda nos proporcionais; null quando não há BU.</summary>
+    /// <summary>Votos do partido no cargo: nominais + legenda nos proporcionais; null sem BU ou com o partido fora da urna.</summary>
     public static long? Votes(PartyOfficeRow r) =>
-        r.ValidVotes is null ? null : (r.NominalVotes ?? 0) + (IsProportional(r.OfficeCode) ? r.LegendVotes ?? 0 : 0);
+        r.ValidVotes is null || r.NominalVotes is null ? null : r.NominalVotes + (IsProportional(r.OfficeCode) ? r.LegendVotes ?? 0 : 0);
 
     public async Task<PartiesResponse> ListAsync(string? uf, CancellationToken ct)
     {
@@ -233,23 +241,26 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
         if (Comparability.IsTicketMember(office)) throw new ElectoralBadRequestException("Vice e suplente são votados na chapa: escolha o cargo do titular.");
         var uf = Uf(q.Uf);
         var rows = await repo.TerritoriesAsync(uf, q.Year, q.Round, office, [number], null, ct);
+        if (rows.Count > 0 && !rows.Any(r => r.OnBallot))
+            throw new ElectoralBadRequestException($"O número {number} não estava na urna para esse cargo nessa eleição.");
         var municipal = IsMunicipalOffice(office);
         var features = rows.Select(r =>
         {
             var votes = r.NominalVotes + (IsProportional(office) ? r.LegendVotes : 0);
-            // cargo municipal: partido sem candidatura no município não estava na urna (nunca zero)
-            var onBallot = !municipal || r.Candidacies is > 0;
-            var share = onBallot ? Comparability.Pct(votes, r.ValidVotes) : null;
+            var complete = Complete(r);
+            var share = r.OnBallot && complete ? Comparability.Pct(votes, r.ValidVotes) : null;
             return new MapFeatureDto(
                 r.Zone is null ? $"{uf}|{r.MunicipalityTseCode}" : $"{uf}|{r.MunicipalityTseCode}|{r.Zone}",
                 r.MunicipalityTseCode, r.IbgeCode, r.MunicipalityName ?? r.MunicipalityTseCode, r.Zone, null, null, null,
-                share, null, null, State(onBallot, share),
+                share, null, null, State(r.OnBallot, complete, share),
                 new Dictionary<string, object?>
                 {
-                    ["votes"] = onBallot ? votes : null,
-                    ["validVotes"] = r.ValidVotes,
+                    ["votes"] = r.OnBallot && complete ? votes : null,
+                    ["validVotes"] = complete ? r.ValidVotes : null,
                     ["candidacies"] = r.Candidacies,
                     ["elected"] = r.Elected,
+                    ["zonesCovered"] = r.ZonesCovered,
+                    ["zonesExpected"] = r.ZonesExpected,
                 });
         }).ToList();
         var values = features.Where(f => f.Value is not null).Select(f => f.Value!.Value).ToList();
@@ -257,15 +268,22 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
             q.Year, q.Round, uf, null, "party", "municipality", office, features, [],
             values.Count > 0 ? values.Min() : null, values.Count > 0 ? values.Max() : null, null,
             "Participação do partido: votos nominais nos números do partido (+ legenda nos cargos proporcionais) ÷ válidos do cargo. "
-            + (municipal ? "Município sem candidatura do partido fica sem cor (não estava na urna)." : ""),
+            + "Município com Boletim de Urna de só parte das zonas fica sem participação (cobertura parcial). "
+            + (municipal ? "Município sem candidatura do partido na urna fica sem cor (não estava na urna)." : ""),
             XrayService.Freshness(await xray.FreshnessAsync(ct)));
     }
 
     // ── internos ──────────────────────────────────────────────────────────────
 
-    /// <summary>Zero só com o partido na urna e BU do cargo no território; fora da disputa municipal nunca é zero.</summary>
-    private static string State(bool onBallot, double? share) =>
-        !onBallot ? CellState.NotOnBallot : share is null ? CellState.NoCoverage : share == 0 ? CellState.Zero : CellState.Value;
+    /// <summary>Zero só com o partido na urna e BU de TODAS as zonas do território; parcial nunca vira participação.</summary>
+    private static string State(bool onBallot, bool complete, double? share) =>
+        !onBallot ? CellState.NotOnBallot
+        : !complete ? CellState.PartialCoverage
+        : share is null ? CellState.NoCoverage
+        : share == 0 ? CellState.Zero : CellState.Value;
+
+    /// <summary>Território com BU de todas as zonas do cadastro (sem cadastro da eleição ⇒ não dá para afirmar).</summary>
+    private static bool Complete(PartyTerritoryRow r) => r.ZonesExpected > 0 && r.ZonesCovered >= r.ZonesExpected;
 
     /// <summary>Cobertura do BU por (ano, turno, cargo) na UF inteira: completa quando toda zona do cadastro tem BU.</summary>
     private async Task<Dictionary<(int Year, int Round, int Office), bool>> CoverageByOfficeAsync(
@@ -319,8 +337,8 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
         var result = new PartyResultDto(
             first.Year, first.Round, first.OfficeCode, first.OfficeName, g.OrderByDescending(r => r.Candidacies).First().PartyNumber,
             JoinFederations(g.Select(r => r.Federations)), votes,
-            valid is null ? null : g.Sum(r => r.NominalVotes ?? 0),
-            valid is null || !IsProportional(first.OfficeCode) ? null : g.Sum(r => r.LegendVotes ?? 0),
+            valid is null ? null : Sum(g.Select(r => r.NominalVotes)),
+            valid is null || !IsProportional(first.OfficeCode) ? null : Sum(g.Select(r => r.LegendVotes)),
             valid, votes is { } v ? Comparability.Pct(v, valid) : null,
             g.Sum(r => r.Candidacies), g.Sum(r => r.Elected), g.Max(r => r.MunicipalitiesWithVotes), first.MunicipalitiesCovered, null);
         return result with { Change = Change(result, slug, all, coverage) };
@@ -341,6 +359,11 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
                 $"A sigla não teve candidaturas nem votos neste cargo em {previousYear}.");
         var fromVotes = Sum(before.Select(Votes));
         var fromValid = before[0].ValidVotes;
+        var offBallotYear = fromVotes is null && fromValid is not null ? previousYear
+            : now.Votes is null && now.ValidVotes is not null ? now.Year : (int?)null;
+        if (offBallotYear is { } y)
+            return new PartyChangeDto(previousYear, now.Round, before[0].PartyNumber, fromVotes, null, before.Sum(r => r.Elected), null, null, null,
+                "absent", $"A sigla não estava na urna neste cargo em {y} (candidaturas fora da urna): sem variação.");
         var fromShare = fromVotes is { } fv ? Comparability.Pct(fv, fromValid) : null;
         var fromNumber = before.OrderByDescending(r => r.Candidacies).First().PartyNumber;
         var fromElected = before.Sum(r => r.Elected);
@@ -380,8 +403,9 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
             covered >= expected ? "Cobertura completa do Boletim de Urna." : $"Cobertura parcial: {covered} de {expected} zonas com Boletim de Urna.");
 
         var municipal = IsMunicipalOffice(office);
+        var partial = territories.Count(t => t.OnBallot && !Complete(t));
         var considered = territories
-            .Where(t => !municipal || t.Candidacies is > 0)
+            .Where(t => t.OnBallot && Complete(t))
             .Select(t =>
             {
                 var votes = t.NominalVotes + (IsProportional(office) ? t.LegendVotes : 0);
@@ -399,9 +423,10 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
         var items = candidates.Select(c => new PartyCandidateDto(
             c.CandidacyId, c.PoliticianId, c.Slug, Fmt.Name(c.BallotName), c.CandidateNumber, c.UnitName, c.HasLink ? c.Votes : null,
             c.Elected, c.RoundOutcome is null ? null : Fmt.Outcome(c.RoundOutcome))).ToList();
-        var note = municipal
-            ? "Cada município é uma disputa: participação calculada só onde o partido teve candidatura; os mais votados da lista disputaram em municípios diferentes."
-            : "Participação do partido em cada município do estado (o partido estava na urna em todos).";
+        var note = (municipal
+            ? "Cada município é uma disputa: participação calculada só onde o partido teve candidatura na urna; os mais votados da lista disputaram em municípios diferentes."
+            : "Participação do partido em cada município do estado (o partido estava na urna em todos).")
+            + (partial > 0 ? $" {partial} município(s) com Boletim de Urna de só parte das zonas ficaram fora (cobertura parcial)." : "");
         return new PartyDetailDto(year, round, office, pick.OfficeName, numbers, strongest, weakest,
             considered.Count(t => t.Votes > 0), considered.Count, items, coverage, note);
     }

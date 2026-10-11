@@ -155,6 +155,7 @@ describe("partidos — camada do mapa", () => {
         { key: "CE|1", municipalityTseCode: "1", ibgeCode: 1, name: "A", zone: null, placeCode: null, latitude: null, longitude: null, value: 40, category: null, categoryLabel: null, state: "value", details: { votes: 400, elected: 1 } },
         { key: "CE|2", municipalityTseCode: "2", ibgeCode: 2, name: "B", zone: null, placeCode: null, latitude: null, longitude: null, value: 0, category: null, categoryLabel: null, state: "zero", details: { votes: 0, elected: 0 } },
         { key: "CE|3", municipalityTseCode: "3", ibgeCode: 3, name: "C", zone: null, placeCode: null, latitude: null, longitude: null, value: null, category: null, categoryLabel: null, state: "not_on_ballot", details: { votes: null } },
+        { key: "CE|4", municipalityTseCode: "4", ibgeCode: 4, name: "D", zone: null, placeCode: null, latitude: null, longitude: null, value: null, category: null, categoryLabel: null, state: "partial_coverage", details: { votes: null, zonesCovered: 1, zonesExpected: 2 } },
       ],
     };
     const view = buildLayerView(layer);
@@ -163,6 +164,8 @@ describe("partidos — camada do mapa", () => {
     expect(view.municipalities["2"].color).toBe(SEQUENTIAL.light.low); // zero real é colorido (primeiro passo)
     expect(view.municipalities["3"].color).toBeNull();
     expect(view.municipalities["3"].text).not.toMatch(/\b0\b/);
+    expect(view.municipalities["4"].color).toBeNull(); // BU de parte das zonas: sem participação
+    expect(view.municipalities["4"].text).toBe("cobertura parcial: 1 de 2 zonas com Boletim de Urna");
     expect(view.gradient).not.toBeNull();
   });
 });

@@ -67,6 +67,21 @@ public class PartyTests
             MunicipalitiesCovered = valid is null ? 0 : 3,
         };
 
+    private static PartyTerritoryRow Territory(string code, long nominal, int? candidacies, bool onBallot = true, int zones = 1, int covered = 1) => new()
+    {
+        MunicipalityTseCode = code,
+        MunicipalityName = code,
+        IbgeCode = int.Parse(code),
+        ValidVotes = 1_000,
+        NominalVotes = nominal,
+        LegendVotes = 0,
+        Candidacies = candidacies,
+        Elected = nominal > 0 ? 1 : 0,
+        OnBallot = onBallot,
+        ZonesExpected = zones,
+        ZonesCovered = covered,
+    };
+
     private static (PartyService Service, FakeParties Repo, FakeCoverage Coverage) Service(bool complete = true)
     {
         var repo = new FakeParties();
@@ -137,23 +152,41 @@ public class PartyTests
     }
 
     [Fact]
-    public async Task Profile_detail_lists_strongest_and_weakest_municipalities_only_where_the_party_ran()
+    public async Task Party_off_the_ballot_has_absent_votes_and_no_change_never_zero()
+    {
+        var (service, repo, _) = Service();
+        // 2018: BU completo, mas a única candidatura da sigla não foi inserida na urna (votos ausentes, não zero)
+        repo.Offices.AddRange([Office(2022, 65, "PCdoB", 900, 100, 10_000), Office(2018, 65, "PCdoB", null, null, 8_000, elected: 0)]);
+
+        var results = (await service.ProfileAsync("pcdob", "CE", null, null, null, Ct)).Results;
+
+        Assert.Equal(((long?)null, (double?)null), (results[1].Votes, results[1].Share));
+        var change = results[0].Change!;
+        Assert.Equal(("absent", (long?)null), (change.Comparability, change.DeltaVotes));
+        Assert.Contains("não estava na urna neste cargo em 2018", change.Note);
+    }
+
+    [Fact]
+    public async Task Profile_detail_lists_strongest_and_weakest_municipalities_only_where_the_party_was_on_the_ballot()
     {
         var (service, repo, _) = Service();
         repo.Offices.Add(Office(2022, 65, "PCdoB", 300, 50, 3_000, office: 13));
         repo.Territories.AddRange([
-            new PartyTerritoryRow { MunicipalityTseCode = "00001", MunicipalityName = "A", ValidVotes = 1_000, NominalVotes = 200, LegendVotes = 50, Candidacies = 5, Elected = 1 },
-            new PartyTerritoryRow { MunicipalityTseCode = "00002", MunicipalityName = "B", ValidVotes = 1_000, NominalVotes = 0, LegendVotes = 0, Candidacies = 2, Elected = 0 },
-            new PartyTerritoryRow { MunicipalityTseCode = "00003", MunicipalityName = "C", ValidVotes = 1_000, NominalVotes = 0, LegendVotes = 0, Candidacies = 0, Elected = 0 },
+            Territory("00001", 250, 5),
+            Territory("00002", 0, 2),
+            Territory("00003", 0, 0, onBallot: false),
+            Territory("00004", 0, 1, onBallot: false), // candidatura com "NÃO" em inserida na urna (complementar do TSE)
+            Territory("00005", 90, 3, zones: 2, covered: 1), // BU de só uma das duas zonas
         ]);
 
         var detail = (await service.ProfileAsync("pcdob", "CE", 2022, 1, 13, Ct)).Detail!;
 
-        Assert.Equal(2, detail.TerritoriesConsidered); // C não teve candidatura do partido: fora (não é zero)
+        Assert.Equal(2, detail.TerritoriesConsidered); // fora da urna e cobertura parcial nunca entram (nem como zero)
         Assert.Equal(1, detail.TerritoriesWithVotes);
-        Assert.Equal(["A", "B"], detail.Strongest.Select(t => t.Name));
+        Assert.Equal(["00001", "00002"], detail.Strongest.Select(t => t.Name));
         Assert.Equal(25.0, detail.Strongest[0].Share);
         Assert.Empty(detail.Weakest); // os dois já estão entre os mais fortes
+        Assert.Contains("1 município(s) com Boletim de Urna de só parte das zonas", detail.Note);
     }
 
     [Fact]
@@ -167,28 +200,45 @@ public class PartyTests
     }
 
     [Fact]
-    public async Task Map_marks_municipalities_without_the_party_on_the_ballot_and_keeps_real_zeros()
+    public async Task Map_marks_municipalities_without_the_party_on_the_ballot_or_with_partial_bu_and_keeps_real_zeros()
     {
         var (service, repo, _) = Service();
         repo.Territories.AddRange([
-            new PartyTerritoryRow { MunicipalityTseCode = "00001", MunicipalityName = "A", IbgeCode = 1, ValidVotes = 1_000, NominalVotes = 100, LegendVotes = 0, Candidacies = 1, Elected = 1 },
-            new PartyTerritoryRow { MunicipalityTseCode = "00002", MunicipalityName = "B", IbgeCode = 2, ValidVotes = 1_000, NominalVotes = 0, LegendVotes = 0, Candidacies = 1, Elected = 0 },
-            new PartyTerritoryRow { MunicipalityTseCode = "00003", MunicipalityName = "C", IbgeCode = 3, ValidVotes = 1_000, NominalVotes = 0, LegendVotes = 0, Candidacies = 0, Elected = 0 },
+            Territory("00001", 100, 1),
+            Territory("00002", 0, 1),
+            Territory("00003", 0, 0, onBallot: false),
+            Territory("00004", 0, 1, onBallot: false), // registrada, mas não inserida na urna
+            Territory("00005", 40, 1, zones: 2, covered: 1),
         ]);
 
         var map = await service.MapAsync(new MapQuery(2024, 1, "CE", "party", 11, null, null, null, null, null), 65, Ct);
 
         Assert.Equal("party", map.Layer);
         Assert.Equal<(double?, string)>(
-            [(10.0, "value"), (0.0, "zero"), (null, "not_on_ballot")], map.Features.Select(f => (f.Value, f.State)));
+            [(10.0, "value"), (0.0, "zero"), (null, "not_on_ballot"), (null, "not_on_ballot"), (null, "partial_coverage")],
+            map.Features.Select(f => (f.Value, f.State)));
         Assert.Null(map.Features[2].Details["votes"]);
+        Assert.Null(map.Features[4].Details["votes"]); // votos de parte das zonas não aparecem como total
+        Assert.Equal((1, 2), ((int)map.Features[4].Details["zonesCovered"]!, (int)map.Features[4].Details["zonesExpected"]!));
         // dentro de um município o mapa continua por município (não há polígono de zona)
         var inside = await service.MapAsync(new MapQuery(2024, 1, "CE", "party", 11, null, null, null, null, "00001"), 65, Ct);
-        Assert.Equal(("municipality", 3), (inside.Level, inside.Features.Count));
+        Assert.Equal(("municipality", 5), (inside.Level, inside.Features.Count));
         await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>
             service.MapAsync(new MapQuery(2024, 1, "CE", "party", 12, null, null, null, null, null), 65, Ct)); // vice
         await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>
             service.MapAsync(new MapQuery(2024, 1, "CE", "party", 11, null, null, null, null, null), null, Ct));
+    }
+
+    [Fact]
+    public async Task Map_rejects_a_party_number_that_was_not_on_the_ballot_for_the_office()
+    {
+        var (service, repo, _) = Service();
+        // cargo estadual com número que não teve candidatura nem voto: nunca vira zero em todo município
+        repo.Territories.AddRange([Territory("00001", 0, null, onBallot: false), Territory("00002", 0, null, onBallot: false)]);
+
+        var error = await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>
+            service.MapAsync(new MapQuery(2022, 1, "CE", "party", 7, null, null, null, null, null), 99, Ct));
+        Assert.Contains("99", error.Message);
     }
 
     // ── SQL (schema real, dados fictícios revertidos) ───────────────────────
@@ -205,6 +255,21 @@ public class PartyTests
              VALUES (810100, 900014, 10, md5('810100-900014') || md5('900014'), 810100);
         REFRESH MATERIALIZED VIEW votable_zone_votes_current;
         REFRESH MATERIALIZED VIEW zone_office_totals_current;
+        INSERT INTO candidacy (id, contest_id, tse_candidate_id, candidate_number, ballot_name, full_name, party_number, party_acronym,
+             identity_status, source_file_id, ingestion_run_id, source_member, source_line, source_row_hash)
+        SELECT c.id::uuid, '00000000-0000-0000-0000-0000000000c9', c.sq, c.num, c.ballot, c.ballot, c.party, c.acronym,
+               'unresolved_document_unavailable', '00000000-0000-0000-0000-0000000000fc', '00000000-0000-0000-0000-0000000000ec',
+               'fixture.csv', c.sq + 1, repeat(c.sq::text, 32)
+          FROM (VALUES
+            ('00000000-0000-0000-0000-00000000c077', 77, 77777, 'FORA DA URNA', 77, 'PX'),
+            ('00000000-0000-0000-0000-00000000c078', 78, 78888, 'NA URNA SEM VOTO', 78, 'PY')
+          ) AS c(id, sq, num, ballot, party, acronym);
+        INSERT INTO candidacy_source_record (candidacy_id, record_kind, payload, source_file_id, ingestion_run_id, source_member,
+             source_line, source_row_hash)
+        SELECT c.id::uuid, 'complement', jsonb_build_object('inserted_in_urn', c.flag), '00000000-0000-0000-0000-0000000000fc',
+               '00000000-0000-0000-0000-0000000000ec', 'complementar.csv', c.line, repeat(c.line::text, 32)
+          FROM (VALUES ('00000000-0000-0000-0000-00000000c077', 'Não', 77), ('00000000-0000-0000-0000-00000000c078', 'SIM', 78))
+            AS c(id, flag, line);
         """;
 
     [ElectoralSchemaFact]
@@ -219,7 +284,10 @@ public class PartyTests
             var service = new PartyService(new PartyRepository(db), new RankingRepository(db), new ElectoralXrayRepository(db));
 
             var list = await service.ListAsync("XX", Ct);
-            Assert.Equal(["pf", "po"], list.Parties.Select(p => p.Slug));
+            // PY: candidatura inserida na urna e nenhum voto = zero real; PX: só candidatura fora da urna = votos ausentes
+            Assert.Equal(["pf", "po", "py", "px"], list.Parties.Select(p => p.Slug));
+            Assert.Equal((0L, 0.0), (list.Parties[2].Results.Single().Votes!.Value, list.Parties[2].Results.Single().Share!.Value));
+            Assert.Equal(((long?)null, (double?)null), (list.Parties[3].Results.Single().Votes, list.Parties[3].Results.Single().Share));
             var pf2099 = list.Parties[0].Results.Single(r => r.Year == 2099);
             // 2099: nominais 33 + 18, legenda 15 → 66 de 76 válidos (o PO teve 10 nominais sem candidatura importada)
             Assert.Equal((66L, 51L, 15L, 76L, 2, 1), (pf2099.Votes!.Value, pf2099.NominalVotes!.Value, pf2099.LegendVotes!.Value, pf2099.ValidVotes!.Value, pf2099.Candidacies, pf2099.Elected));
@@ -237,6 +305,24 @@ public class PartyTests
 
             var map = await service.MapAsync(new MapQuery(2099, 1, "XX", "party", 7, null, null, null, null, null), 12, Ct);
             Assert.Equal((86.84, "value"), (Assert.Single(map.Features).Value!.Value, map.Features[0].State));
+
+            // inserida na urna e sem voto: zero real; só candidatura marcada "Não" e sem voto: não estava na urna
+            var zero = await service.MapAsync(new MapQuery(2099, 1, "XX", "party", 7, null, null, null, null, null), 78, Ct);
+            Assert.Equal((0.0, "zero"), (Assert.Single(zero.Features).Value!.Value, zero.Features[0].State));
+            await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>
+                service.MapAsync(new MapQuery(2099, 1, "XX", "party", 7, null, null, null, null, null), 77, Ct));
+            await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>
+                service.MapAsync(new MapQuery(2099, 1, "XX", "party", 7, null, null, null, null, null), 55, Ct));
+
+            // uma segunda zona no cadastro sem BU: o município passa a ter cobertura parcial e perde a participação
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO electoral.electoral_zone (id, state_code, zone_number) VALUES ('00000000-0000-0000-0000-000000000002', 'XX', 2);
+                INSERT INTO electoral.zone_municipality (zone_id, municipality_id, election_id)
+                     VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000002099');
+                """, Ct);
+            var partial = await service.MapAsync(new MapQuery(2099, 1, "XX", "party", 7, null, null, null, null, null), 12, Ct);
+            Assert.Equal(((double?)null, "partial_coverage"), (Assert.Single(partial.Features).Value, partial.Features[0].State));
+            Assert.Empty((await service.ProfileAsync("pf", "XX", 2099, 1, 7, Ct)).Detail!.Strongest);
         }
         finally
         {

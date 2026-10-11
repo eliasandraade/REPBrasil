@@ -26,8 +26,12 @@ Regras invariantes:
 
 - **Sem BU do cargo → votos e participação ausentes** (nunca zero). A lista mostra os partidos pelas candidaturas.
 - Votos do partido vêm do próprio BU (número do votável) — **não dependem do vínculo de identidade** das candidaturas.
-- Cargo municipal: município **sem candidatura do partido** = "não estava na urna" (sem cor no mapa, fora dos destaques);
-  com candidatura e nenhum voto = **zero real**.
+- **Na urna** = candidatura do partido não marcada com "NÃO" em *inserida na urna* (complementar oficial do TSE) ou voto
+  no BU. Cargo municipal: município sem candidatura do partido na urna = "não estava na urna" (sem cor no mapa, fora dos
+  destaques); com candidatura na urna e nenhum voto = **zero real**. Cargos estaduais/federais: número sem candidatura
+  na urna nem voto na UF → `400` na camada do mapa (nunca zero em todo município); na lista, votos ausentes.
+- **Cobertura por território**: município com BU de só parte das zonas do cadastro eleitoral fica sem participação
+  (`partial_coverage` no mapa, fora dos destaques, contado na nota) — votos parciais nunca viram total.
 - Presidente: votos na UF; candidaturas e eleitos são nacionais.
 
 ## 3. API
