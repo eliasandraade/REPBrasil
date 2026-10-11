@@ -15,8 +15,10 @@ Decisões mecânicas (documentadas em docs/BRAND.md):
 - assinatura reduzida "[RB] REPBrasil" = símbolo + wordmark do lockup principal na mesma escala e com o
   mesmo espaçamento, wordmark centrado verticalmente no símbolo.
 
-Uso (Python 3.12 + Pillow + NumPy + SciPy):
-    python -I scripts/brand/derive_assets.py <caminho/para/brand-guidelines.png> public/brand
+Uso (Python 3.12 + Pillow + NumPy + SciPy), sem argumentos — os caminhos são fixos:
+    1. copie `REPBrasil_Brand_Kit_Official/assets/brand-guidelines.png` para `scripts/brand/source/` (ignorado pelo git);
+    2. python -I scripts/brand/derive_assets.py
+Saída: `public/brand/` (e `public/favicon.ico`). Nenhum caminho vem da linha de comando.
 """
 
 from __future__ import annotations
@@ -122,12 +124,18 @@ def tile(symbol: Image.Image, size: int, fill: float, background: tuple[int, int
     return canvas
 
 
-def main(board_path: str, out_dir: str) -> int:
-    board = Path(board_path)
+FRONTEND = Path(__file__).resolve().parents[2]
+BOARD = FRONTEND / "scripts" / "brand" / "source" / "brand-guidelines.png"
+OUT = FRONTEND / "public" / "brand"
+
+
+def main() -> int:
+    board, out = BOARD, OUT
+    if not board.is_file():
+        raise SystemExit(f"copie o quadro oficial do Brand Kit para {board.relative_to(FRONTEND)}")
     digest = hashlib.sha256(board.read_bytes()).hexdigest()
     if digest != BOARD_SHA256:
         raise SystemExit(f"unexpected brand board {digest}; expected the official {BOARD_SHA256}")
-    out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     src = np.asarray(Image.open(board).convert("RGB"))
 
@@ -209,4 +217,6 @@ def main(board_path: str, out_dir: str) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(*sys.argv[1:3]))
+    if len(sys.argv) > 1:
+        raise SystemExit("sem argumentos: o quadro vem de scripts/brand/source/ e a saída vai para public/brand/")
+    raise SystemExit(main())

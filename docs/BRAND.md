@@ -86,7 +86,8 @@ Proveniência por arquivo em `public/brand/assets.json`. Reexecutar:
 
 ```bash
 cd frontend
-python -I scripts/brand/derive_assets.py <REPBrasil_Brand_Kit_Official/assets/brand-guidelines.png> public/brand
+cp <REPBrasil_Brand_Kit_Official>/assets/brand-guidelines.png scripts/brand/source/   # ignorado pelo git
+python -I scripts/brand/derive_assets.py   # sem argumentos: caminhos fixos
 ```
 
 ## 5. Cores
