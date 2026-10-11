@@ -5,7 +5,7 @@ import { THEME_STORAGE_KEY } from "./theme-script";
 
 /**
  * Tema claro/escuro do REPBrasil. Preferência da pessoa: "system" (padrão), "light" ou "dark".
- * O <html> recebe `data-theme` com o tema RESOLVIDO antes da primeira pintura (THEME_BOOTSTRAP) e
+ * O <html> recebe `data-theme` com o tema RESOLVIDO antes da primeira pintura (public/theme-init.js) e
  * `data-theme-pref` com a preferência. Sem JS, o CSS segue `prefers-color-scheme` (globals.css).
  * Preferência só no navegador (localStorage); nenhum dado sai do dispositivo.
  */

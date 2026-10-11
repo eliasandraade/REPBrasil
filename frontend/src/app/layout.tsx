@@ -5,7 +5,7 @@ import "./globals.css";
 import "@/motion/motion.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
-import { THEME_BOOTSTRAP } from "@/components/theme/theme-script";
+import { THEME_INIT_SRC } from "@/components/theme/theme-script";
 import { INDEXING, SITE_NAME, SITE_URL } from "@/lib/site";
 
 // Inter Variable (OFL), servida do próprio domínio: sem requisição a terceiros em tempo de execução.
@@ -50,8 +50,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* `html.js` + tema resolvido antes da primeira pintura (estados de revelação só existem com JS). */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        {/* `html.js` + tema resolvido antes da primeira pintura (estados de revelação só existem com JS).
+            Síncrono de propósito: assíncrono pintaria o tema errado por um quadro. Arquivo pequeno, do próprio domínio. */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src={THEME_INIT_SRC} />
       </head>
       <body>
         <Providers>

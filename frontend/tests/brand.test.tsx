@@ -1,9 +1,11 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Logo, clearSpace, minHeight, symbolAssetFor } from "@/components/brand/Logo";
 import manifest from "@/app/manifest";
+import { THEME_INIT_SRC, THEME_STORAGE_KEY } from "@/components/theme/theme-script";
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(resolve(root, path), "utf-8");
@@ -157,5 +159,40 @@ describe("Brand Kit — assets", () => {
     expect(m.name).toBe("REPBrasil — Inteligência Eleitoral");
     expect(m.lang).toBe("pt-BR");
     expect(m.icons?.some((i) => i.purpose === "maskable")).toBe(true);
+  });
+});
+
+describe("Tema — inicialização antes da primeira pintura", () => {
+  const script = read(`public${THEME_INIT_SRC}`);
+
+  function boot(stored: string | null, prefersDark: boolean) {
+    const html = document.documentElement;
+    html.className = "";
+    delete html.dataset.theme;
+    delete html.dataset.themePref;
+    window.localStorage.clear();
+    if (stored !== null) window.localStorage.setItem(THEME_STORAGE_KEY, stored);
+    const matchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: prefersDark && query.includes("dark") })) as typeof window.matchMedia;
+    try {
+      runInNewContext(script, { window, document });
+    } finally {
+      window.matchMedia = matchMedia;
+    }
+    return { js: html.classList.contains("js"), theme: html.dataset.theme, pref: html.dataset.themePref };
+  }
+
+  it("arquivo estático do próprio domínio, sem script inline no layout", () => {
+    expect(script).toContain(`"${THEME_STORAGE_KEY}"`);
+    const layout = read("src/app/layout.tsx");
+    expect(layout).not.toMatch(/dangerouslySetInnerHTML/);
+    expect(layout).toContain("src={THEME_INIT_SRC}");
+  });
+
+  it("aplica a preferência salva e, sem ela, o tema do sistema", () => {
+    expect(boot("dark", false)).toEqual({ js: true, theme: "dark", pref: "dark" });
+    expect(boot("light", true)).toEqual({ js: true, theme: "light", pref: "light" });
+    expect(boot(null, true)).toEqual({ js: true, theme: "dark", pref: "system" });
+    expect(boot("valor-invalido", false)).toEqual({ js: true, theme: "light", pref: "system" });
   });
 });

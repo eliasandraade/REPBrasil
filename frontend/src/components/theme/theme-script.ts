@@ -2,5 +2,9 @@
 
 export const THEME_STORAGE_KEY = "repbrasil-theme";
 
-/** Script síncrono no <head>: marca `html.js` e aplica o tema antes de pintar (sem "flash"). */
-export const THEME_BOOTSTRAP = `(function(){var d=document.documentElement;d.classList.add('js');try{var p=localStorage.getItem('${THEME_STORAGE_KEY}');if(p!=='light'&&p!=='dark')p='system';var r=p==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;d.dataset.theme=r;d.dataset.themePref=p;}catch(e){}})();`;
+/**
+ * Script síncrono no <head> (public/theme-init.js): marca `html.js` e aplica o tema antes de pintar (sem
+ * "flash"). Arquivo estático do próprio domínio em vez de HTML inline: nada de dangerouslySetInnerHTML e
+ * compatível com uma Content-Security-Policy sem 'unsafe-inline'.
+ */
+export const THEME_INIT_SRC = "/theme-init.js";
