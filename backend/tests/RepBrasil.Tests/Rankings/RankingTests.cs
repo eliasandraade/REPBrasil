@@ -30,11 +30,11 @@ public class RankingTests
     }
 
     private static RankingCandidacyRow Row(string name, long? votes, bool link = true, long valid = 1000, decimal? assets = null,
-        long? previous = null, short? previousYear = null, string scope = "state", string unit = "CE") => new()
+        long? previous = null, short? previousYear = null, string scope = "state", string unit = "CE", int office = 7) => new()
         {
             CandidacyId = Guid.NewGuid(),
             BallotName = name,
-            OfficeCode = 7,
+            OfficeCode = office,
             OfficeName = "Deputado Estadual",
             Scope = scope,
             ElectoralUnit = unit,
@@ -74,6 +74,21 @@ public class RankingTests
         Assert.Equal(1, result.Excluded);
         Assert.Contains("nunca contadas como zero", result.ExcludedNote);
         Assert.True(result.Coverage!.Complete);
+    }
+
+    [Fact]
+    public async Task Ticket_members_rank_by_their_own_declarations_but_never_by_votes()
+    {
+        var (service, repo) = Service();
+        repo.Rows.AddRange([Row("TITULAR", 300, assets: 100m), Row("VICE", 300, assets: 500m, office: 4)]);
+
+        var assets = await service.RankAsync("assets", 2026, 1, null, "CE", null, null, 1, 50, Ct);
+        Assert.Equal(["VICE", "TITULAR"], assets.Items.Select(i => i.Name)); // bens são de cada candidatura
+        Assert.Equal(2, (await service.RankAsync("assets", 2026, 1, 4, "CE", null, null, 1, 50, Ct)).Total);
+
+        var votes = await service.RankAsync("votes", 2026, 1, 3, "CE", null, null, 1, 50, Ct);
+        Assert.Equal(["TITULAR"], votes.Items.Select(i => i.Name)); // voto é da chapa: só o titular
+        await Assert.ThrowsAsync<ElectoralBadRequestException>(() => service.RankAsync("votes", 2026, 1, 4, "CE", null, null, 1, 50, Ct));
     }
 
     [Fact]

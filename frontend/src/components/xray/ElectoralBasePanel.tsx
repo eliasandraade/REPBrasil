@@ -7,6 +7,7 @@ import { ApiError, apiErrorMessage } from "@/lib/api";
 import {
   BASE_CLASSES,
   BASE_CLASS_LABEL,
+  DEFAULT_UF,
   baseApi,
   baseClassColor,
   HIGHLIGHT_LABEL,
@@ -20,6 +21,7 @@ import { displayName, formatCount, formatPercent } from "@/lib/elections/format"
 import { buildElectionsPath } from "@/lib/elections/route";
 import { CELL_STATE_LABEL, LEVEL_LABEL, LEVEL_PLURAL } from "@/lib/elections/xray";
 import type { TerritoryLevel, XrayCandidacy } from "@/lib/elections/xray-types";
+import { UF_NAMES, UFS } from "@/lib/site";
 import { useResolvedTheme } from "@/components/theme/theme";
 import { DataState, RetryButton } from "@/components/ui/DataState";
 import { InsightList } from "./InsightList";
@@ -47,6 +49,9 @@ type SortKey = "score" | "votes" | "share" | "rank";
 export function ElectoralBasePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const theme = useResolvedTheme();
   const municipal = c.contest.unit.scope === "municipal";
+  // disputa nacional (Presidente) não tem UF própria: a base é vista estado a estado
+  const national = !c.contest.unit.uf;
+  const [uf, setUf] = useState<string>(c.contest.unit.uf ?? DEFAULT_UF);
   const [level, setLevel] = useState<TerritoryLevel>(municipal ? "section" : "municipality");
   const [municipality, setMunicipality] = useState<{ code: string; uf: string | null } | null>(
     municipal ? { code: c.contest.unit.code, uf: c.contest.unit.uf } : null,
@@ -55,8 +60,8 @@ export function ElectoralBasePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const [open, setOpen] = useState<string | null>(null);
   const needsMunicipality = level === "section" || level === "place";
   const q = useQuery({
-    queryKey: ["electoral-base", c.candidacyId, level, municipality?.code],
-    queryFn: () => baseApi.base(c.candidacyId, level, { uf: municipality?.uf ?? c.contest.unit.uf, municipality: municipality?.code }),
+    queryKey: ["electoral-base", c.candidacyId, level, municipality?.code, uf],
+    queryFn: () => baseApi.base(c.candidacyId, level, { uf: municipality?.uf ?? uf, municipality: municipality?.code }),
     enabled: !needsMunicipality || !!municipality,
     staleTime: 5 * 60_000,
     retry: (count, e) => !(e instanceof ApiError && e.status < 500) && count < 1,
@@ -78,6 +83,26 @@ export function ElectoralBasePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
           </button>
         ))}
       </fieldset>
+      {national && (
+        <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+          Estado
+          <select
+            value={uf}
+            onChange={(e) => {
+              setUf(e.target.value);
+              setMunicipality(null);
+              setLevel("municipality");
+            }}
+            className="focus-ring min-h-9 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg"
+          >
+            {UFS.map((u) => (
+              <option key={u} value={u}>
+                {UF_NAMES[u]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {municipality && !municipal && (
         <button type="button" onClick={() => { setMunicipality(null); setLevel("municipality"); }} className="focus-ring rounded text-xs text-accent-text hover:underline">
           Todos os municípios
@@ -146,9 +171,9 @@ export function ElectoralBasePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
         theme={theme}
       />
       <FormulaBox data={data} />
-      {c.contest.unit.uf && (
+      {uf && (
         <Link
-          href={`${buildElectionsPath({ year: c.contest.year, round: c.contest.round, state: c.contest.unit.uf.toLowerCase() })}?camada=base&candidatura=${c.candidacyId}`}
+          href={`${buildElectionsPath({ year: c.contest.year, round: c.contest.round, state: uf.toLowerCase() })}?camada=base&candidatura=${c.candidacyId}`}
           className="focus-ring inline-block rounded text-xs text-accent-text hover:underline"
         >
           Ver a base no mapa do explorador →

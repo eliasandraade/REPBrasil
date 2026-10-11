@@ -160,8 +160,8 @@ public class ElectoralBaseTests
         Assert.Equal(result.Territories.Count(t => t.Class is not null), result.Summary.ClassCounts.Values.Sum());
     }
 
-    [Fact]
-    public async Task Change_compares_only_with_the_same_contest_and_flags_recomposed_sections()
+    /// <summary>A mesma pessoa em 2020: seção 29 sem a agregada, seção 27 com 100 votos e todas as seções no local 1066.</summary>
+    private static (FakeXrayRepository Repo, Dictionary<int, long> Votes) WithMayor2020()
     {
         var (repo, votes) = GeneralSampaioScenario();
         var person = Guid.NewGuid();
@@ -170,7 +170,6 @@ public class ElectoralBaseTests
         var resultId = 5000L;
         foreach (var (section, v) in votes)
         {
-            // 2020: seção 29 sem a agregada (composição diferente); seção 27 com 100 votos
             int[] members = section switch { 30 => [30, 232], _ => [section] };
             var before = section == 27 ? 100 : v;
             repo.Sections.Add(Xray.Section(++resultId, 2020, 11, section, members, place: "1066", valid: before * 2, zone: 50, municipality: GeneralSampaio));
@@ -187,7 +186,13 @@ public class ElectoralBaseTests
                 TargetVotes = before,
             }));
         }
+        return (repo, votes);
+    }
 
+    [Fact]
+    public async Task Change_compares_only_with_the_same_contest_and_flags_recomposed_sections()
+    {
+        var (repo, _) = WithMayor2020();
         var result = await new ElectoralBaseService(repo, new TerritoryService(repo)).BuildAsync(Mayor, "section", null, null, null, null, Ct);
 
         Assert.Equal(Mayor20, result.ComparedWith!.CandidacyId);
@@ -200,6 +205,22 @@ public class ElectoralBaseTests
         Assert.Null(s29.DeltaVotes); // seção recomposta: nunca afirma variação
         Assert.Equal([$"{GeneralSampaio}|50|27"], result.Highlights.Growth);
         Assert.Contains($"{GeneralSampaio}|50|27", result.Highlights.GainedPosition);
+    }
+
+    [Fact]
+    public async Task Polling_places_whose_sections_changed_between_elections_carry_no_delta()
+    {
+        // 2024: seções < 15 no local 1066 e as demais no 1090; 2020: todas no 1066 — eleitorados diferentes
+        var (repo, _) = WithMayor2020();
+        var result = await new ElectoralBaseService(repo, new TerritoryService(repo)).BuildAsync(Mayor, "place", null, null, null, null, Ct);
+        Assert.NotEmpty(result.Territories);
+        Assert.All(result.Territories, t =>
+        {
+            Assert.NotEqual(TerritoryComparability.Comparable, t.Change!.Comparability);
+            Assert.Null(t.Change.DeltaVotes);
+        });
+        Assert.Empty(result.Highlights.Growth);
+        Assert.Empty(result.Highlights.Decline);
     }
 
     [Fact]

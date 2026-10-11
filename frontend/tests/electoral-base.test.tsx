@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapLayerResponse, TerritoryValue, XrayCandidacy } from "@/lib/elections/xray-types";
@@ -132,6 +132,29 @@ describe("Base Eleitoral — painel", () => {
     renderPanel();
     expect(await screen.findByText("Base eleitoral não se aplica")).toBeTruthy();
     expect(screen.getByText(/votados na chapa/)).toBeTruthy();
+  });
+
+  it("disputa nacional (Presidente) é vista estado a estado: UF padrão CE e troca pela tela", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      calls.push(url);
+      return json(BASE);
+    }));
+    const president = {
+      candidacyId: ID,
+      contest: { year: 2022, round: 1, electionCode: 545, officeCode: 1, officeName: "PRESIDENTE", unit: { scope: "federal", code: "BR", name: "Brasil", uf: null } },
+    } as unknown as XrayCandidacy;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ElectoralBasePanel c={president} />
+      </QueryClientProvider>,
+    );
+    await screen.findByTestId("base-territories");
+    expect(new URL(calls[0]).searchParams.get("uf")).toBe("CE");
+    fireEvent.change(screen.getByRole("combobox", { name: /Estado/ }), { target: { value: "SP" } });
+    await waitFor(() => expect(calls.some((u) => new URL(u).searchParams.get("uf") === "SP")).toBe(true));
+    expect((await screen.findByRole("link", { name: /Ver a base no mapa/ })).getAttribute("href")).toContain("/sp?camada=base");
   });
 
   it("503 do arquivo eleitoral não é ausência de votos", async () => {

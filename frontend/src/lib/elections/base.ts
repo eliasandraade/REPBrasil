@@ -92,6 +92,9 @@ export interface ElectoralBaseResponse {
   definitions: Record<string, string>;
 }
 
+/** Escopo ativo do produto: disputas nacionais abrem neste estado. */
+export const DEFAULT_UF = "CE";
+
 export const BASE_CLASSES: readonly BaseClass[] = ["stronghold", "strong", "competitive", "weak", "very_weak"];
 
 export const BASE_CLASS_LABEL: Record<BaseClass, string> = {

@@ -182,6 +182,14 @@ public class RankingService(IRankingRepository repo, IElectoralXrayRepository xr
 
     private static bool IsMunicipalOffice(int office) => office is 11 or 12 or 13;
 
+    /// <summary>
+    /// Rankings de votos: vice e suplente são votados na chapa (o voto é do titular). Bens e contas são de cada
+    /// candidatura — vice e suplente entram nesses rankings com as próprias declarações.
+    /// </summary>
+    public static bool VoteDerived(string kind) =>
+        kind is "votes" or "share" or "growth" or "decline" or "capillarity" or "concentration" or "territorial_strength"
+            or "votes_per_real" or "parties";
+
     public async Task<RankingResponse> RankAsync(
         string kind, int? year, int? round, int? office, string? uf, string? municipality, string? party, int page, int pageSize,
         CancellationToken ct)
@@ -220,7 +228,7 @@ public class RankingService(IRankingRepository repo, IElectoralXrayRepository xr
 
         if (year is null || round is null) throw new ElectoralBadRequestException("year e round são obrigatórios.");
         if (k.Requires.Contains("office") && office is null) throw new ElectoralBadRequestException("office (código do cargo) é obrigatório neste ranking.");
-        if (office is { } o && Comparability.IsTicketMember(o))
+        if (office is { } o && Comparability.IsTicketMember(o) && VoteDerived(k.Key))
             throw new ElectoralBadRequestException("Vice e suplente são votados na chapa: escolha o cargo do titular.");
         if (office is { } mo && IsMunicipalOffice(mo) && mun is null && k.Key is "votes" or "votes_per_real")
             throw new ElectoralBadRequestException(
@@ -274,7 +282,7 @@ public class RankingService(IRankingRepository repo, IElectoralXrayRepository xr
         }
 
         var rows = (await repo.CandidaciesAsync(new RankingFilter(year.Value, round.Value, office, ufCode, mun, p), ct))
-            .Where(r => !Comparability.IsTicketMember(r.OfficeCode))
+            .Where(r => !VoteDerived(k.Key) || !Comparability.IsTicketMember(r.OfficeCode))
             .ToList();
         var useGrowthPercent = office is { } go && IsMunicipalOffice(go) && mun is null;
         // Variação só com cobertura completa nas DUAS eleições, no território da própria disputa.

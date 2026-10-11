@@ -352,11 +352,13 @@ public class ElectoralBaseService(IElectoralXrayRepository repo, TerritoryServic
             return new BaseChangeDto(previous.Id, previous.Year, previous.Round, TerritoryComparability.CoverageOrSectionMissing,
                 null, null, null, null, null, null, null);
 
-        var comparability = level == "section"
+        // seção e local de votação: mesmo conjunto de seções nas duas eleições (eleitorado comparável)
+        var comparability = level is "section" or "place"
             ? Comparability.SectionStatus([prior.Value.SectionMembers, t.SectionMembers])
-            : Comparability.IsComplete(prior.Value.State) && Comparability.IsComplete(t.State)
-                ? TerritoryComparability.Comparable
-                : TerritoryComparability.CoverageOrSectionMissing;
+            : TerritoryComparability.Comparable;
+        if (comparability == TerritoryComparability.Comparable && level != "section"
+            && !(Comparability.IsComplete(prior.Value.State) && Comparability.IsComplete(t.State)))
+            comparability = TerritoryComparability.CoverageOrSectionMissing;
         var comparable = comparability == TerritoryComparability.Comparable;
         var (delta, pct) = comparable ? Comparability.Delta(prior.Value.Votes, t.Votes) : (null, null);
         // a variação de posição (RankChange) é preenchida depois, com a posição atual
