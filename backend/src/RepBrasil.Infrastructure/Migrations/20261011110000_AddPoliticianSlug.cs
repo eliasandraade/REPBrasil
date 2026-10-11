@@ -19,9 +19,9 @@ namespace RepBrasil.Infrastructure.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(name: "Slug", table: "Politicians", type: "text", nullable: true);
-
             migrationBuilder.Sql("""
+                ALTER TABLE public."Politicians" ADD COLUMN IF NOT EXISTS "Slug" text;
+
                 CREATE OR REPLACE FUNCTION public.slugify(value text) RETURNS text
                   LANGUAGE sql IMMUTABLE PARALLEL SAFE
                 AS $$
@@ -30,7 +30,6 @@ namespace RepBrasil.Infrastructure.Migrations
 
                 CREATE UNIQUE INDEX IF NOT EXISTS politicians_slug_uidx ON public."Politicians" ("Slug") WHERE "Slug" IS NOT NULL;
 
-                -- Próximo slug livre: nome de urna; senão nome civil; senão nome civil-2, -3...
                 CREATE OR REPLACE FUNCTION public.politician_free_slug(ballot_name text, civil_name text) RETURNS text
                   LANGUAGE plpgsql
                 AS $$
@@ -50,13 +49,11 @@ namespace RepBrasil.Infrastructure.Migrations
                   RETURN base || '-' || n;
                 END $$;
 
-                -- Só no INSERT e só se vier vazio: o endereço publicado nunca muda depois.
                 CREATE OR REPLACE FUNCTION public.politicians_assign_slug() RETURNS trigger
                   LANGUAGE plpgsql
                 AS $$
                 BEGIN
                   IF NEW."Slug" IS NULL THEN
-                    -- serializa a escolha entre transações concorrentes; o índice único é a última defesa
                     PERFORM pg_advisory_xact_lock(hashtext('public.politicians.slug'));
                     NEW."Slug" := public.politician_free_slug(NEW."BallotName", NEW."Name");
                   END IF;
@@ -67,7 +64,6 @@ namespace RepBrasil.Infrastructure.Migrations
                 CREATE TRIGGER politicians_assign_slug BEFORE INSERT ON public."Politicians"
                   FOR EACH ROW EXECUTE FUNCTION public.politicians_assign_slug();
 
-                -- Carga inicial: eleitos e mais recentes primeiro (ficam com o nome de urna); excluídos por último.
                 DO $$
                 DECLARE r record;
                 BEGIN
