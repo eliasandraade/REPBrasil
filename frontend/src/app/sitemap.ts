@@ -1,13 +1,14 @@
 import type { MetadataRoute } from "next";
 import type { MunicipalitiesResponse } from "@/lib/elections/types";
 import type { OverviewResponse } from "@/lib/overview";
+import type { PartiesResponse } from "@/lib/parties";
 import { serverJson } from "@/lib/server-api";
 import { INDEXING, SITE_URL } from "@/lib/site";
 
 /** Regerado a cada hora a partir do que está importado. Vazio enquanto a indexação não for liberada. */
 export const revalidate = 3600;
 
-const STATIC = ["/", "/eleicoes", "/politicos", "/rankings", "/eleicoes/comparar", "/glossario", "/manifesto", "/suporte"];
+const STATIC = ["/", "/eleicoes", "/politicos", "/partidos", "/rankings", "/eleicoes/comparar", "/glossario", "/manifesto", "/suporte"];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!INDEXING || !SITE_URL) return [];
@@ -26,6 +27,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (m.resultsAvailable) entries.push({ url: `${base}/${m.slug}`, changeFrequency: "monthly" });
     }
   });
+
+  const parties = await serverJson<PartiesResponse>("/api/v1/parties?uf=CE");
+  for (const p of parties?.parties ?? []) entries.push({ url: `${site}/partidos/${encodeURIComponent(p.slug)}`, changeFrequency: "monthly" });
 
   const politicians = await serverJson<{ slug: string; updatedAt: string }[]>("/api/v1/politicians/sitemap");
   for (const p of politicians ?? []) {

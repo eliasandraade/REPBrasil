@@ -306,7 +306,7 @@ export interface TerritoryCandidatesResponse {
   freshness: Freshness;
 }
 
-export type MapLayerKind = "intensity" | "share" | "winner" | "growth" | "decline" | "ab" | "base";
+export type MapLayerKind = "intensity" | "share" | "winner" | "growth" | "decline" | "ab" | "base" | "party";
 
 export interface MapFeature {
   key: string;

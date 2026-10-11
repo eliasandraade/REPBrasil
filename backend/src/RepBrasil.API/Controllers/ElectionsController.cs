@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Electoral;
+using RepBrasil.Application.Parties;
 
 namespace RepBrasil.API.Controllers;
 
@@ -39,7 +40,8 @@ public class ElectionsController(
     CandidacyService candidacies,
     TerritoryService territory,
     ComparisonService comparison,
-    ElectoralBaseService electoralBase) : ControllerBase
+    ElectoralBaseService electoralBase,
+    PartyService parties) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(ElectionsResponse), StatusCodes.Status200OK)]
@@ -152,10 +154,14 @@ public class ElectionsController(
         [FromQuery] Guid? a,
         [FromQuery] Guid? b,
         [FromQuery] string? municipality,
+        [FromQuery] int? party,
         CancellationToken ct) =>
-        string.Equals(layer?.Trim(), "base", StringComparison.OrdinalIgnoreCase)
-            ? electoralBase.MapAsync(new MapQuery(year, round, uf, "base", office, candidacy, null, null, null, municipality), ct)
-            : territory.MapAsync(new MapQuery(year, round, uf, layer!, office, candidacy, baseCandidacy, a, b, municipality), ct);
+        (layer ?? "").Trim().ToLowerInvariant() switch
+        {
+            "base" => electoralBase.MapAsync(new MapQuery(year, round, uf, "base", office, candidacy, null, null, null, municipality), ct),
+            "party" => parties.MapAsync(new MapQuery(year, round, uf, "party", office, null, null, null, null, municipality), party, ct),
+            _ => territory.MapAsync(new MapQuery(year, round, uf, layer!, office, candidacy, baseCandidacy, a, b, municipality), ct),
+        };
 
     /// <summary>Comparação de até 5 candidaturas (limite imposto aqui e no frontend).</summary>
     [HttpGet("compare")]

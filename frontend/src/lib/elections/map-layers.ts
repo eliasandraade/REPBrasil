@@ -27,6 +27,7 @@ export const LAYER_LABEL: Record<MapLayerKind, string> = {
   decline: "Queda",
   ab: "A × B",
   base: "Base eleitoral",
+  party: "Partido",
 };
 
 /** Paleta da camada: neutra, sem cor de partido (src/lib/dataviz/palette.ts). Tema claro por padrão. */
@@ -72,6 +73,18 @@ function intensityText(f: MapFeature): string {
 function shareText(f: MapFeature): string {
   if (f.value === null) return stateText(f.state);
   return `${formatPercent(f.value)} dos válidos · ${formatCount(num(f.details.votes))} votos`;
+}
+
+/** Partido: participação no cargo; fora da disputa municipal o motivo, nunca zero. */
+function partyText(f: MapFeature): string {
+  const covered = num(f.details.zonesCovered);
+  const expected = num(f.details.zonesExpected);
+  if (f.state === "partial_coverage" && covered !== null && expected !== null)
+    return `cobertura parcial: ${formatCount(covered)} de ${formatCount(expected)} zonas com Boletim de Urna`;
+  if (f.value === null) return stateText(f.state);
+  const elected = num(f.details.elected);
+  const head = `${formatPercent(f.value)} dos válidos · ${formatCount(num(f.details.votes))} votos`;
+  return elected ? `${head} · ${elected} eleito${elected === 1 ? "" : "s"}` : head;
 }
 
 function winnerText(f: MapFeature): string {
@@ -122,6 +135,8 @@ function valueText(r: MapLayerResponse, f: MapFeature): string {
       return intensityText(f);
     case "share":
       return shareText(f);
+    case "party":
+      return partyText(f);
     case "winner":
       return winnerText(f);
     case "growth":
@@ -220,7 +235,7 @@ function legendOf(r: MapLayerResponse, theme: DataTheme): LegendEntry[] {
 }
 
 function gradientOf(r: MapLayerResponse, theme: DataTheme): MapLayerView["gradient"] {
-  if (r.layer !== "intensity" && r.layer !== "share" && !manyWinners(r)) return null;
+  if (r.layer !== "intensity" && r.layer !== "share" && r.layer !== "party" && !manyWinners(r)) return null;
   const format = r.layer === "intensity" ? formatCount : formatPercent;
   return { from: SEQUENTIAL[theme].low, to: SEQUENTIAL[theme].high, min: format(r.min), max: format(r.max) };
 }

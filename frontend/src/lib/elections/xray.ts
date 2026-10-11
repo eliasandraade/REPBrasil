@@ -53,6 +53,8 @@ export interface MapLayerParams {
   base?: string | null;
   a?: string | null;
   b?: string | null;
+  /** Camada "party": número do partido. */
+  party?: number | null;
   municipality?: string | null;
 }
 
