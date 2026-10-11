@@ -7,14 +7,16 @@ namespace RepBrasil.Tests.Electoral;
 public class ElectoralLakeClientTests
 {
     [Fact]
-    public async Task ResultVotesAsync_posts_scope_and_maps_vote_rows()
+    public async Task ResultVotesAsync_posts_scope_with_content_length_and_maps_vote_rows()
     {
         string? body = null;
         var handler = new StubHandler(async request =>
         {
             Assert.Equal(HttpMethod.Post, request.Method);
             Assert.Equal("http://lake.test/v1/result-votes", request.RequestUri!.ToString());
-            body = await request.Content!.ReadAsStringAsync();
+            Assert.Equal("application/json", request.Content!.Headers.ContentType!.MediaType);
+            Assert.True(request.Content.Headers.ContentLength > 0);
+            body = await request.Content.ReadAsStringAsync();
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
