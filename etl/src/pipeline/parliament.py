@@ -31,7 +31,7 @@ class ParliamentMember:
     state_code: str | None = None
     party_acronym: str | None = None
     photo_url: str | None = None
-    candidate_id: str | None = None
+    person_id: str | None = None
     official_document_hash: str | None = None
     identity_method: str = "unlinked"
     raw: dict[str, Any] | None = None
@@ -76,11 +76,11 @@ def upsert_member(conn: Any, member: ParliamentMember, *, source_id: int) -> int
     if member.identity_method == "official_document":
         if member.institution != "camara":
             raise ValueError("official-document identity linking is currently allowed only for Câmara")
-        if not member.official_document_hash or not member.candidate_id:
-            raise ValueError("official-document identity requires document hash and audited candidate id")
+        if not member.official_document_hash or not member.person_id:
+            raise ValueError("official-document identity requires document hash and audited person id")
     elif member.identity_method != "unlinked":
         raise ValueError("parliament identity must be official_document or unlinked")
-    elif member.candidate_id is not None or member.official_document_hash is not None:
+    elif member.person_id is not None or member.official_document_hash is not None:
         raise ValueError("unlinked parliament members cannot carry inferred identity fields")
 
     cursor = conn.cursor()
@@ -88,7 +88,7 @@ def upsert_member(conn: Any, member: ParliamentMember, *, source_id: int) -> int
         """
         INSERT INTO electoral.parliament_member
             (institution, external_id, name, parliamentary_name, state_code,
-             party_acronym, photo_url, candidate_id, official_document_hash,
+             party_acronym, photo_url, person_id, official_document_hash,
              identity_method, source_id, raw)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s::uuid, %s, %s, %s, %s::jsonb)
         ON CONFLICT (institution, external_id) DO UPDATE SET
@@ -97,9 +97,9 @@ def upsert_member(conn: Any, member: ParliamentMember, *, source_id: int) -> int
             state_code = EXCLUDED.state_code,
             party_acronym = EXCLUDED.party_acronym,
             photo_url = EXCLUDED.photo_url,
-            candidate_id = CASE
-                WHEN EXCLUDED.identity_method = 'official_document' THEN EXCLUDED.candidate_id
-                ELSE electoral.parliament_member.candidate_id
+            person_id = CASE
+                WHEN EXCLUDED.identity_method = 'official_document' THEN EXCLUDED.person_id
+                ELSE electoral.parliament_member.person_id
             END,
             official_document_hash = CASE
                 WHEN EXCLUDED.identity_method = 'official_document' THEN EXCLUDED.official_document_hash
@@ -122,7 +122,7 @@ def upsert_member(conn: Any, member: ParliamentMember, *, source_id: int) -> int
             member.state_code,
             member.party_acronym,
             member.photo_url,
-            member.candidate_id,
+            member.person_id,
             member.official_document_hash,
             member.identity_method,
             source_id,
