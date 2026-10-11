@@ -28,6 +28,7 @@ def test_sidra_payload_skips_header_and_missing_observations() -> None:
 
 
 def test_sidra_url_re_emits_validated_integers() -> None:
-    assert build_sidra_url(table=5938, variable=37, period=2022).endswith("/t/5938/n6/all/v/37/p/2022")
+    url = build_sidra_url(table=5938, variable=37, period=2022)
+    assert url.endswith("/t/5938/n6/all/v/37/p/2022")
     with pytest.raises(ValueError):
         build_sidra_url(table=5938, variable=37, period=9999)
