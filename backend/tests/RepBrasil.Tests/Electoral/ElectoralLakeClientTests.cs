@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using RepBrasil.Application.Electoral;
 using RepBrasil.Infrastructure.Repositories;
 
 namespace RepBrasil.Tests.Electoral;
@@ -39,6 +40,44 @@ public class ElectoralLakeClientTests
         Assert.Equal(13, row.Number);
         Assert.Equal(42, row.Votes);
         Assert.Equal(123, row.TseCandidateId);
+    }
+
+    [Fact]
+    public async Task Xray_queries_post_worker_contract_and_map_cold_section_values()
+    {
+        var candidacyId = Guid.Parse("00000000-0000-0000-0000-000000000013");
+        var bodies = new Dictionary<string, string>();
+        var handler = new StubHandler(async request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("application/json", request.Content!.Headers.ContentType!.MediaType);
+            Assert.True(request.Content.Headers.ContentLength > 0);
+            bodies[path] = await request.Content.ReadAsStringAsync();
+            var json = path switch
+            {
+                "/v1/valid-votes" => "[{\"resultId\":7001,\"validVotes\":311}]",
+                "/v1/candidacy-votes" => $"[{{\"resultId\":7001,\"candidacyId\":\"{candidacyId}\",\"votes\":127}}]",
+                _ => throw new InvalidOperationException(path),
+            };
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            };
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://lake.test") };
+        var client = new ElectoralLakeClient(http);
+
+        var valid = await client.ValidVotesByResultAsync(2024, 1, "ce", "12345", [11], 50, CancellationToken.None);
+        var votes = await client.CandidacyVotesByResultAsync(
+            [candidacyId], [new ElectionOffice(2024, 1, 11)], "ce", "12345", 50, CancellationToken.None);
+
+        Assert.Equal(311, valid[7001]);
+        var row = Assert.Single(votes);
+        Assert.Equal((7001L, candidacyId, 127L), (row.ResultId, row.CandidacyId, row.Votes));
+        Assert.Contains("\"officeCodes\":[11]", bodies["/v1/valid-votes"]);
+        Assert.Contains("\"municipalityTseCode\":\"12345\"", bodies["/v1/valid-votes"]);
+        Assert.Contains("\"scopes\":[{\"year\":2024,\"round\":1,\"officeCode\":11}]", bodies["/v1/candidacy-votes"]);
     }
 
     [Fact]
