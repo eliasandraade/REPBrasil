@@ -58,37 +58,37 @@ export function ScoreTab({ score }: ScoreTabProps) {
   return (
     <div className="space-y-6">
       {/* Status header */}
-      <div className="flex items-start gap-3 rounded-lg border border-white/8 bg-card-elevated p-4">
+      <div className="flex items-start gap-3 rounded-lg border border-line bg-subtle p-4">
         {/* Score circle placeholder */}
-        <div className="flex-shrink-0 flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-white/15">
-          <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-600 leading-tight">
+        <div className="flex-shrink-0 flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-line-strong">
+          <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-fg-muted leading-tight">
             Em<br />dev.
           </span>
         </div>
         <div className="min-w-0">
           <div className="mb-1 flex items-center gap-2">
-            <h2 className="text-base font-bold text-slate-100">Score REPBrasil</h2>
-            <span className="rounded border border-amber-500/20 bg-amber-500/8 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+            <h2 className="text-base font-bold text-fg">Score REPBrasil</h2>
+            <span className="rounded border border-warn/20 bg-warn/8 px-2 py-0.5 text-[10px] font-medium text-warn">
               Em desenvolvimento
             </span>
           </div>
-          <p className="text-sm leading-relaxed text-slate-400">
+          <p className="text-sm leading-relaxed text-fg-muted">
             O Score REPBrasil será um índice explicável e auditável, construído a partir
             de critérios objetivos e fontes verificáveis. Nenhuma pontuação definitiva
             está sendo atribuída nesta fase.
           </p>
-          <p className="mt-1.5 text-xs text-slate-600">
+          <p className="mt-1.5 text-xs text-fg-muted">
             Metodologia {methodologyVersion}
           </p>
         </div>
       </div>
 
       {/* In development notice */}
-      <div className="rounded-lg border border-dashed border-white/10 p-4">
-        <p className="mb-1.5 text-sm font-semibold text-slate-300">
+      <div className="rounded-lg border border-dashed border-line p-4">
+        <p className="mb-1.5 text-sm font-semibold text-fg-soft">
           Por que o score ainda não está disponível?
         </p>
-        <p className="text-sm leading-relaxed text-slate-500">
+        <p className="text-sm leading-relaxed text-fg-muted">
           O cálculo do Score REPBrasil exige validação metodológica rigorosa antes de qualquer
           resultado ser exibido. Os componentes planejados estão descritos abaixo. Quando ativos,
           cada fator terá sua fonte, peso e critério documentados publicamente.
@@ -97,24 +97,24 @@ export function ScoreTab({ score }: ScoreTabProps) {
 
       {/* Factor categories */}
       <div>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-fg-muted">
           Componentes planejados
         </p>
         <div className="space-y-2">
           {FACTOR_CATEGORIES.map((cat) => (
             <div
               key={cat.key}
-              className="flex items-start gap-3 rounded-lg border border-white/8 bg-card-elevated px-4 py-3"
+              className="flex items-start gap-3 rounded-lg border border-line bg-subtle px-4 py-3"
             >
-              <div className="mt-0.5 flex-shrink-0 text-slate-600">{cat.icon}</div>
+              <div className="mt-0.5 flex-shrink-0 text-fg-muted">{cat.icon}</div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-300">{cat.label}</p>
-                  <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-slate-600">
+                  <p className="text-sm font-semibold text-fg-soft">{cat.label}</p>
+                  <span className="rounded bg-fg/5 px-1.5 py-0.5 text-[10px] text-fg-muted">
                     pendente
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{cat.description}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{cat.description}</p>
               </div>
             </div>
           ))}
@@ -122,12 +122,12 @@ export function ScoreTab({ score }: ScoreTabProps) {
       </div>
 
       {/* Disclaimer */}
-      <div className="rounded-md border border-white/8 bg-card-elevated px-4 py-3 space-y-1.5">
-        <p className="text-xs text-slate-500">
+      <div className="rounded-md border border-line bg-subtle px-4 py-3 space-y-1.5">
+        <p className="text-xs text-fg-muted">
           {score?.disclaimer ??
             "Score em desenvolvimento. Não representa recomendação de voto, julgamento moral ou inferência automática."}
         </p>
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-fg-muted">
           Nenhuma pontuação foi atribuída a este agente político. Todas as informações desta
           página derivam de fontes públicas oficiais. Sem inferência automática ou interpretação
           opinativa.

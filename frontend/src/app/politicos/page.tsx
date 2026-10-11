@@ -16,14 +16,14 @@ const ESTADOS_BR = [
 ];
 
 const selectCls =
-  "rounded-lg border border-white/10 bg-card-elevated px-3 py-2 text-sm text-slate-300 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/20 hover:border-white/20 transition-colors duration-[var(--motion-acknowledge)]";
+  "rounded-lg border border-line bg-subtle px-3 py-2 text-sm text-fg-soft focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 hover:border-line-strong transition-colors duration-[var(--motion-acknowledge)]";
 
 /** Esqueleto com a geometria exata do PoliticianCard (sem salto de layout ao chegar). */
 function ResultSkeleton() {
   return (
     <div aria-hidden="true" className="space-y-2" data-testid="results-skeleton">
       {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="flex items-center gap-4 rounded-lg border border-white/8 bg-card p-4">
+        <div key={i} className="flex items-center gap-4 rounded-lg border border-line bg-surface p-4">
           <div className="skeleton h-10 w-10 flex-shrink-0" />
           <div className="flex-1 space-y-1.5">
             <div className="skeleton h-4 w-44" />
@@ -80,19 +80,19 @@ function PoliticosContent() {
   const hasFilters = !!(filters.state || filters.party || filters.office);
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:px-6">
+    <main className="min-h-screen bg-canvas px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-3xl">
         {/* Back */}
         <TransitionLink
           href="/"
-          className="focus-ring mb-6 inline-flex items-center gap-1.5 rounded text-xs text-slate-500 transition-colors hover:text-slate-300"
+          className="focus-ring mb-6 inline-flex items-center gap-1.5 rounded text-xs text-fg-muted transition-colors hover:text-fg-soft"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
           REPBrasil
         </TransitionLink>
 
         <div className="mb-6">
-          <h1 className="mb-4 text-xl font-bold text-slate-100">Buscar políticos</h1>
+          <h1 className="mb-4 text-xl font-bold text-fg">Buscar políticos</h1>
           <SearchInput defaultValue={q} />
 
           {/* Filtros */}
@@ -113,7 +113,7 @@ function PoliticosContent() {
               placeholder="Partido (ex: PT)"
               value={filters.party ?? ""}
               onChange={(e) => setFilter("party", e.target.value)}
-              className={`${selectCls} w-36 placeholder:text-slate-600`}
+              className={`${selectCls} w-36 placeholder:text-fg-muted`}
             />
 
             <input
@@ -121,7 +121,7 @@ function PoliticosContent() {
               placeholder="Cargo (ex: SENADOR)"
               value={filters.office ?? ""}
               onChange={(e) => setFilter("office", e.target.value)}
-              className={`${selectCls} w-48 placeholder:text-slate-600`}
+              className={`${selectCls} w-48 placeholder:text-fg-muted`}
             />
 
             {hasFilters && (
@@ -130,7 +130,7 @@ function PoliticosContent() {
                 onClick={() =>
                   navigate(`/politicos?${buildParams({ state: undefined, party: undefined, office: undefined })}`)
                 }
-                className="value-arrive mi-press focus-ring rounded-lg border border-white/8 px-3 py-2 text-xs text-slate-500 transition-colors hover:border-white/20 hover:text-slate-300"
+                className="value-arrive mi-press focus-ring rounded-lg border border-line px-3 py-2 text-xs text-fg-muted transition-colors hover:border-line-strong hover:text-fg-soft"
               >
                 Limpar filtros
               </button>
@@ -139,14 +139,14 @@ function PoliticosContent() {
         </div>
 
         {/* Info banner */}
-        <div className="mb-5 flex items-center gap-2 rounded-md border border-white/8 bg-card/50 px-3 py-2 text-xs text-slate-500">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-brand" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-          Base inicial: 1.000 políticos indexados — dados do TSE 2024. Em expansão.
+        <div className="mb-5 flex items-center gap-2 rounded-md border border-line bg-surface/50 px-3 py-2 text-xs text-fg-muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-accent-text" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          Perfis criados a partir das candidaturas oficiais do TSE já importadas; a cobertura por eleição está em Eleições.
         </div>
 
         {isLoading && (
           <div aria-busy="true">
-            <output className="mb-4 flex items-center gap-2 text-xs text-slate-500">
+            <output className="mb-4 flex items-center gap-2 text-xs text-fg-muted">
               <span className="query-trace w-10" aria-hidden="true" />
               <span>Consultando a base{q ? ` por "${q}"` : ""}…</span>
             </output>
@@ -155,28 +155,28 @@ function PoliticosContent() {
         )}
 
         {isError && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-center text-sm text-red-400">
+          <div className="rounded-lg border border-danger/20 bg-danger/5 px-4 py-3 text-center text-sm text-danger">
             Erro ao conectar com a API. Verifique sua conexão.
           </div>
         )}
 
         {data && (
           <>
-            <p className="mb-4 text-xs text-slate-500">
-              <span className="font-medium text-slate-300">{data.totalCount}</span>{" "}
+            <p className="mb-4 text-xs text-fg-muted">
+              <span className="font-medium text-fg-soft">{data.totalCount}</span>{" "}
               resultado{data.totalCount !== 1 ? "s" : ""}
               {q ? ` para "${q}"` : ""}
               {hasFilters ? " com filtros aplicados" : ""}
             </p>
 
             {data.items.length === 0 ? (
-              <div className="rounded-lg border border-white/8 bg-card py-16 text-center">
-                <p className="text-slate-400 font-medium">
+              <div className="rounded-lg border border-line bg-surface py-16 text-center">
+                <p className="text-fg-muted font-medium">
                   Nenhum político encontrado{q ? ` para "${q}"` : ""}
                   {hasFilters ? " com os filtros selecionados" : ""}.
                 </p>
-                <p className="mt-1 text-xs text-slate-600">
-                  A base inicial cobre 1.000 políticos do TSE 2024.
+                <p className="mt-1 text-xs text-fg-muted">
+                  A busca cobre as candidaturas oficiais já importadas (ver cobertura em Eleições).
                 </p>
               </div>
             ) : (
@@ -193,19 +193,19 @@ function PoliticosContent() {
                   type="button"
                   onClick={() => goToPage(page - 1)}
                   disabled={!data.hasPrevious}
-                  className="mi-press focus-ring inline-flex items-center gap-2 rounded-lg border border-white/10 bg-card px-4 py-2 text-sm text-slate-300 transition-colors hover:border-white/20 hover:bg-card-elevated disabled:opacity-30"
+                  className="mi-press focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-soft transition-colors hover:border-line-strong hover:bg-subtle disabled:opacity-30"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
                   Anterior
                 </button>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-fg-muted">
                   Página {data.page} de {data.totalPages}
                 </span>
                 <button
                   type="button"
                   onClick={() => goToPage(page + 1)}
                   disabled={!data.hasNext}
-                  className="mi-press focus-ring inline-flex items-center gap-2 rounded-lg border border-white/10 bg-card px-4 py-2 text-sm text-slate-300 transition-colors hover:border-white/20 hover:bg-card-elevated disabled:opacity-30"
+                  className="mi-press focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm text-fg-soft transition-colors hover:border-line-strong hover:bg-subtle disabled:opacity-30"
                 >
                   Próxima
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -223,7 +223,7 @@ export default function PoliticosPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-background px-4 py-8 sm:px-6" aria-busy="true">
+        <main className="min-h-screen bg-canvas px-4 py-8 sm:px-6" aria-busy="true">
           <div className="mx-auto max-w-3xl pt-24">
             <ResultSkeleton />
           </div>

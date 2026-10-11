@@ -36,7 +36,7 @@ describe("resultado da seção", () => {
   it("candidato com vínculo validado abre o perfil REPBrasil; sem vínculo continua visível sem link", () => {
     renderResults();
     const link = screen.getByTestId("candidate-profile-link");
-    expect(link.getAttribute("href")).toBe("/politico/pol-1?aba=eleicoes");
+    expect(link.getAttribute("href")).toBe("/politicos/pol-1?aba=eleicoes");
     expect(link.textContent).toBe("Candidata Com Perfil");
     const unlinked = screen.getByText("Candidato Sem Perfil");
     expect(unlinked.closest("a")).toBeNull();

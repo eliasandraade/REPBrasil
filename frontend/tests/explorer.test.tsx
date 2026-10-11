@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MUNICIPALITIES, MUNICIPALITY_DETAIL, sectionResults, STATES, zoneDetail } from "./fixtures";
@@ -30,7 +30,15 @@ import { ElectionsExplorer } from "@/components/elections/ElectionsExplorer";
 const json = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
 
+const ELECTIONS = {
+  elections: [
+    { year: 2026, round: 1, electionDate: "2026-10-04", description: "1º Turno", cadasterAvailable: true, resultsAvailable: true, default: true },
+    { year: 2024, round: 1, electionDate: "2024-10-06", description: "1º Turno", cadasterAvailable: true, resultsAvailable: true, default: false },
+  ],
+};
+
 function api(url: string) {
+  if (new URL(url).pathname === "/api/v1/elections") return json(ELECTIONS);
   const path = new URL(url).pathname.replace("/api/v1/elections/2026/1", "");
   if (path === "/states") return json(STATES);
   if (path === "/states/ce/municipalities") return json(MUNICIPALITIES);
@@ -65,11 +73,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("explorador eleitoral", () => {
-  it("Brasil: UFs com cadastro navegáveis; sem cadastro listadas mas desabilitadas", async () => {
+  it("Brasil: UFs com cadastro navegáveis; sem cadastro resumidas numa frase, sem link", async () => {
     renderAt("/eleicoes/2026/1");
     await screen.findByTestId("state-list");
     expect(document.querySelector('[data-state="CE"]')!.getAttribute("href")).toBe("/eleicoes/2026/1/ce");
-    expect(screen.getByText("São Paulo").closest("[aria-disabled]")).toBeTruthy();
+    const missing = screen.getByTestId("states-missing");
+    expect(missing.textContent).toContain("São Paulo");
+    expect(missing.querySelector("a")).toBeNull();
   });
 
   it("Ceará: lista de municípios vinda do catálogo", async () => {
@@ -106,7 +116,7 @@ describe("explorador eleitoral", () => {
     renderAt("/eleicoes/2026/1/ce/fortaleza/zona/94/secao/381", "cargo=1");
     const results = await screen.findByTestId("section-results");
     await waitFor(() => expect(results.dataset.status).toBe("available"));
-    expect(screen.getByTestId("candidate-profile-link").getAttribute("href")).toBe("/politico/pol-1?aba=eleicoes");
+    expect(screen.getByTestId("candidate-profile-link").getAttribute("href")).toBe("/politicos/pol-1?aba=eleicoes");
     const calls = (fetch as unknown as { mock: { calls: string[][] } }).mock.calls.map((c) => c[0]);
     expect(calls.some((u) => u.endsWith("/zones/94/sections/381/results?office=1"))).toBe(true);
   });
@@ -171,9 +181,18 @@ describe("explorador eleitoral", () => {
     await screen.findByText("Território não encontrado");
   });
 
+  it("troca de eleição sem perder o lugar: mantém UF e município, zona e seção caem", async () => {
+    renderAt("/eleicoes/2026/1/ce/fortaleza/zona/1", "cargo=11&painel=candidaturas");
+    const switcher = (await screen.findByTestId("election-switcher")) as HTMLSelectElement;
+    expect(switcher.value).toBe("2026-1");
+    fireEvent.change(switcher, { target: { value: "2024-1" } });
+    expect(nav.push).toHaveBeenCalledWith("/eleicoes/2024/1/ce/fortaleza?painel=candidaturas", { scroll: false });
+  });
+
   it("falha da API não vira lista vazia nem zero", async () => {
     vi.stubGlobal("fetch", vi.fn(() => json({ message: "erro" }, 503)));
     renderAt("/eleicoes/2026/1/ce");
-    await screen.findByText("Não foi possível carregar o catálogo eleitoral");
+    // erro de servidor tem uma nova tentativa (404 não): a mensagem vem depois dela
+    await screen.findByText("Não foi possível carregar o catálogo eleitoral", undefined, { timeout: 4000 });
   });
 });

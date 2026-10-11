@@ -92,11 +92,28 @@ public class ComparabilityTests
     }
 
     [Fact]
+    public void Insight_texts_read_published_upper_case_office_and_outcome_as_text()
+    {
+        var contest = new ContestInfo(2026, 1, 619, 6, "DEPUTADO FEDERAL", "state", "CE", "CE", "Ceará");
+        Assert.Equal("1º lugar entre 268 números votados para Deputado Federal (Ceará) em 2026, com 684.372 votos.",
+            InsightEngine.Rank(contest, 1, 268, 684372).Text);
+        Assert.Equal("Resultado oficial do TSE em 2026 (Deputado Federal): Eleito por QP.", InsightEngine.Outcome(contest, "ELEITO POR QP").Text);
+        Assert.Equal("ELEITO POR QP", InsightEngine.Outcome(contest, "ELEITO POR QP").Values["outcome"]); // valor estruturado intacto
+        Assert.Equal("Não eleito", Fmt.Outcome("NÃO ELEITO"));
+        Assert.Equal("2º turno", Fmt.Outcome("2º TURNO"));
+        Assert.Equal("Eleito por média", Fmt.Outcome("Eleito por média"));
+        Assert.Equal("", Fmt.Outcome(null));
+    }
+
+    [Fact]
     public void Published_upper_case_names_read_as_names()
     {
         Assert.Equal("André Fernandes", Fmt.Name("ANDRÉ FERNANDES"));
         Assert.Equal("Luiz Inácio Lula da Silva", Fmt.Name("LUIZ INÁCIO LULA DA SILVA"));
         Assert.Equal("Já Formatado", Fmt.Name("Já Formatado"));
+        Assert.Equal("Andre Fernandes de Moura", Fmt.Name("Andre Fernandes De Moura")); // capitalizado palavra a palavra
+        Assert.Equal("Olho D'Água do Borges", Fmt.Name("OLHO D'ÁGUA DO BORGES"));
+        Assert.Equal("Não-Me-Toque", Fmt.Name("NÃO-ME-TOQUE"));
         Assert.Equal("", Fmt.Name(null));
     }
 

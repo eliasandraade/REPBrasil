@@ -19,7 +19,7 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
   if (isLoading) {
     return (
       <div aria-busy="true" className="space-y-3">
-        <div className="rounded-lg border border-white/8 bg-card-elevated/40 p-4" aria-hidden="true">
+        <div className="rounded-lg border border-line bg-subtle/40 p-4" aria-hidden="true">
           <div className="skeleton mb-2 h-5 w-40" />
           <div className="skeleton mb-4 h-3 w-56" />
           <div className="grid grid-cols-2 gap-3">
@@ -38,7 +38,7 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
 
   if (isError || !mandates) {
     return (
-      <div className="text-sm text-red-400 py-8 text-center">
+      <div className="text-sm text-danger py-8 text-center">
         Erro ao carregar dados da Câmara.
       </div>
     );
@@ -46,7 +46,7 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
 
   if (mandates.length === 0) {
     return (
-      <div className="text-sm text-zinc-400 py-8 text-center">
+      <div className="text-sm text-fg-muted py-8 text-center">
         Nenhum mandato federal registrado para este político.
       </div>
     );
@@ -63,19 +63,19 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
             alt="Foto oficial Câmara"
             width={80}
             height={96}
-            className="object-cover rounded border border-zinc-700"
+            className="object-cover rounded border border-line-strong"
             unoptimized
           />
         )}
         <div>
-          <h3 className="text-lg font-semibold text-zinc-100">
+          <h3 className="text-lg font-semibold text-fg">
             {mandate.title ?? "Deputado Federal"}
           </h3>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-fg-muted">
             {mandate.legislature}ª Legislatura · {mandate.state} · {mandate.partyAcronym}
           </p>
           {mandate.startDate && mandate.endDate && (
-            <p className="text-xs text-zinc-500 mt-1">
+            <p className="text-xs text-fg-muted mt-1">
               {new Date(mandate.startDate).getFullYear()} – {new Date(mandate.endDate).getFullYear()}
             </p>
           )}
@@ -84,20 +84,20 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
 
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
-          <span className="text-zinc-500">ID Câmara</span>
-          <p className="text-zinc-200 font-mono">{mandate.externalId ?? "—"}</p>
+          <span className="text-fg-muted">ID Câmara</span>
+          <p className="text-fg-soft font-mono">{mandate.externalId ?? "—"}</p>
         </div>
         <div>
-          <span className="text-zinc-500">Casa</span>
-          <p className="text-zinc-200">{mandate.house}</p>
+          <span className="text-fg-muted">Casa</span>
+          <p className="text-fg-soft">{mandate.house}</p>
         </div>
         <div>
-          <span className="text-zinc-500">Legislatura</span>
-          <p className="text-zinc-200">{mandate.legislature}ª</p>
+          <span className="text-fg-muted">Legislatura</span>
+          <p className="text-fg-soft">{mandate.legislature}ª</p>
         </div>
         <div>
-          <span className="text-zinc-500">Partido</span>
-          <p className="text-zinc-200">{mandate.partyAcronym ?? "—"}</p>
+          <span className="text-fg-muted">Partido</span>
+          <p className="text-fg-soft">{mandate.partyAcronym ?? "—"}</p>
         </div>
       </div>
 
@@ -106,18 +106,18 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
           href={mandate.externalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          className="inline-flex items-center gap-2 text-sm text-info hover:text-info transition-colors"
         >
           Ver perfil completo na Câmara dos Deputados ↗
         </a>
       )}
 
       {mandates.length > 1 && (
-        <div className="border-t border-zinc-800 pt-4">
-          <p className="text-xs text-zinc-500 mb-2">Outros mandatos registrados:</p>
+        <div className="border-t border-line-strong pt-4">
+          <p className="text-xs text-fg-muted mb-2">Outros mandatos registrados:</p>
           <div className="space-y-1">
             {mandates.slice(1).map((m) => (
-              <div key={m.id} className="text-xs text-zinc-400">
+              <div key={m.id} className="text-xs text-fg-muted">
                 {m.legislature}ª Legislatura · {m.house} · {m.partyAcronym}
               </div>
             ))}

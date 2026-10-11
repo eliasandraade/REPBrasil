@@ -13,15 +13,15 @@ function formatBytes(bytes: number): string {
 
 function SourceCard({ source }: { source: DataSourceItem }) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card-elevated p-4 space-y-3">
+    <div className="rounded-lg border border-line bg-subtle p-4 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-slate-200 truncate">{source.name}</p>
-          <p className="text-xs text-slate-500">{source.organization}</p>
+          <p className="font-semibold text-sm text-fg-soft truncate">{source.name}</p>
+          <p className="text-xs text-fg-muted">{source.organization}</p>
         </div>
-        <span className="flex-shrink-0 inline-flex items-center gap-1 rounded border border-brand/20 bg-brand/8 px-2 py-0.5 text-[10px] font-medium text-brand">
-          <span className="h-1 w-1 rounded-full bg-brand" />
+        <span className="flex-shrink-0 inline-flex items-center gap-1 rounded border border-accent/20 bg-accent/8 px-2 py-0.5 text-[10px] font-medium text-accent-text">
+          <span className="h-1 w-1 rounded-full bg-accent" />
           Fonte pública oficial
         </span>
       </div>
@@ -29,43 +29,43 @@ function SourceCard({ source }: { source: DataSourceItem }) {
       {/* Metadata rows */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div>
-          <span className="text-slate-600">Tipo</span>
-          <p className="text-slate-400">{source.sourceType}</p>
+          <span className="text-fg-muted">Tipo</span>
+          <p className="text-fg-muted">{source.sourceType}</p>
         </div>
         <div>
-          <span className="text-slate-600">Coletado em</span>
-          <p className="text-slate-400">{formatDate(source.collectedAt)}</p>
+          <span className="text-fg-muted">Coletado em</span>
+          <p className="text-fg-muted">{formatDate(source.collectedAt)}</p>
         </div>
         {source.fileSizeBytes != null && (
           <div>
-            <span className="text-slate-600">Tamanho</span>
-            <p className="text-slate-400">{formatBytes(source.fileSizeBytes)}</p>
+            <span className="text-fg-muted">Tamanho</span>
+            <p className="text-fg-muted">{formatBytes(source.fileSizeBytes)}</p>
           </div>
         )}
         {source.license && (
           <div>
-            <span className="text-slate-600">Licença</span>
-            <p className="text-slate-400">{source.license}</p>
+            <span className="text-fg-muted">Licença</span>
+            <p className="text-fg-muted">{source.license}</p>
           </div>
         )}
       </div>
 
       {/* SHA-256 */}
       {source.hash && (
-        <div className="rounded-md border border-white/8 bg-background px-3 py-2">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+        <div className="rounded-md border border-line bg-canvas px-3 py-2">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-fg-muted">
             Integridade SHA-256
           </p>
           <details>
-            <summary className="cursor-pointer select-none list-none text-xs text-slate-500 hover:text-slate-400">
-              <span className="font-mono text-slate-400">
+            <summary className="cursor-pointer select-none list-none text-xs text-fg-muted hover:text-fg-muted">
+              <span className="font-mono text-fg-muted">
                 {source.hash.slice(0, 10)}...{source.hash.slice(-6)}
               </span>
-              <span className="ml-2 text-brand underline-offset-2 hover:underline text-[10px]">
+              <span className="ml-2 text-accent-text underline-offset-2 hover:underline text-[10px]">
                 ver completo
               </span>
             </summary>
-            <p className="mt-2 break-all font-mono text-[10px] leading-relaxed text-slate-500">
+            <p className="mt-2 break-all font-mono text-[10px] leading-relaxed text-fg-muted">
               {source.hash}
             </p>
           </details>
@@ -78,7 +78,7 @@ function SourceCard({ source }: { source: DataSourceItem }) {
           href={source.originalUrl}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-brand transition-colors hover:text-brand-light"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-text transition-colors hover:text-fg"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           Download original (fonte oficial)
@@ -92,17 +92,17 @@ export function MetadataTab({ politician, sources }: MetadataTabProps) {
   return (
     <div className="space-y-6">
       {/* Rastreabilidade note */}
-      <div className="flex items-start gap-2 rounded-lg border border-brand/15 bg-brand/5 px-4 py-3 text-xs text-slate-400">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0 text-brand" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <div className="flex items-start gap-2 rounded-lg border border-accent/15 bg-accent/5 px-4 py-3 text-xs text-fg-muted">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0 text-accent-text" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         Rastreabilidade é parte central do REPBrasil. Cada dado relevante deve apontar para uma fonte pública verificável.
       </div>
 
       {/* IDs externos */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-muted">
           IDs externos
         </p>
-        <div className="overflow-hidden rounded-lg border border-white/8">
+        <div className="overflow-hidden rounded-lg border border-line">
           <Row label="TSE" value={politician.tseId} />
           <Row label="Câmara dos Deputados" value={politician.camaraId} />
           <Row label="Senado Federal" value={politician.senateId} />
@@ -111,10 +111,10 @@ export function MetadataTab({ politician, sources }: MetadataTabProps) {
 
       {/* Coleta */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-muted">
           Coleta e metodologia
         </p>
-        <div className="overflow-hidden rounded-lg border border-white/8">
+        <div className="overflow-hidden rounded-lg border border-line">
           <Row label="Registro criado em" value={formatDate(politician.createdAt)} />
           <Row label="Última atualização" value={formatDate(politician.sourceUpdatedAt)} />
           <Row label="Versão da metodologia" value="v0 — em desenvolvimento" />
@@ -124,15 +124,15 @@ export function MetadataTab({ politician, sources }: MetadataTabProps) {
       {/* Fontes */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
             Fontes vinculadas
           </p>
-          <span className="text-xs text-slate-600">{sources.length} fonte{sources.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-fg-muted">{sources.length} fonte{sources.length !== 1 ? "s" : ""}</span>
         </div>
 
         {sources.length === 0 ? (
-          <div className="rounded-lg border border-white/8 bg-card-elevated px-4 py-5 text-center">
-            <p className="text-xs text-slate-500">
+          <div className="rounded-lg border border-line bg-subtle px-4 py-5 text-center">
+            <p className="text-xs text-fg-muted">
               Dados atualmente baseados em datasets eleitorais públicos do TSE.
               Fontes detalhadas serão vinculadas na próxima importação.
             </p>

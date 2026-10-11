@@ -70,7 +70,9 @@ describe("zoom semântico: direção entre camadas", () => {
   it("ordena as camadas do produto e do território", () => {
     expect(routeDepth("/")).toBe(0);
     expect(routeDepth("/politicos?q=x")).toBe(1);
-    expect(routeDepth("/politico/abc")).toBe(2);
+    expect(routeDepth("/politicos/andre-fernandes")).toBe(2);
+    expect(routeDepth("/politico/abc")).toBe(2); // legado (redireciona)
+    expect(routeDepth("/politicos")).toBe(1);
     expect(routeDepth("/eleicoes")).toBe(1);
     expect(routeDepth("/eleicoes/2026/1")).toBe(2);
     expect(routeDepth("/eleicoes/2026/1/ce")).toBe(3);
@@ -81,16 +83,16 @@ describe("zoom semântico: direção entre camadas", () => {
 
   it("aprofundar, emergir e lateral", () => {
     expect(directionBetween("/", "/politicos")).toBe("deeper");
-    expect(directionBetween("/politicos?q=a", "/politico/1")).toBe("deeper");
-    expect(directionBetween("/politico/1", "/politicos")).toBe("shallower");
+    expect(directionBetween("/politicos?q=a", "/politicos/1")).toBe("deeper");
+    expect(directionBetween("/politicos/1", "/politicos")).toBe("shallower");
     expect(directionBetween("/manifesto", "/suporte")).toBe("lateral");
     expect(directionBetween("/eleicoes/2026/1/ce", "/eleicoes/2026/1/ce/fortaleza")).toBe("deeper");
     expect(directionBetween("/eleicoes/2026/1/ce/fortaleza/zona/94", "/eleicoes/2026/1/ce")).toBe("shallower");
   });
 
   it("do voto para a pessoa é sempre aprofundar; do perfil ao território é emergir", () => {
-    expect(directionBetween("/eleicoes/2026/1/ce/fortaleza/zona/94/secao/381", "/politico/1?aba=eleicoes")).toBe("deeper");
-    expect(directionBetween("/politico/1", "/eleicoes/2026/1/ce/fortaleza")).toBe("shallower");
+    expect(directionBetween("/eleicoes/2026/1/ce/fortaleza/zona/94/secao/381", "/politicos/1?aba=eleicoes")).toBe("deeper");
+    expect(directionBetween("/politicos/1", "/eleicoes/2026/1/ce/fortaleza")).toBe("shallower");
   });
 });
 
@@ -111,7 +113,7 @@ describe("tokens de movimento", () => {
 
   it("o canvas tem a cor do produto (sem véu claro no meio de uma View Transition)", () => {
     const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf-8");
-    expect(globals).toMatch(/html \{[^}]*background-color: #0a0f16;/);
+    expect(globals).toMatch(/html \{[^}]*background-color: rgb\(var\(--canvas\)\);/);
   });
 
   it("nenhuma curva quica (dados oficiais não oscilam)", () => {
@@ -180,7 +182,7 @@ describe("transições de rota", () => {
   function link(props: Partial<Parameters<typeof TransitionLink>[0]> = {}) {
     render(
       <NavigationProvider>
-        <TransitionLink href="/politico/1" shareIdentity {...props}>
+        <TransitionLink href="/politicos/1" shareIdentity {...props}>
           <span data-vt="avatar">AB</span>
           <span data-vt="name">Fulano</span>
         </TransitionLink>
@@ -191,7 +193,7 @@ describe("transições de rota", () => {
 
   it("sem View Transitions: navega imediatamente (a animação nunca atrasa a ação)", () => {
     fireEvent.click(link());
-    expect(nav.push).toHaveBeenCalledWith("/politico/1", { scroll: undefined });
+    expect(nav.push).toHaveBeenCalledWith("/politicos/1", { scroll: undefined });
   });
 
   it("com Reduced Motion não inicia View Transition", () => {
@@ -216,7 +218,7 @@ describe("transições de rota", () => {
     expect(start).toHaveBeenCalledTimes(1);
     expect(document.documentElement.dataset.navDirection).toBe("deeper");
     expect(names).toEqual(["vt-avatar", "vt-name"]);
-    expect(nav.push).toHaveBeenCalledWith("/politico/1", { scroll: undefined });
+    expect(nav.push).toHaveBeenCalledWith("/politicos/1", { scroll: undefined });
   });
 
   it("navegações consecutivas: a anterior é liberada e não apaga a direção da nova; pular a anterior não gera rejeição sem tratamento", async () => {
@@ -273,20 +275,50 @@ describe("transições de rota", () => {
 // ─── Home ───────────────────────────────────────────────────────────────────
 
 describe("home", () => {
-  it("o título nasce completo (sem texto digitando) e os números já estão prontos (sem contagem)", () => {
-    render(<HomePage />);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Inteligência pública sobre agentes políticos brasileiros.");
-    for (const value of ["1.000+", "3", "2024", "Em dev."]) expect(screen.getByText(value)).toBeTruthy();
-    expect(screen.queryByText("2.007")).toBeNull();
+  const OVERVIEW = {
+    elections: [
+      { year: 2026, round: 1, uf: "CE", stateName: "Ceará", municipalities: 184, zones: 109, sections: 23765, eligible: 6996545, offices: [{ code: 3, name: "Governador" }, { code: 5, name: "Senador" }] },
+      { year: 2024, round: 2, uf: "CE", stateName: "Ceará", municipalities: 2, zones: 20, sections: 6034, eligible: 2015233, offices: [{ code: 11, name: "Prefeito" }] },
+    ],
+    candidacies: 15011,
+    politicians: 14432,
+    sources: [{ kind: "tse-open-data-bu", publisher: "TSE", label: "Boletins de Urna (votos por seção)", files: 5, latestDownload: "2026-10-10T07:05:48Z" }],
+    updatedAt: "2026-10-10T20:55:41Z",
+  };
+
+  function renderHome(response: () => Promise<Response>) {
+    vi.stubGlobal("fetch", vi.fn(response));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <HomePage />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("o título nasce completo (sem texto digitando) e a busca é o instrumento central", () => {
+    renderHome(() => new Promise<Response>(() => {}));
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Eleições brasileiras, da urna ao candidato.");
+    expect(screen.getByRole("combobox", { name: "Buscar políticos, lugares, partidos e eleições" })).toBeTruthy();
+    // enquanto a cobertura carrega: esqueleto, nunca números provisórios
+    expect(document.querySelector("[aria-labelledby='coverage-title']")?.getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByText(/eleitores aptos/)).toBeNull();
   });
 
-  it("a explicação de cada número é alcançável por teclado (botão real, cartão não focável)", () => {
-    render(<HomePage />);
-    const button = screen.getByRole("button", { name: "Sobre: Políticos indexados" });
-    const hint = document.getElementById(button.getAttribute("aria-describedby")!)!;
-    expect(hint.getAttribute("role")).toBe("tooltip");
-    expect(hint.textContent).toContain("1.000 políticos");
-    expect(document.querySelector("[aria-label='Números da plataforma'] div[tabindex]")).toBeNull();
+  it("os números de cobertura chegam prontos (sem contagem) e vêm do que está importado", async () => {
+    renderHome(() => Promise.resolve(new Response(JSON.stringify(OVERVIEW), { status: 200 })));
+    expect(await screen.findByText(/Governador e Senador · 184 municípios · 23\.765 seções · 7,0 milhões de eleitores aptos/)).toBeTruthy();
+    expect(screen.getByText(/Prefeito · 2 municípios/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Explorar Ceará 2026/ }).getAttribute("href")).toBe("/eleicoes/2026/1/ce");
+    expect(screen.getByText("23.765")).toBeTruthy(); // nível "Seções" do caminho estado → urna
+    expect(screen.getByText(/5 arquivos · baixado em 10\/10\/2026/)).toBeTruthy();
+  });
+
+  it("sem a cobertura, diz o que houve e oferece tentar de novo (o resto da página continua)", async () => {
+    renderHome(() => Promise.resolve(new Response("{}", { status: 500 })));
+    expect(await screen.findByText(/Não foi possível carregar a cobertura agora/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "O raio X de uma candidatura" })).toBeTruthy();
   });
 });
 
@@ -306,12 +338,13 @@ const POLITICIAN: PoliticianDetail = {
   candidacyStatus: null,
   createdAt: "2026-01-01",
   sourceUpdatedAt: null,
+  slug: "fulana",
 };
 
-function renderProfile(status: Parameters<typeof PoliticianProfile>[0]["status"]) {
+function renderProfile(status: Parameters<typeof PoliticianProfile>[0]["status"], xrayStatus = 200) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const xray = { candidacies: [], insights: [], evolution: [], assetsEvolution: [], officialHistory: [], freshness: { stale: false, refreshedAt: null, note: "" }, definitions: {} };
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify(xray), { status: 200 }))));
+  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify(xray), { status: xrayStatus }))));
   return render(
     <QueryClientProvider client={client}>
       <PoliticianProfile politician={POLITICIAN} elections={[]} assets={[]} sources={[]} status={status} />
@@ -326,15 +359,18 @@ describe("perfil", () => {
     expect(screen.getAllByText("consultando…")).toHaveLength(4);
   });
 
-  it("falha de consulta é 'indisponível', não ausência", () => {
-    renderProfile({ elections: "ready", assets: "error", sources: "ready" });
-    expect(screen.queryByText("não encontrado")).toBeNull();
-    expect(screen.getByText("indisponível no momento")).toBeTruthy();
+  it("falha de consulta é 'indisponível', não ausência", async () => {
+    renderProfile({ elections: "ready", assets: "ready", sources: "ready" }, 500);
+    expect(await screen.findAllByText("indisponível no momento")).toHaveLength(4);
+    expect(screen.queryByText("sem votação importada")).toBeNull();
   });
 
-  it("ausência confirmada aparece como — / não encontrado", () => {
+  it("ausência confirmada diz o que falta (nunca zero) e mostra o cadastro anterior", async () => {
     renderProfile({ elections: "ready", assets: "ready", sources: "ready" });
-    expect(screen.getByText("não encontrado")).toBeTruthy();
+    expect(await screen.findByText("sem votação importada")).toBeTruthy();
+    expect(screen.getByText("não declarados")).toBeTruthy();
+    expect(screen.getByTestId("profile-legacy").textContent).toContain("Prefeito");
+    expect(screen.queryByText("0")).toBeNull();
   });
 
   it("abas: semântica WAI-ARIA, setas e Home/End", () => {
@@ -343,7 +379,7 @@ describe("perfil", () => {
     const tabs = within(tablist).getAllByRole("tab");
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     fireEvent.keyDown(tabs[0], { key: "ArrowRight" });
-    const eleicoes = within(tablist).getByRole("tab", { name: "Eleições" });
+    const eleicoes = within(tablist).getByRole("tab", { name: "Histórico eleitoral" });
     expect(eleicoes.getAttribute("aria-selected")).toBe("true");
     expect(document.activeElement).toBe(eleicoes);
     fireEvent.keyDown(eleicoes, { key: "End" });
@@ -357,11 +393,11 @@ describe("perfil", () => {
     expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(within(tablist).getByRole("tab", { name: "Score" }).id);
   });
 
-  it("deep link ?aba=eleicoes (ou ?aba=raio-x) abre direto no Raio X (sem passar pela visão geral)", () => {
+  it("deep link ?aba=eleicoes (ou ?aba=raio-x) abre direto no histórico eleitoral (sem passar pela visão geral)", () => {
     for (const aba of ["eleicoes", "raio-x"]) {
-      window.history.replaceState(null, "", `/politico/pol-1?aba=${aba}`);
+      window.history.replaceState(null, "", `/politicos/pol-1?aba=${aba}`);
       const { unmount } = renderProfile(undefined);
-      expect(screen.getByRole("tab", { name: "Raio X eleitoral" }).getAttribute("aria-selected")).toBe("true");
+      expect(screen.getByRole("tab", { name: "Histórico eleitoral" }).getAttribute("aria-selected")).toBe("true");
       unmount();
     }
   });

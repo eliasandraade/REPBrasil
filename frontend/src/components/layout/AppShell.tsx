@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
 import type { ReactNode } from "react";
+import { Logo } from "@/components/brand/Logo";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { SearchProvider, SearchTrigger } from "@/components/search/GlobalSearch";
 import { TransitionLink } from "@/motion/navigation";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -17,11 +19,11 @@ function HomeIcon({ className }: { className?: string }) {
   );
 }
 
-function SearchIcon({ className }: { className?: string }) {
+function UserIcon({ className }: Readonly<{ className?: string }>) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   );
 }
@@ -35,12 +37,14 @@ function BookOpenIcon({ className }: { className?: string }) {
   );
 }
 
-function BallotIcon({ className }: { className?: string }) {
+/** Eleições: barras de resultado (iconografia neutra — sem urna, estrela, bandeira ou Congresso). */
+function ResultsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m9 12 2 2 4-4" />
-      <path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z" />
-      <path d="M22 19H2" />
+      <path d="M3 3v18h18" />
+      <path d="M8 17v-5" />
+      <path d="M13 17V8" />
+      <path d="M18 17v-9" />
     </svg>
   );
 }
@@ -81,14 +85,15 @@ const NAV_SECTIONS = [
     label: "Geral",
     items: [
       { href: "/", label: "Início", Icon: HomeIcon, exact: true },
-      { href: "/politicos", label: "Buscar Políticos", Icon: SearchIcon, exact: false },
-      { href: "/eleicoes", label: "Eleições", Icon: BallotIcon, exact: false },
+      { href: "/politicos", label: "Políticos", Icon: UserIcon, exact: false },
+      { href: "/eleicoes", label: "Eleições", Icon: ResultsIcon, exact: false },
       { href: "/manifesto", label: "Manifesto", Icon: BookOpenIcon, exact: false },
     ],
   },
   {
     label: "Suporte",
     items: [
+      { href: "/glossario", label: "Glossário", Icon: BookOpenIcon, exact: false },
       { href: "/suporte", label: "Central de Suporte", Icon: LifeBuoyIcon, exact: false },
     ],
   },
@@ -108,24 +113,23 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex items-center px-5 py-5 border-b border-white/[0.05]">
-        <TransitionLink href="/" onClick={onLinkClick} className="focus-ring rounded">
-          <Image
-            src="/logo.svg"
-            alt="REPBrasil"
-            width={148}
-            height={40}
-            className="h-9 w-auto"
-            priority
-          />
+      <div className="flex items-center border-b border-line px-3 py-3">
+        <TransitionLink href="/" onClick={onLinkClick} className="focus-ring rounded-lg" aria-label="REPBrasil — início">
+          {/* Assinatura reduzida "[RB] REPBrasil" (≥ 112px) com área de proteção 1X */}
+          <Logo variant="horizontal" height={34} alt="" priority clearSpaceIncluded />
         </TransitionLink>
+      </div>
+
+      {/* Busca global (abre o diálogo; atalho "/" ou Ctrl+K) */}
+      <div className="px-3 pt-4">
+        <SearchTrigger />
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {NAV_SECTIONS.map((section, idx) => (
-          <div key={section.label} className={idx > 0 ? "mt-3 border-t border-white/[0.05] pt-3" : ""}>
-            <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+          <div key={section.label} className={idx > 0 ? "mt-3 border-t border-line pt-3" : ""}>
+            <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
               {section.label}
             </p>
             <div className="space-y-0.5">
@@ -139,11 +143,11 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
                     aria-current={active ? "page" : undefined}
                     className={`nav-item focus-ring relative flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium
                       ${active
-                        ? "bg-brand/10 text-brand"
-                        : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
+                        ? "bg-accent/10 text-accent-text"
+                        : "text-fg-muted hover:bg-fg/[0.05] hover:text-fg-soft"
                       }`}
                   >
-                    <span aria-hidden="true" className="nav-marker absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-brand" />
+                    <span aria-hidden="true" className="nav-marker absolute inset-y-1 left-0 w-[3px] rounded-r-full bg-accent" />
                     <Icon className="h-[18px] w-[18px] flex-shrink-0" />
                     <span>{label}</span>
                   </TransitionLink>
@@ -155,8 +159,9 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-white/[0.05] px-5 py-3">
-        <p className="text-[10px] text-slate-600">© 2026 Andrade Systems</p>
+      <div className="space-y-3 border-t border-line px-4 py-3">
+        <ThemeToggle />
+        <p className="text-micro text-fg-muted">© 2026 Andrade Systems</p>
       </div>
     </div>
   );
@@ -164,7 +169,7 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
-export function AppShell({ children }: { children: ReactNode }) {
+function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -188,9 +193,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [mobileOpen]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-canvas">
       {/* Desktop static sidebar */}
-      <aside className="vt-app-nav hidden w-56 flex-shrink-0 flex-col border-r border-white/[0.06] bg-sidebar lg:flex">
+      <aside className="vt-app-nav hidden w-56 flex-shrink-0 flex-col border-r border-line bg-surface lg:flex">
         <Sidebar pathname={pathname} />
       </aside>
 
@@ -209,7 +214,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         data-open={mobileOpen}
         inert={!mobileOpen}
         aria-label="Navegação"
-        className="drawer fixed inset-y-0 left-0 z-50 w-64 border-r border-white/[0.06] bg-sidebar lg:hidden"
+        className="drawer fixed inset-y-0 left-0 z-50 w-64 border-r border-line bg-surface lg:hidden"
       >
         <Sidebar pathname={pathname} onLinkClick={() => setMobileOpen(false)} />
       </div>
@@ -217,26 +222,25 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main content */}
       <div className="flex min-w-0 flex-1 flex-col overflow-auto">
         {/* Mobile topbar */}
-        <div className="vt-app-topbar sticky top-0 z-30 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/[0.06] bg-sidebar px-4 lg:hidden">
+        <div className="vt-app-topbar sticky top-0 z-30 flex h-14 flex-shrink-0 items-center gap-3 border-b border-line bg-surface px-4 lg:hidden">
           <button
             ref={toggleRef}
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="focus-ring rounded-md p-1.5 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200"
+            className="focus-ring rounded-md p-1.5 text-fg-muted transition-colors hover:bg-fg/5 hover:text-fg-soft"
             aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
             aria-expanded={mobileOpen}
             aria-controls="mobile-nav"
           >
             {mobileOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
-          <TransitionLink href="/" className="focus-ring rounded">
-            <Image
-              src="/symbol.svg"
-              alt="REPBrasil"
-              width={28}
-              height={28}
-              className="h-7 w-auto"
-            />
+          <TransitionLink href="/" className="focus-ring rounded-lg" aria-label="REPBrasil — início">
+            {/* Celular: símbolo micro oficial (sem mapa); tablet: assinatura reduzida. Nunca a assinatura completa espremida. */}
+            <Logo variant="symbol" height={32} alt="" priority className="sm:hidden" />
+            <Logo variant="horizontal" height={32} alt="" priority className="hidden sm:inline-flex" />
           </TransitionLink>
+          <div className="ml-auto">
+            <SearchTrigger compact />
+          </div>
         </div>
 
         <div data-route-frame className="flex min-w-0 flex-1 flex-col">
@@ -244,5 +248,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <SearchProvider>
+      <ShellLayout>{children}</ShellLayout>
+    </SearchProvider>
   );
 }

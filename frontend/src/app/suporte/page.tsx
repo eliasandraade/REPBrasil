@@ -17,13 +17,13 @@ function ChannelCard({
   badge: string;
 }) {
   return (
-    <div className="flex flex-col rounded-lg border border-white/8 bg-card p-5 transition-colors hover:border-brand/30">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-brand/10 text-brand">
+    <div className="flex flex-col rounded-lg border border-line bg-surface p-5 transition-colors hover:border-accent/30">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-accent/10 text-accent-text">
         {icon}
       </div>
-      <h3 className="mb-1 font-semibold text-slate-100">{title}</h3>
-      <p className="mb-3 flex-1 text-sm leading-relaxed text-slate-500">{description}</p>
-      <span className="self-start rounded border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-400">
+      <h3 className="mb-1 font-semibold text-fg">{title}</h3>
+      <p className="mb-3 flex-1 text-sm leading-relaxed text-fg-muted">{description}</p>
+      <span className="self-start rounded border border-line bg-fg/5 px-2 py-0.5 text-xs text-fg-muted">
         {badge}
       </span>
     </div>
@@ -35,11 +35,11 @@ function ChannelCard({
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-white/8">
+    <div className="border-b border-line">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-4 text-left text-sm font-medium text-slate-200 transition-colors hover:text-slate-100"
+        className="flex w-full items-center justify-between py-4 text-left text-sm font-medium text-fg-soft transition-colors hover:text-fg"
       >
         {question}
         <svg
@@ -51,14 +51,14 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`flex-shrink-0 text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`flex-shrink-0 text-fg-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
         >
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
       {open && (
-        <p className="pb-4 text-sm leading-relaxed text-slate-400">{answer}</p>
+        <p className="pb-4 text-sm leading-relaxed text-fg-muted">{answer}</p>
       )}
     </div>
   );
@@ -169,42 +169,41 @@ export default function SuportePage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-canvas">
       {/* Hero */}
-      <div className="hero-gradient border-b border-white/8 py-14">
+      <div className="border-b border-line py-14">
         <div className="mx-auto max-w-4xl px-6">
           <Link
             href="/"
-            className="mb-6 inline-flex items-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-slate-300"
+            className="mb-6 inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg-soft"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
             REPBrasil
           </Link>
 
-          <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-medium text-brand">
+          <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-medium text-accent-text">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
             Central de suporte e contestação
           </div>
 
-          <h1 className="mb-3 text-3xl font-bold leading-tight tracking-tight text-slate-100 sm:text-4xl">
+          <h1 className="mb-3 text-3xl font-bold leading-tight tracking-tight text-fg sm:text-4xl">
             Central de Suporte
           </h1>
-          <p className="max-w-2xl text-base leading-relaxed text-slate-400">
+          <p className="max-w-2xl text-base leading-relaxed text-fg-muted">
             Dúvidas, contestações fundamentadas e solicitações sobre dados públicos
             organizados pelo REPBrasil.
           </p>
 
           {/* Stats */}
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-8 grid grid-cols-3 gap-3">
             {[
-              { value: "~48h", label: "Resposta média" },
               { value: "4", label: "Tipos de solicitação" },
               { value: "TSE", label: "Fonte dos dados" },
               { value: "AGPL", label: "Licença do código" },
             ].map(({ value, label }) => (
-              <div key={label} className="rounded-lg border border-white/8 bg-card/50 p-3 text-center">
-                <p className="text-lg font-bold text-brand">{value}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{label}</p>
+              <div key={label} className="rounded-lg border border-line bg-surface/50 p-3 text-center">
+                <p className="text-lg font-bold text-accent-text">{value}</p>
+                <p className="mt-0.5 text-xs text-fg-muted">{label}</p>
               </div>
             ))}
           </div>
@@ -218,7 +217,7 @@ export default function SuportePage() {
             icon={<QuestionIcon />}
             title="Dúvida Geral"
             description="Perguntas sobre funcionamento, dados ou metodologia do REPBrasil."
-            badge="Resposta em ~48h"
+            badge="Respondida pela equipe"
           />
           <ChannelCard
             icon={<ShieldIcon />}
@@ -242,29 +241,29 @@ export default function SuportePage() {
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Form */}
-          <div className="rounded-lg border border-white/8 bg-card p-6">
-            <h2 className="mb-1 text-lg font-bold text-slate-100">
+          <div className="rounded-lg border border-line bg-surface p-6">
+            <h2 className="mb-1 text-lg font-bold text-fg">
               Enviar solicitação
             </h2>
-            <p className="mb-6 text-sm text-slate-500">
+            <p className="mb-6 text-sm text-fg-muted">
               Descreva sua solicitação e retornaremos em breve.
             </p>
 
             {submitted ? (
-              <div className="rounded-lg border border-brand/25 bg-brand/8 p-6 text-center">
+              <div className="rounded-lg border border-accent/25 bg-accent/8 p-6 text-center">
                 <div className="mb-3 flex justify-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/15">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent-text" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
                   </div>
                 </div>
-                <p className="font-semibold text-slate-100">Solicitação recebida</p>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="font-semibold text-fg">Solicitação recebida</p>
+                <p className="mt-1 text-sm text-fg-muted">
                   Responderemos em breve no e-mail informado.
                 </p>
                 <button
                   type="button"
                   onClick={() => { setSubmitted(false); setType(""); setName(""); setEmail(""); setOrg(""); setPolitician(""); setSource(""); setMessage(""); }}
-                  className="mt-4 text-sm text-brand hover:text-brand-light"
+                  className="mt-4 text-sm text-accent-text hover:text-fg"
                 >
                   Enviar outra solicitação
                 </button>
@@ -273,7 +272,7 @@ export default function SuportePage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Type */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="ticket-type">
+                  <label className="mb-1.5 block text-xs font-medium text-fg-muted" htmlFor="ticket-type">
                     Tipo de solicitação *
                   </label>
                   <select
@@ -281,7 +280,7 @@ export default function SuportePage() {
                     value={type}
                     onChange={(e) => setType(e.target.value)}
                     required
-                    className="w-full rounded-md border border-white/10 bg-card-elevated px-3 py-2.5 text-sm text-slate-200 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/30"
+                    className="w-full rounded-md border border-line bg-subtle px-3 py-2.5 text-sm text-fg-soft focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30"
                   >
                     {TICKET_TYPES.map((t) => (
                       <option key={t} value={t === TICKET_TYPES[0] ? "" : t} disabled={t === TICKET_TYPES[0]}>
@@ -294,7 +293,7 @@ export default function SuportePage() {
                 {/* Name + Email */}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="ticket-name">
+                    <label className="mb-1.5 block text-xs font-medium text-fg-muted" htmlFor="ticket-name">
                       Nome *
                     </label>
                     <input
@@ -304,11 +303,11 @@ export default function SuportePage() {
                       onChange={(e) => setName(e.target.value)}
                       required
                       placeholder="Seu nome"
-                      className="w-full rounded-md border border-white/10 bg-card-elevated px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/30"
+                      className="w-full rounded-md border border-line bg-subtle px-3 py-2.5 text-sm text-fg-soft placeholder:text-fg-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="ticket-email">
+                    <label className="mb-1.5 block text-xs font-medium text-fg-muted" htmlFor="ticket-email">
                       E-mail *
                     </label>
                     <input
@@ -318,16 +317,16 @@ export default function SuportePage() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       placeholder="seu@email.com"
-                      className="w-full rounded-md border border-white/10 bg-card-elevated px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/30"
+                      className="w-full rounded-md border border-line bg-subtle px-3 py-2.5 text-sm text-fg-soft placeholder:text-fg-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30"
                     />
                   </div>
                 </div>
 
                 {/* Org (optional) */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="ticket-org">
+                  <label className="mb-1.5 block text-xs font-medium text-fg-muted" htmlFor="ticket-org">
                     Organização ou cargo{" "}
-                    <span className="text-slate-600">(opcional)</span>
+                    <span className="text-fg-muted">(opcional)</span>
                   </label>
                   <input
                     id="ticket-org"
@@ -335,15 +334,15 @@ export default function SuportePage() {
                     value={org}
                     onChange={(e) => setOrg(e.target.value)}
                     placeholder="Ex.: Assessoria parlamentar, Veículo de imprensa..."
-                    className="w-full rounded-md border border-white/10 bg-card-elevated px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/30"
+                    className="w-full rounded-md border border-line bg-subtle px-3 py-2.5 text-sm text-fg-soft placeholder:text-fg-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30"
                   />
                 </div>
 
                 {/* Politician (optional) */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="ticket-politician">
+                  <label className="mb-1.5 block text-xs font-medium text-fg-muted" htmlFor="ticket-politician">
                     Político relacionado{" "}
-                    <span className="text-slate-600">(opcional)</span>
+                    <span className="text-fg-muted">(opcional)</span>
                   </label>
                   <input
                     id="ticket-politician"
@@ -351,15 +350,15 @@ export default function SuportePage() {
                     value={politician}
                     onChange={(e) => setPolitician(e.target.value)}
                     placeholder="Nome do político ou link do perfil no REPBrasil"
-                    className="w-full rounded-md border border-white/10 bg-card-elevated px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/30"
+                    className="w-full rounded-md border border-line bg-subtle px-3 py-2.5 text-sm text-fg-soft placeholder:text-fg-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30"
                   />
                 </div>
 
                 {/* Source (optional) */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="ticket-source">
+                  <label className="mb-1.5 block text-xs font-medium text-fg-muted" htmlFor="ticket-source">
                     Fonte oficial ou documento de referência{" "}
-                    <span className="text-slate-600">(opcional, recomendado para contestações)</span>
+                    <span className="text-fg-muted">(opcional, recomendado para contestações)</span>
                   </label>
                   <input
                     id="ticket-source"
@@ -367,14 +366,14 @@ export default function SuportePage() {
                     value={source}
                     onChange={(e) => setSource(e.target.value)}
                     placeholder="URL ou descrição da fonte oficial"
-                    className="w-full rounded-md border border-white/10 bg-card-elevated px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/30"
+                    className="w-full rounded-md border border-line bg-subtle px-3 py-2.5 text-sm text-fg-soft placeholder:text-fg-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30"
                   />
                 </div>
 
                 {/* Message */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="ticket-message">
-                    Mensagem * <span className="text-slate-600">(mínimo 30 caracteres)</span>
+                  <label className="mb-1.5 block text-xs font-medium text-fg-muted" htmlFor="ticket-message">
+                    Mensagem * <span className="text-fg-muted">(mínimo 30 caracteres)</span>
                   </label>
                   <textarea
                     id="ticket-message"
@@ -387,15 +386,15 @@ export default function SuportePage() {
                         ? "Indique com clareza o dado questionado, a justificativa e a fonte ou documento comprobatório..."
                         : "Descreva sua solicitação em detalhes..."
                     }
-                    className="w-full resize-none rounded-md border border-white/10 bg-card-elevated px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/30"
+                    className="w-full resize-none rounded-md border border-line bg-subtle px-3 py-2.5 text-sm text-fg-soft placeholder:text-fg-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30"
                   />
-                  <p className="mt-1 text-right text-xs text-slate-600">
+                  <p className="mt-1 text-right text-xs text-fg-muted">
                     {message.length} caracteres
                   </p>
                 </div>
 
                 {type === "Contestação de dado" && (
-                  <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs text-slate-400">
+                  <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs text-fg-muted">
                     Para contestar uma informação, indique com clareza o dado questionado, a justificativa e, sempre que possível, uma fonte oficial ou documento comprobatório.
                   </div>
                 )}
@@ -403,7 +402,7 @@ export default function SuportePage() {
                 <button
                   type="submit"
                   disabled={!isValid}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-slate-900 transition-all hover:bg-brand-light disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-action px-4 py-2.5 text-sm font-semibold text-action-fg transition-all hover:bg-action/90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
                   Enviar solicitação
@@ -414,7 +413,7 @@ export default function SuportePage() {
 
           {/* FAQ */}
           <div>
-            <h2 className="mb-6 text-lg font-bold text-slate-100">
+            <h2 className="mb-6 text-lg font-bold text-fg">
               Dúvidas frequentes
             </h2>
             <div>
@@ -426,10 +425,10 @@ export default function SuportePage() {
         </div>
 
         {/* Footer note */}
-        <div className="mt-10 rounded-lg border border-white/8 bg-card/50 p-4 text-center">
-          <p className="text-xs text-slate-500">
+        <div className="mt-10 rounded-lg border border-line bg-surface/50 p-4 text-center">
+          <p className="text-xs text-fg-muted">
             O REPBrasil é um produto da{" "}
-            <span className="font-medium text-slate-400">Andrade Systems</span>. Não
+            <span className="font-medium text-fg-muted">Andrade Systems</span>. Não
             possui vínculo com órgãos públicos, partidos políticos ou candidatos.
             Dados de fontes oficiais do TSE.
           </p>

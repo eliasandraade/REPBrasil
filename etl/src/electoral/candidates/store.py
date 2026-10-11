@@ -38,6 +38,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from ..cadaster.store import _record_failure, _source_file_id
+from ..names import official_case
 from ..open_data.layout import DetectedLayout
 from . import identity
 from .parser import CandidateRow, HistoryRow
@@ -247,7 +248,7 @@ def _resolve_politician(
                                       "Office", "CandidacyStatus", "PersonId", "CreatedAt", "UpdatedAt",
                                       "SourceUpdatedAt")
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (pid, origin.full_name.title(), origin.ballot_name.title(), str(origin.tse_candidate_id), origin.uf,
+        (pid, official_case(origin.full_name), official_case(origin.ballot_name), str(origin.tse_candidate_id), origin.uf,
          origin.party_acronym, origin.party_name, origin.office_name, origin.candidacy_status or "#NE",
          person.person_id, now, now, now),
     )

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "brand": {
+    "navy": { "$value": "#0B2D5B", "$type": "color" },
+    "green": { "$value": "#0F9D58", "$type": "color" },
+    "teal": { "$value": "#00BAA6", "$type": "color" },
+    "white": { "$value": "#FFFFFF", "$type": "color" }
+  },
+  "light": {
+    "bg": {
+      "canvas": { "$value": "#F5F8FB", "$type": "color" },
+      "surface": { "$value": "#FFFFFF", "$type": "color" },
+      "subtle": { "$value": "#EEF3F7", "$type": "color" }
+    },
+    "text": {
+      "primary": { "$value": "#0B1F33", "$type": "color" },
+      "secondary": { "$value": "#5F7184", "$type": "color" }
+    },
+    "border": { "default": { "$value": "#DCE5ED", "$type": "color" } },
+    "focus": { "ring": { "$value": "#00BAA6", "$type": "color" } }
+  },
+  "dark": {
+    "bg": {
+      "canvas": { "$value": "#071A2E", "$type": "color" },
+      "surface": { "$value": "#0D2744", "$type": "color" },
+      "subtle": { "$value": "#102F50", "$type": "color" }
+    },
+    "text": {
+      "primary": { "$value": "#F7FAFC", "$type": "color" },
+      "secondary": { "$value": "#A9BBCB", "$type": "color" }
+    },
+    "border": { "default": { "$value": "#1D3A56", "$type": "color" } },
+    "focus": { "ring": { "$value": "#23D6C2", "$type": "color" } }
+  },
+  "radius": {
+    "sm": { "$value": "8px", "$type": "dimension" },
+    "md": { "$value": "12px", "$type": "dimension" },
+    "lg": { "$value": "16px", "$type": "dimension" },
+    "xl": { "$value": "24px", "$type": "dimension" },
+    "pill": { "$value": "999px", "$type": "dimension" }
+  },
+  "space": {
+    "1": { "$value": "4px", "$type": "dimension" },
+    "2": { "$value": "8px", "$type": "dimension" },
+    "3": { "$value": "12px", "$type": "dimension" },
+    "4": { "$value": "16px", "$type": "dimension" },
+    "5": { "$value": "20px", "$type": "dimension" },
+    "6": { "$value": "24px", "$type": "dimension" },
+    "8": { "$value": "32px", "$type": "dimension" },
+    "10": { "$value": "40px", "$type": "dimension" },
+    "12": { "$value": "48px", "$type": "dimension" },
+    "16": { "$value": "64px", "$type": "dimension" },
+    "20": { "$value": "80px", "$type": "dimension" },
+    "24": { "$value": "96px", "$type": "dimension" }
+  },
+  "motion": {
+    "fast": { "$value": "160ms", "$type": "duration" },
+    "base": { "$value": "240ms", "$type": "duration" },
+    "context": { "$value": "360ms", "$type": "duration" },
+    "ease": { "$value": "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+  }
+}

@@ -1,3 +1,4 @@
+import { politicianPath } from "@/lib/paths";
 import type { PoliticianSummary } from "@/lib/types";
 import { initialsOf, rememberIdentity } from "@/motion/identity";
 import { TransitionLink } from "@/motion/navigation";
@@ -18,27 +19,27 @@ export function PoliticianCard({ politician }: PoliticianCardProps) {
 
   return (
     <TransitionLink
-      href={`/politico/${politician.id}`}
+      href={politicianPath(politician)}
       shareIdentity
-      onClick={() => rememberIdentity(politician.id, politician.ballotName)}
-      className="group mi-surface focus-ring flex items-center gap-4 rounded-lg border border-white/8 bg-card p-4 hover:border-brand/30 hover:bg-card-elevated/60"
+      onClick={() => rememberIdentity(politician.slug ?? politician.id, politician.ballotName)}
+      className="group mi-surface focus-ring flex items-center gap-4 rounded-lg border border-line bg-surface p-4 hover:border-accent/30 hover:bg-subtle/60"
     >
       {/* Avatar */}
       <div
         data-vt="avatar"
-        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-brand/15 bg-brand/10 text-sm font-semibold text-brand transition-colors duration-[var(--motion-acknowledge)] group-hover:border-brand/40"
+        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-accent/15 bg-accent/10 text-sm font-semibold text-accent-text transition-colors duration-[var(--motion-acknowledge)] group-hover:border-accent/40"
       >
         {initialsOf(politician.ballotName)}
       </div>
 
       {/* Info */}
       <div className="min-w-0 flex-1">
-        <p data-vt="name" className="w-fit max-w-full truncate font-semibold text-slate-100 transition-colors duration-[var(--motion-acknowledge)] group-hover:text-brand">
+        <p data-vt="name" className="w-fit max-w-full truncate font-semibold text-fg transition-colors duration-[var(--motion-acknowledge)] group-hover:text-accent-text">
           {politician.ballotName}
         </p>
-        <p className="truncate text-xs text-slate-500">{politician.name}</p>
+        <p className="truncate text-xs text-fg-muted">{politician.name}</p>
         {meta && (
-          <p className="mt-0.5 truncate text-xs text-slate-600">{meta}</p>
+          <p className="mt-0.5 truncate text-xs text-fg-muted">{meta}</p>
         )}
       </div>
 
@@ -52,7 +53,7 @@ export function PoliticianCard({ politician }: PoliticianCardProps) {
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="mi-arrow flex-shrink-0 text-slate-700 transition-colors group-hover:text-brand"
+        className="mi-arrow flex-shrink-0 text-fg-muted transition-colors group-hover:text-accent-text"
         aria-hidden="true"
       >
         <path d="M5 12h14" />

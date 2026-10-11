@@ -29,13 +29,13 @@ public static class InsightEngine
 
     public static InsightDto Rank(ContestInfo contest, int rank, int candidates, long votes) => Make(
         "rank_in_contest",
-        $"{rank}º lugar entre {candidates} números votados para {contest.OfficeName} ({contest.UnitName ?? contest.ElectoralUnit}) em {Fmt.Election(contest.Year, contest.Round)}, com {Fmt.Int(votes)} votos.",
+        $"{rank}º lugar entre {candidates} números votados para {Fmt.Name(contest.OfficeName)} ({contest.UnitName ?? contest.ElectoralUnit}) em {Fmt.Election(contest.Year, contest.Round)}, com {Fmt.Int(votes)} votos.",
         ("year", contest.Year), ("round", contest.Round), ("officeCode", contest.OfficeCode), ("unit", contest.ElectoralUnit),
         ("rank", rank), ("candidatesWithVotes", candidates), ("votes", votes));
 
     public static InsightDto Outcome(ContestInfo contest, string outcome) => Make(
         "official_outcome",
-        $"Resultado oficial do TSE em {Fmt.Election(contest.Year, contest.Round)} ({contest.OfficeName}): {outcome}.",
+        $"Resultado oficial do TSE em {Fmt.Election(contest.Year, contest.Round)} ({Fmt.Name(contest.OfficeName)}): {Fmt.Outcome(outcome)}.",
         ("year", contest.Year), ("round", contest.Round), ("officeCode", contest.OfficeCode), ("outcome", outcome));
 
     public static InsightDto Evolution(ContestInfo from, ContestInfo to, EvolutionStepDto step)
@@ -44,7 +44,7 @@ public static class InsightEngine
         {
             var reason = step.Comparability switch
             {
-                ContestComparability.DifferentOffice => $"cargos diferentes ({from.OfficeName} e {to.OfficeName})",
+                ContestComparability.DifferentOffice => $"cargos diferentes ({Fmt.Name(from.OfficeName)} e {Fmt.Name(to.OfficeName)})",
                 ContestComparability.DifferentTerritorialScope => $"unidades eleitorais diferentes ({from.UnitName ?? from.ElectoralUnit} e {to.UnitName ?? to.ElectoralUnit})",
                 _ => "votação sem vínculo ou sem cobertura em uma das eleições",
             };
@@ -57,7 +57,7 @@ public static class InsightEngine
         var pct = step.DeltaPercent is { } p ? $" ({Fmt.SignedPct(p)})" : "";
         return Make(
             "evolution_votes",
-            $"{to.OfficeName}: {Fmt.Signed(step.DeltaVotes.Value)} votos{pct} de {Fmt.Election(from.Year, from.Round)} para {Fmt.Election(to.Year, to.Round)} ({Fmt.Int(step.FromVotes ?? 0)} → {Fmt.Int(step.ToVotes ?? 0)}).",
+            $"{Fmt.Name(to.OfficeName)}: {Fmt.Signed(step.DeltaVotes.Value)} votos{pct} de {Fmt.Election(from.Year, from.Round)} para {Fmt.Election(to.Year, to.Round)} ({Fmt.Int(step.FromVotes ?? 0)} → {Fmt.Int(step.ToVotes ?? 0)}).",
             ("fromCandidacyId", step.FromCandidacyId), ("toCandidacyId", step.ToCandidacyId),
             ("fromVotes", step.FromVotes), ("toVotes", step.ToVotes), ("deltaVotes", step.DeltaVotes),
             ("deltaPercent", step.DeltaPercent), ("deltaSharePoints", step.DeltaSharePoints));

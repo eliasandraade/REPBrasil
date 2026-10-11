@@ -7,7 +7,8 @@
  */
 
 :root {
-  --brand: #0dd48e;
+  /* Cor de interação: o teal oficial, via token semântico (globals.css). */
+  --brand: rgb(var(--accent));
   --motion-acknowledge: 90ms;
   --motion-settle: 180ms;
   --motion-traverse: 280ms;
@@ -135,59 +136,6 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
 .reveal-connector { transform-origin: left; }
 .reveal-connector-v { transform-origin: top; }
 
-/* ─── Entrada do hero (registro documental) ───────────────────────────────── */
-
-@media (prefers-reduced-motion: no-preference) {
-  .js .hero-rule { animation: hero-rule var(--motion-survey) var(--ease-enter) both 60ms; transform-origin: left; }
-  .js .hero-stamp {
-    animation: hero-stamp var(--motion-traverse) var(--ease-enter) both;
-    animation-delay: calc(140ms + var(--i, 0) * 70ms);
-  }
-  .js .hero-annotation::after { animation: hero-annotation var(--motion-reveal) var(--ease-enter) both 520ms; }
-  .js .hero-viewfinder > .vf-corner { animation: vf-converge var(--motion-reveal) var(--ease-enter) both 380ms; }
-}
-
-@keyframes hero-rule { from { transform: scaleX(0); } }
-@keyframes hero-stamp { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-@keyframes hero-annotation { from { transform: scaleX(0); } }
-@keyframes vf-converge { from { opacity: 0; translate: var(--vf-from, 0 0); } }
-
-/* Anotação de documento: traço sob o trecho em destaque (não é texto colorido). */
-.hero-annotation { position: relative; white-space: nowrap; }
-.hero-annotation::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.06em;
-  height: 0.09em;
-  background: var(--brand);
-  transform-origin: left;
-  border-radius: 1px;
-}
-
-/* Visor da busca: marcas de enquadramento que convergem para o campo. */
-.hero-viewfinder { position: relative; }
-.vf-corner {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-color: rgb(13 212 142 / 0.45);
-  pointer-events: none;
-  transition:
-    translate var(--motion-settle) var(--ease-precise),
-    border-color var(--motion-settle) var(--ease-precise);
-}
-.vf-corner[data-c="tl"] { top: -7px; left: -7px; border-top-width: 1.5px; border-left-width: 1.5px; --vf-from: -6px -6px; }
-.vf-corner[data-c="tr"] { top: -7px; right: -7px; border-top-width: 1.5px; border-right-width: 1.5px; --vf-from: 6px -6px; }
-.vf-corner[data-c="bl"] { bottom: -7px; left: -7px; border-bottom-width: 1.5px; border-left-width: 1.5px; --vf-from: -6px 6px; }
-.vf-corner[data-c="br"] { bottom: -7px; right: -7px; border-bottom-width: 1.5px; border-right-width: 1.5px; --vf-from: 6px 6px; }
-.hero-viewfinder:focus-within .vf-corner { border-color: rgb(13 212 142 / 0.9); }
-.hero-viewfinder:focus-within .vf-corner[data-c="tl"] { translate: 3px 3px; }
-.hero-viewfinder:focus-within .vf-corner[data-c="tr"] { translate: -3px 3px; }
-.hero-viewfinder:focus-within .vf-corner[data-c="bl"] { translate: 3px -3px; }
-.hero-viewfinder:focus-within .vf-corner[data-c="br"] { translate: -3px -3px; }
-
 /* ─── Microinterações ─────────────────────────────────────────────────────── */
 
 /* Superfície interativa: muda hierarquia (borda, fundo, marcador de canto), nunca a geometria. */
@@ -223,7 +171,7 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
 
 /* Pressionar: afunda o tom, não o tamanho. */
 .mi-press { transition: background-color var(--motion-acknowledge) var(--ease-precise), box-shadow var(--motion-acknowledge) var(--ease-precise), filter var(--motion-acknowledge) var(--ease-precise); }
-.mi-press:active { filter: brightness(0.9); box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35); }
+.mi-press:active { filter: brightness(0.92); box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.25); }
 
 /* Link de leitura: o sublinhado se traça a partir da esquerda. */
 .mi-underline {
@@ -237,7 +185,8 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
 .mi-underline:focus-visible { background-size: 100% 1px; }
 
 /* Foco sempre visível e imediato (nunca animado). */
-.focus-ring:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+/* Anel em dois tons: teal (marca) + núcleo navy/canvas para contraste ≥ 3:1 em qualquer fundo. */
+.focus-ring:focus-visible { outline: 2px solid rgb(var(--focus)); outline-offset: 2px; box-shadow: 0 0 0 2px rgb(var(--focus-inner)); }
 
 /* Dica (tooltip) acessível por foco. */
 .mi-hint {
@@ -290,7 +239,7 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
 /* ─── Estados de consulta (sem spinner genérico, sem "AI shimmer") ────────── */
 
 /* Esqueleto estrutural: mesma geometria do conteúdo; pulsação lenta e rasa. */
-.skeleton { background-color: rgb(17 29 46 / 0.9); border-radius: 0.375rem; }
+.skeleton { background-color: rgb(var(--surface-subtle)); border-radius: 0.375rem; }
 @media (prefers-reduced-motion: no-preference) {
   .skeleton { animation: skeleton-breathe 1.6s var(--ease-traverse) infinite alternate; }
 }
@@ -341,7 +290,6 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
   ::view-transition-new(*) { animation: none !important; }
   .mi-arrow,
   .mi-hint,
-  .vf-corner,
   .nav-marker,
   .drawer,
   .drawer[data-open="true"],
@@ -349,5 +297,4 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
   .tab-indicator { transition: none !important; }
   :is(a, button):hover > .mi-arrow,
   .group:hover .mi-arrow { transform: none; }
-  .hero-viewfinder:focus-within .vf-corner { translate: 0 0; }
 }

@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.AspNetCore.RateLimiting;
+using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Electoral;
 
 namespace RepBrasil.API.Controllers;
@@ -28,6 +31,7 @@ namespace RepBrasil.API.Controllers;
 [ApiController]
 [Route("api/v1/elections")]
 [ElectoralErrors]
+[OutputCache(PolicyName = CachePolicies.PublicData)]
 public class ElectionsController(
     ElectoralCatalogService catalog,
     SectionResultsService results,
@@ -72,6 +76,7 @@ public class ElectionsController(
     public Task<CandidacyDto> Candidacy(Guid candidacyId, CancellationToken ct) => candidacies.PerformanceAsync(candidacyId, ct);
 
     [HttpGet("candidacies/{candidacyId:guid}/territory")]
+    [EnableRateLimiting(ApiRateLimits.Heavy)]
     [ProducesResponseType(typeof(CandidacyTerritoryResponse), StatusCodes.Status200OK)]
     public Task<CandidacyTerritoryResponse> CandidacyTerritory(
         Guid candidacyId,
@@ -93,6 +98,7 @@ public class ElectionsController(
         territory.FinanceAsync(candidacyId, ct);
 
     [HttpGet("{year:int}/{round:int}/states/{uf}/candidates")]
+    [EnableRateLimiting(ApiRateLimits.Heavy)]
     [ProducesResponseType(typeof(TerritoryCandidatesResponse), StatusCodes.Status200OK)]
     public Task<TerritoryCandidatesResponse> Candidates(
         int year, int round, string uf,
@@ -114,6 +120,7 @@ public class ElectionsController(
             ct);
 
     [HttpGet("{year:int}/{round:int}/states/{uf}/map")]
+    [EnableRateLimiting(ApiRateLimits.Heavy)]
     [ProducesResponseType(typeof(MapLayerResponse), StatusCodes.Status200OK)]
     public Task<MapLayerResponse> Map(
         int year, int round, string uf,
@@ -129,6 +136,7 @@ public class ElectionsController(
 
     /// <summary>Comparação de até 5 candidaturas (limite imposto aqui e no frontend).</summary>
     [HttpGet("compare")]
+    [EnableRateLimiting(ApiRateLimits.Heavy)]
     [ProducesResponseType(typeof(ElectoralComparisonResponse), StatusCodes.Status200OK)]
     public Task<ElectoralComparisonResponse> Compare(
         [FromQuery(Name = "candidacy")] Guid[] candidacyIds,
