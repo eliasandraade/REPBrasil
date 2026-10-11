@@ -20,14 +20,19 @@ CREATE TABLE IF NOT EXISTS parliament_member (
     state_code char(2),
     party_acronym text,
     photo_url text,
-    candidate_id uuid REFERENCES candidate(id) ON DELETE SET NULL,
+    person_id uuid REFERENCES public."Persons"("Id") ON DELETE SET NULL,
     official_document_hash char(64) CHECK (official_document_hash IS NULL OR official_document_hash ~ '^[0-9a-f]{64}$'),
     identity_method text NOT NULL DEFAULT 'unlinked' CHECK (identity_method IN ('official_document', 'unlinked')),
     source_id bigint NOT NULL REFERENCES parliament_source(id) ON DELETE RESTRICT,
     raw jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (institution, external_id)
+    UNIQUE (institution, external_id),
+    CHECK (
+        (identity_method = 'unlinked' AND person_id IS NULL AND official_document_hash IS NULL)
+        OR
+        (identity_method = 'official_document' AND person_id IS NOT NULL AND official_document_hash IS NOT NULL)
+    )
 );
 
 CREATE TABLE IF NOT EXISTS parliament_mandate (
@@ -79,8 +84,8 @@ CREATE TABLE IF NOT EXISTS parliament_amendment (
     UNIQUE (external_id, source_id)
 );
 
-CREATE INDEX IF NOT EXISTS parliament_member_candidate_idx
-    ON parliament_member (candidate_id) WHERE candidate_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS parliament_member_person_idx
+    ON parliament_member (person_id) WHERE person_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS parliament_member_lookup_idx
     ON parliament_member (institution, state_code, party_acronym);
 CREATE INDEX IF NOT EXISTS parliament_activity_member_idx
