@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem, PoliticianDetail, ScoreStatusItem } from "@/lib/types";
 import { TransitionLink } from "@/motion/navigation";
+import { SocioElectoralPanel } from "@/components/data/SocioElectoralPanel";
 import { AssetsPanel, FinancePanel, RecordsPanel, TerritoryPanel } from "@/components/xray/CandidacyPanels";
 import { CandidacyPicker } from "@/components/xray/CandidacyPicker";
 import { ElectoralBasePanel } from "@/components/xray/ElectoralBasePanel";
@@ -21,13 +22,37 @@ import { ScoreTab } from "./tabs/ScoreTab";
 
 export { IDENTITY_VT, InitialAvatar, type LoadState } from "./ProfileHeader";
 
-/** Abas na ordem de leitura; o id vai para a URL (?aba=…), então é estável e em português. */
-type TabId = "visao-geral" | "historico" | "territorio" | "base" | "patrimonio" | "contas" | "fontes" | "score" | "camara";
+type TabId =
+  | "visao-geral"
+  | "historico"
+  | "territorio"
+  | "base"
+  | "socioeleitoral"
+  | "patrimonio"
+  | "contas"
+  | "fontes"
+  | "score"
+  | "camara";
 
-const TAB_IDS: readonly TabId[] = ["visao-geral", "historico", "territorio", "base", "patrimonio", "contas", "fontes", "score", "camara"];
+const TAB_IDS: readonly TabId[] = [
+  "visao-geral",
+  "historico",
+  "territorio",
+  "base",
+  "socioeleitoral",
+  "patrimonio",
+  "contas",
+  "fontes",
+  "score",
+  "camara",
+];
 
-/** Links antigos e do explorador: ?aba=eleicoes / ?aba=raio-x abrem o histórico eleitoral. */
-const TAB_ALIASES: Record<string, TabId> = { eleicoes: "historico", "raio-x": "historico", overview: "visao-geral", camara: "camara" };
+const TAB_ALIASES: Record<string, TabId> = {
+  eleicoes: "historico",
+  "raio-x": "historico",
+  overview: "visao-geral",
+  camara: "camara",
+};
 
 interface PoliticianProfileProps {
   politician: PoliticianDetail;
@@ -42,18 +67,37 @@ function fromUrl(hasCamara: boolean): { tab: TabId; candidacy: string | null } {
   if (typeof window === "undefined") return { tab: "visao-geral", candidacy: null };
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("aba") ?? "";
-  const tab = (TAB_IDS as readonly string[]).includes(raw) ? (raw as TabId) : TAB_ALIASES[raw] ?? "visao-geral";
-  return { tab: tab === "camara" && !hasCamara ? "visao-geral" : tab, candidacy: params.get("candidatura") };
+  const tab = (TAB_IDS as readonly string[]).includes(raw)
+    ? (raw as TabId)
+    : TAB_ALIASES[raw] ?? "visao-geral";
+  return {
+    tab: tab === "camara" && !hasCamara ? "visao-geral" : tab,
+    candidacy: params.get("candidatura"),
+  };
 }
 
-/** Aba e candidatura na URL (substitui o histórico, não acrescenta): o link copiado abre exatamente aqui. */
 function writeUrl(tab: TabId, candidacy: string | null) {
   const url = new URL(window.location.href);
   if (tab === "visao-geral") url.searchParams.delete("aba");
   else url.searchParams.set("aba", tab);
-  if (candidacy && (tab === "territorio" || tab === "base" || tab === "patrimonio" || tab === "contas" || tab === "fontes")) url.searchParams.set("candidatura", candidacy);
-  else url.searchParams.delete("candidatura");
-  if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+  if (
+    candidacy &&
+    (
+      tab === "territorio" ||
+      tab === "base" ||
+      tab === "socioeleitoral" ||
+      tab === "patrimonio" ||
+      tab === "contas" ||
+      tab === "fontes"
+    )
+  ) {
+    url.searchParams.set("candidatura", candidacy);
+  } else {
+    url.searchParams.delete("candidatura");
+  }
+  if (url.href !== window.location.href) {
+    window.history.replaceState(window.history.state, "", url);
+  }
 }
 
 function loadState(q: { isError: boolean; isPending: boolean }): LoadState {
@@ -65,11 +109,6 @@ function Unavailable({ children }: Readonly<{ children: string }>) {
   return <DataState kind="no_coverage">{children}</DataState>;
 }
 
-/**
- * Perfil: quem a pessoa é nas urnas. Cabeçalho pela candidatura oficial mais recente; abas na ordem de leitura
- * (visão geral → histórico → território → patrimônio → contas → fontes). O cadastro anterior (eleições, bens) só
- * aparece para quem ainda não tem candidatura na camada eleitoral.
- */
 export function PoliticianProfile({
   politician,
   elections,
@@ -90,14 +129,18 @@ export function PoliticianProfile({
   useEffect(() => writeUrl(tab, requested ?? null), [tab, requested]);
 
   const open = (next: TabId, candidacy?: string | null) =>
-    setView((v) => ({ tab: next, candidacy: candidacy === undefined ? v.candidacy : candidacy }));
-  const pick = (candidacy: string) => setView((v) => ({ ...v, candidacy }));
+    setView((view) => ({
+      tab: next,
+      candidacy: candidacy === undefined ? view.candidacy : candidacy,
+    }));
+  const pick = (candidacy: string) => setView((view) => ({ ...view, candidacy }));
 
-  const TABS: TabDef<TabId>[] = [
+  const tabs: TabDef<TabId>[] = [
     { id: "visao-geral", label: "Visão geral" },
     { id: "historico", label: "Histórico eleitoral" },
     { id: "territorio", label: "Território" },
     { id: "base", label: "Base eleitoral" },
+    { id: "socioeleitoral", label: "Perfil socioeleitoral" },
     { id: "patrimonio", label: "Patrimônio" },
     { id: "contas", label: "Contas" },
     { id: "fontes", label: "Fontes" },
@@ -105,28 +148,44 @@ export function PoliticianProfile({
     ...(hasCamara ? [{ id: "camara" as TabId, label: "Câmara" }] : []),
   ];
 
-  const loading = <DataState kind="loading" title="Carregando dados eleitorais" height="h-40" />;
+  const loading = (
+    <DataState kind="loading" title="Carregando dados eleitorais" height="h-40" />
+  );
   const failed = (
-    <DataState kind="error" title="Não foi possível carregar os dados eleitorais." action={<RetryButton onRetry={() => xrayQ.refetch()} />}>
+    <DataState
+      kind="error"
+      title="Não foi possível carregar os dados eleitorais."
+      action={<RetryButton onRetry={() => xrayQ.refetch()} />}
+    >
       Falha de comunicação não é ausência de dados.
     </DataState>
   );
-  /** Conteúdo eleitoral, com carregamento, falha e "sem candidatura" ditos com clareza. */
   const electoralOr = (render: () => ReactNode, legacy: () => ReactNode) => {
     if (xrayState === "pending") return loading;
     if (xrayState === "error") return failed;
     return electoral ? render() : legacy();
   };
-  const picker = selected && <CandidacyPicker candidacies={candidacies} value={selected.candidacyId} onChange={pick} />;
+  const picker = selected && (
+    <CandidacyPicker
+      candidacies={candidacies}
+      value={selected.candidacyId}
+      onChange={pick}
+    />
+  );
 
   return (
     <div className="space-y-6">
       <ProfileHeader politician={politician} xray={xray} xrayState={xrayState} />
 
-      <ProfileTabs tabs={TABS} active={tab} onChange={(id) => open(id)} idPrefix={`perfil-${politician.id}`}>
+      <ProfileTabs tabs={tabs} active={tab} onChange={(id) => open(id)} idPrefix={`perfil-${politician.id}`}>
         {tab === "visao-geral" &&
           electoralOr(
-            () => <ProfileOverview data={xray!} onOpenTerritory={(id) => open("territorio", id)} />,
+            () => (
+              <ProfileOverview
+                data={xray!}
+                onOpenTerritory={(id) => open("territorio", id)}
+              />
+            ),
             () => <OverviewTab politician={politician} elections={elections} assets={assets} />,
           )}
         {tab === "historico" &&
@@ -154,13 +213,34 @@ export function PoliticianProfile({
             ),
             () => <Unavailable>Sem votação importada na camada eleitoral para este perfil.</Unavailable>,
           )}
+        {tab === "socioeleitoral" &&
+          electoralOr(
+            () => (
+              <div className="space-y-4">
+                {picker}
+                {selected && (
+                  <SocioElectoralPanel
+                    key={selected.candidacyId}
+                    candidacy={selected}
+                  />
+                )}
+              </div>
+            ),
+            () => (
+              <Unavailable>
+                Sem votação importada para construir o perfil socioeleitoral.
+              </Unavailable>
+            ),
+          )}
         {tab === "patrimonio" &&
           electoralOr(
             () => (
               <div className="space-y-4">
                 {picker}
                 {selected && <AssetsPanel key={selected.candidacyId} c={selected} />}
-                {xray && xray.assetsEvolution.length > 0 && <EvolutionList data={{ ...xray, evolution: [] }} />}
+                {xray && xray.assetsEvolution.length > 0 && (
+                  <EvolutionList data={{ ...xray, evolution: [] }} />
+                )}
               </div>
             ),
             () => (status.assets === "pending" ? loading : <AssetsTab assets={assets} />),
@@ -187,12 +267,19 @@ export function PoliticianProfile({
           </div>
         )}
         {tab === "score" && <ScoreTab score={score} />}
-        {tab === "camara" && <CamaraTab politicianId={politician.id} camaraId={politician.camaraId ?? null} />}
+        {tab === "camara" && (
+          <CamaraTab politicianId={politician.id} camaraId={politician.camaraId ?? null} />
+        )}
       </ProfileTabs>
 
       <p className="text-xs text-fg-muted">
-        Dados públicos oficiais, com a fonte em cada número. Quando a fonte não informa, aparece &ldquo;—&rdquo;: ausência não é zero.{" "}
-        <button type="button" onClick={() => open("fontes")} className="mi-underline focus-ring rounded text-accent-text">
+        Dados públicos oficiais, com a fonte em cada número. Quando a fonte não informa,
+        aparece &ldquo;—&rdquo;: ausência não é zero.{" "}
+        <button
+          type="button"
+          onClick={() => open("fontes")}
+          className="mi-underline focus-ring rounded text-accent-text"
+        >
           Ver fontes
         </button>
       </p>
@@ -200,7 +287,9 @@ export function PoliticianProfile({
       <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-medium text-fg-soft">Dados incorretos?</p>
-          <p className="text-xs text-fg-muted">Políticos, assessorias ou cidadãos podem pedir revisão, com a fonte oficial.</p>
+          <p className="text-xs text-fg-muted">
+            Políticos, assessorias ou cidadãos podem pedir revisão, com a fonte oficial.
+          </p>
         </div>
         <TransitionLink
           href="/suporte"
