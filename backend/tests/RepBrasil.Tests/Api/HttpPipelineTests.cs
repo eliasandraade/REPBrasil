@@ -36,6 +36,7 @@ public class HttpPipelineTests
             b.UseEnvironment(environment);
             b.UseSetting("AllowedOrigins", Origin);
             b.UseSetting("ConnectionStrings:Postgres", "Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=1");
+            b.UseSetting("Migrate:SkipStartupApply", "true");
             foreach (var (key, value) in settings) b.UseSetting(key, value);
             b.ConfigureServices(s => s.AddControllers().AddApplicationPart(typeof(PipelineProbeController).Assembly));
         });
