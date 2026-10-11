@@ -1,0 +1,29 @@
+# TEMPORÁRIO: lista os achados do SonarCloud deste PR no log (o painel do Sonar não é acessível do ambiente de
+# desenvolvimento). Somente leitura de dados públicos; sem segredos. Removido no commit seguinte.
+name: Sonar issues (temporário)
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  sonar-issues:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Esperar a análise deste commit
+        run: sleep 150
+      - name: Achados de segurança e hotspots do PR 17
+        run: |
+          base="https://sonarcloud.io/api"
+          q="componentKeys=eliasandraade_REPBrasil&pullRequest=17&resolved=false&ps=500"
+          curl -sf "$base/issues/search?$q&impactSoftwareQualities=SECURITY" \
+            | jq -r '.issues[] | [.rule, (.impacts|map(.softwareQuality+":"+.severity)|join(",")), .severity, .type, .component, (.line|tostring), .message] | @tsv'
+          echo "--- tipo VULNERABILITY"
+          curl -sf "$base/issues/search?$q&types=VULNERABILITY" \
+            | jq -r '.issues[] | [.rule, .severity, .component, (.line|tostring), .message] | @tsv'
+          echo "--- hotspots"
+          curl -sf "$base/hotspots/search?projectKey=eliasandraade_REPBrasil&pullRequest=17&ps=100" \
+            | jq -r '.hotspots[] | [.ruleKey, .vulnerabilityProbability, .status, .component, (.line|tostring), .message] | @tsv'
+          echo "--- medidas"
+          curl -sf "$base/measures/component?component=eliasandraade_REPBrasil&pullRequest=17&metricKeys=new_security_rating,new_vulnerabilities,new_security_hotspots,new_software_quality_security_rating,new_software_quality_security_issues" \
+            | jq -c '.component.measures'
