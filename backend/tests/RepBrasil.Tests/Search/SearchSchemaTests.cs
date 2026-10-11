@@ -173,6 +173,9 @@ public class SearchSchemaTests
             var found = await WithSeedAsync(db => new PoliticianRepository(db).SearchAsync(q, null, null, null, 1, 20, Ct));
             Assert.Equal([Zefa], found.Items.Select(p => p.Id));
         }
+        // o termo mais longo vai pelo índice; os demais filtram (LIKE ALL): um termo que não casa exclui a linha
+        var partial = await WithSeedAsync(db => new PoliticianRepository(db).SearchAsync("josefa inexistente", null, null, null, 1, 20, Ct));
+        Assert.Empty(partial.Items);
         var midWord = await WithSeedAsync(db => new PoliticianRepository(db).SearchAsync("sefa", null, null, null, 1, 20, Ct));
         Assert.Empty(midWord.Items); // o termo começa uma palavra; não casa no meio
 

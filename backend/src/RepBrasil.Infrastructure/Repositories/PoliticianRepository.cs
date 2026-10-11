@@ -10,6 +10,9 @@ namespace RepBrasil.Infrastructure.Repositories;
 
 public class PoliticianRepository : IPoliticianRepository
 {
+    private const string NameSearchSql =
+        $"""SELECT p.* FROM public."Politicians" p WHERE p."DeletedAt" IS NULL{PoliticianNameMatch.Where}""";
+
     private readonly ApplicationDbContext _db;
 
     public PoliticianRepository(ApplicationDbContext db)
@@ -31,10 +34,8 @@ public class PoliticianRepository : IPoliticianRepository
         IQueryable<Politician> q;
         if (terms.Count > 0)
         {
-            // o texto do SQL só ganha nomes de parâmetro (@t0, @t1…); os termos vão como valores
-            var parameters = new List<object>();
-            var sql = $"""SELECT p.* FROM public."Politicians" p WHERE p."DeletedAt" IS NULL{PoliticianNameMatch.Conditions(terms, parameters)}""";
-            q = _db.Politicians.FromSqlRaw(sql, parameters.ToArray());
+            // SQL constante; os termos vão só como valores de parâmetro
+            q = _db.Politicians.FromSqlRaw(NameSearchSql, PoliticianNameMatch.WhereParameters(terms));
         }
         else
         {
