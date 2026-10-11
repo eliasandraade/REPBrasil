@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Assets.Queries;
+using RepBrasil.Application.DataIntelligence;
 using RepBrasil.Application.Electoral;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
@@ -66,6 +67,8 @@ builder.Services.AddScoped<IRankingRepository, RankingRepository>();
 builder.Services.AddScoped<RankingService>();
 builder.Services.AddScoped<IPartyRepository, PartyRepository>();
 builder.Services.AddScoped<PartyService>();
+builder.Services.AddScoped<IDataIntelligenceRepository, DataIntelligenceRepository>();
+builder.Services.AddScoped<DataIntelligenceService>();
 
 // Busca global (políticos, territórios, partidos, pleitos); o catálogo pequeno fica na memória do processo
 builder.Services.AddMemoryCache();
