@@ -64,7 +64,10 @@ export function DataExplorer() {
 
   const setUrl = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(search.toString());
-    for (const [key, value] of Object.entries(updates)) value === null ? params.delete(key) : params.set(key, value);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null) params.delete(key);
+      else params.set(key, value);
+    }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [pathname, router, search]);
 
