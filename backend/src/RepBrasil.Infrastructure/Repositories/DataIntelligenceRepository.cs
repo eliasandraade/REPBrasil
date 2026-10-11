@@ -17,8 +17,10 @@ public sealed class DataIntelligenceRepository(ApplicationDbContext db) : IDataI
              ORDER BY i.provider, i.name, i.code
             """, ct);
 
-    public Task<IReadOnlyList<IndicatorValueDto>> ValuesAsync(string indicator, int? period, string? uf, CancellationToken ct) =>
-        Query<IndicatorValueDto>("""
+    public Task<IReadOnlyList<IndicatorValueDto>> ValuesAsync(string indicator, int? period, string? uf, CancellationToken ct)
+    {
+        object periodParameter = period.HasValue ? period.Value : DBNull.Value;
+        return Query<IndicatorValueDto>("""
             WITH current_value AS (
               SELECT DISTINCT ON (v.indicator_code, v.municipality_ibge_code, v.period)
                      v.indicator_code, v.municipality_ibge_code, v.period, v.value,
@@ -35,7 +37,8 @@ public sealed class DataIntelligenceRepository(ApplicationDbContext db) : IDataI
               LEFT JOIN electoral.municipality m ON m.ibge_code::text = c.municipality_ibge_code::text
              WHERE ({2} = '' OR m.state_code = {2})
              ORDER BY c.period DESC, c.value DESC, c.municipality_ibge_code
-            """, ct, indicator, period, uf ?? "");
+            """, ct, indicator, periodParameter, uf ?? "");
+    }
 
     public Task<IReadOnlyList<CorrelationPointDto>> IndicatorPairsAsync(
         string xIndicator, string yIndicator, int period, string? uf, CancellationToken ct) =>
