@@ -27,6 +27,33 @@ def test_sidra_payload_skips_header_and_missing_observations() -> None:
     ]
 
 
+def test_sidra_payload_detects_real_dimension_order() -> None:
+    payload = [
+        {
+            "D1C": "Município (Código)",
+            "D1N": "Município",
+            "D2C": "Variável (Código)",
+            "D2N": "Variável",
+            "D3C": "Ano (Código)",
+            "D3N": "Ano",
+            "V": "Valor",
+        },
+        {
+            "D1C": "2304400",
+            "D1N": "Fortaleza - CE",
+            "D2C": "93",
+            "D2N": "População residente",
+            "D3C": "2022",
+            "D3N": "2022",
+            "V": "2428678",
+        },
+    ]
+    rows = parse_sidra_payload(payload)
+    assert [(r.municipality_ibge_code, r.period, r.value) for r in rows] == [
+        ("2304400", 2022, Decimal("2428678")),
+    ]
+
+
 def test_sidra_url_re_emits_validated_integers() -> None:
     url = build_sidra_url(table=5938, variable=37, period=2022)
     assert url.endswith("/t/5938/n6/all/v/37/p/2022")
