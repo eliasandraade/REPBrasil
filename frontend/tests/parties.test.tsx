@@ -4,21 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapLayerResponse } from "@/lib/elections/xray-types";
 import type { PartiesResponse, PartyProfileResponse, PartyResult } from "@/lib/parties";
-
-const nav = vi.hoisted(() => ({ pathname: "/partidos", search: "", replace: vi.fn(), push: vi.fn() }));
-
-vi.mock("next/navigation", () => ({
-  usePathname: () => nav.pathname,
-  useSearchParams: () => new URLSearchParams(nav.search),
-  useRouter: () => ({ replace: nav.replace, push: nav.push, prefetch: vi.fn() }),
-}));
-vi.mock("next/link", () => ({
-  default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
-    <a href={href} {...rest}>
-      {children}
-    </a>
-  ),
-}));
+import { nav } from "./support/next";
 
 import { PartiesExplorer, changeText } from "@/components/parties/PartiesExplorer";
 import { PartyProfile } from "@/components/parties/PartyProfile";
@@ -94,6 +80,7 @@ function api(raw: string) {
 }
 
 function renderWith(ui: ReactNode, search = "") {
+  nav.pathname = "/partidos";
   nav.search = search;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);

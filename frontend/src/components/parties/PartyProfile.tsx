@@ -10,6 +10,7 @@ import { buildElectionsPath } from "@/lib/elections/route";
 import { politicianPath } from "@/lib/paths";
 import { partiesApi, type PartyDetail, type PartyProfileResponse, type PartyResult, type PartyTerritory } from "@/lib/parties";
 import { DataState, RetryButton } from "@/components/ui/DataState";
+import { MethodologyBox } from "@/components/ui/MethodologyBox";
 import { changeText } from "./PartiesExplorer";
 
 const int = (raw: string | null) => (raw && /^\d{1,5}$/.test(raw) ? Number(raw) : null);
@@ -91,19 +92,7 @@ function Profile({ data, onChoose }: Readonly<{ data: PartyProfileResponse; onCh
       )}
       <Identity data={data} />
 
-      <details className="rounded-lg border border-line bg-surface/60 px-4 py-3 text-xs text-fg-muted">
-        <summary className="cursor-pointer font-medium text-fg-soft">Metodologia e definições</summary>
-        <p className="mt-2 leading-relaxed">{data.methodology}</p>
-        <dl className="mt-2 space-y-1">
-          {Object.entries(data.definitions).map(([k, v]) => (
-            <div key={k}>
-              <dt className="inline text-fg-soft">{k}: </dt>
-              <dd className="inline">{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-2">{data.freshness.note}</p>
-      </details>
+      <MethodologyBox methodology={data.methodology} definitions={data.definitions} freshness={data.freshness.note} />
     </div>
   );
 }

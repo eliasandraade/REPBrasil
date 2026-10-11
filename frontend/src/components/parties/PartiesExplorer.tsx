@@ -8,6 +8,7 @@ import { formatCount, formatPercent, UNAVAILABLE } from "@/lib/elections/format"
 import { points } from "@/lib/elections/base";
 import { defaultPick, partiesApi, partyPath, resultFor, type PartiesResponse, type PartyResult, type PartySummary } from "@/lib/parties";
 import { DataState, RetryButton } from "@/components/ui/DataState";
+import { MethodologyBox } from "@/components/ui/MethodologyBox";
 
 const field = "w-full rounded-md border border-line bg-surface px-2.5 py-2 text-sm text-fg focus-ring";
 const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted";
@@ -179,19 +180,7 @@ function PartyList({
           </li>
         ))}
       </ol>
-      <details className="rounded-lg border border-line bg-surface/60 px-4 py-3 text-xs text-fg-muted">
-        <summary className="cursor-pointer font-medium text-fg-soft">Metodologia e definições</summary>
-        <p className="mt-2 leading-relaxed">{data.methodology}</p>
-        <dl className="mt-2 space-y-1">
-          {Object.entries(data.definitions).map(([k, v]) => (
-            <div key={k}>
-              <dt className="inline text-fg-soft">{k}: </dt>
-              <dd className="inline">{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-2">{data.freshness.note}</p>
-      </details>
+      <MethodologyBox methodology={data.methodology} definitions={data.definitions} freshness={data.freshness.note} />
     </section>
   );
 }
