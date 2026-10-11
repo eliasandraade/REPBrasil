@@ -75,6 +75,19 @@ function RankIcon({ className }: { className?: string }) {
   );
 }
 
+/** Dados: pontos conectados por eixos, sem iconografia partidária. */
+function DataIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 19V5" />
+      <path d="M4 19h16" />
+      <circle cx="9" cy="14" r="1.5" />
+      <circle cx="13" cy="10" r="1.5" />
+      <circle cx="18" cy="7" r="1.5" />
+    </svg>
+  );
+}
+
 function LifeBuoyIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -115,6 +128,7 @@ const NAV_SECTIONS = [
       { href: "/eleicoes", label: "Eleições", Icon: ResultsIcon, exact: false },
       { href: "/partidos", label: "Partidos", Icon: GroupIcon, exact: false },
       { href: "/rankings", label: "Rankings", Icon: RankIcon, exact: false },
+      { href: "/dados", label: "Dados", Icon: DataIcon, exact: false },
       { href: "/manifesto", label: "Manifesto", Icon: BookOpenIcon, exact: false },
     ],
   },
