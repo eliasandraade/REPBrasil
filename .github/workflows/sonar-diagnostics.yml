@@ -1,0 +1,24 @@
+name: Sonar Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print SonarQube Cloud issues for this PR
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          curl -fsS --get 'https://sonarcloud.io/api/issues/search' \
+            --data-urlencode 'componentKeys=eliasandraade_REPBrasil' \
+            --data-urlencode "pullRequest=${PR_NUMBER}" \
+            --data-urlencode 'issueStatuses=OPEN,CONFIRMED' \
+            --data-urlencode 'ps=100' \
+          | jq -r '.issues[] | [.rule, .severity, .type, .component, (.line // 0), .message] | @tsv'
