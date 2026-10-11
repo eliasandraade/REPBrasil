@@ -25,8 +25,14 @@ builder.Services.AddScoped<IScoreRepository, ScoreRepository>();
 builder.Services.AddScoped<GetPoliticianScoreQuery>();
 builder.Services.AddScoped<GetPoliticianScoreHistoryQuery>();
 
-// Inteligência eleitoral (schema electoral, somente leitura)
-builder.Services.AddScoped<IElectoralReadRepository, ElectoralReadRepository>();
+var lakeBaseUrl = builder.Configuration["ElectoralLake:BaseUrl"] ?? "http://electoral-lake.railway.internal:8080";
+builder.Services.AddHttpClient<IElectoralLakeClient, ElectoralLakeClient>(client =>
+{
+    client.BaseAddress = new Uri(lakeBaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddScoped<ElectoralReadRepository>();
+builder.Services.AddScoped<IElectoralReadRepository, HybridElectoralReadRepository>();
 builder.Services.AddScoped<ElectoralCatalogService>();
 builder.Services.AddScoped<SectionResultsService>();
 builder.Services.AddScoped<CandidacyService>();
@@ -58,18 +64,15 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
-// Bind to Railway-injected PORT (fallback 5000 for local dev)
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
 builder.WebHost.UseUrls($"http://+:{port}");
 
 var app = builder.Build();
 
-// Swagger active in staging — temporary, will be protected or removed before public launch
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors("App");
 
-// UseHttpsRedirection omitted in Production — Railway terminates TLS at the proxy layer
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
@@ -77,8 +80,6 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 
-// Expose a manual migrate endpoint — call POST /migrate after deployment if needed.
-// Avoids blocking startup with a potentially slow DB connection at Railway.
 if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
 {
     app.MapPost("/migrate", async (ApplicationDbContext db, ILogger<Program> logger) =>
