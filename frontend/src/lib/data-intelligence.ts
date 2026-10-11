@@ -55,6 +55,16 @@ export interface ClusterResponse {
   methodology: string;
 }
 
+export interface CandidacyCorrelationParams {
+  xIndicator: string;
+  period: number;
+  candidacyId: string;
+  year: number;
+  round: number;
+  office: number;
+  uf: string;
+}
+
 export function getIndicators(): Promise<Indicator[]> {
   return fetchJson<Indicator[]>("/api/v1/data/indicators");
 }
@@ -70,6 +80,19 @@ export function getCorrelation(xIndicator: string, yIndicator: string, period: n
   const params = new URLSearchParams({ xIndicator, yIndicator, period: String(period) });
   if (uf) params.set("uf", uf);
   return fetchJson<CorrelationResponse>(`/api/v1/data/correlation?${params}`);
+}
+
+export function getCandidacyCorrelation(params: CandidacyCorrelationParams): Promise<CorrelationResponse> {
+  const query = new URLSearchParams({
+    xIndicator: params.xIndicator,
+    period: String(params.period),
+    candidacyId: params.candidacyId,
+    year: String(params.year),
+    round: String(params.round),
+    office: String(params.office),
+    uf: params.uf,
+  });
+  return fetchJson<CorrelationResponse>(`/api/v1/data/correlation?${query}`);
 }
 
 export function getClusters(indicator: string, period: number, k = 3, uf?: string): Promise<ClusterResponse> {
