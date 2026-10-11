@@ -29,7 +29,7 @@ class CamaraApi:
         if self._owns_client:
             self._client.close()
 
-    def __enter__(self) -> "CamaraApi":
+    def __enter__(self) -> CamaraApi:
         return self
 
     def __exit__(self, *_: object) -> None:
@@ -59,7 +59,14 @@ class CamaraApi:
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError("unexpected Câmara API payload")
-            pages.append(CamaraPage(str(response.url), response.status_code, response.content, payload))
+            pages.append(
+                CamaraPage(
+                    str(response.url),
+                    response.status_code,
+                    response.content,
+                    payload,
+                )
+            )
             links = payload.get("links", [])
             if not isinstance(links, list):
                 raise ValueError("unexpected Câmara API links payload")
