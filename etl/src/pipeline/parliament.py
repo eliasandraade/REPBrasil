@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 from src.sources.camara.activity import CamaraActivity
 from src.sources.transparencia.amendments import AmendmentRecord
@@ -51,7 +52,10 @@ def ensure_source(conn: Any, source: ParliamentSource) -> int:
         VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
         ON CONFLICT (provider, dataset, sha256) DO UPDATE SET
             source_url = EXCLUDED.source_url,
-            published_at = COALESCE(EXCLUDED.published_at, electoral.parliament_source.published_at),
+            published_at = COALESCE(
+                EXCLUDED.published_at,
+                electoral.parliament_source.published_at
+            ),
             metadata = EXCLUDED.metadata
         RETURNING id
         """,
@@ -75,9 +79,13 @@ def upsert_member(conn: Any, member: ParliamentMember, *, source_id: int) -> int
         raise ValueError(f"unsupported parliament institution: {member.institution}")
     if member.identity_method == "official_document":
         if member.institution != "camara":
-            raise ValueError("official-document identity linking is currently allowed only for Câmara")
+            raise ValueError(
+                "official-document identity linking is currently allowed only for Câmara"
+            )
         if not member.official_document_hash or not member.person_id:
-            raise ValueError("official-document identity requires document hash and audited person id")
+            raise ValueError(
+                "official-document identity requires document hash and audited person id"
+            )
     elif member.identity_method != "unlinked":
         raise ValueError("parliament identity must be official_document or unlinked")
     elif member.person_id is not None or member.official_document_hash is not None:
@@ -102,7 +110,8 @@ def upsert_member(conn: Any, member: ParliamentMember, *, source_id: int) -> int
                 ELSE electoral.parliament_member.person_id
             END,
             official_document_hash = CASE
-                WHEN EXCLUDED.identity_method = 'official_document' THEN EXCLUDED.official_document_hash
+                WHEN EXCLUDED.identity_method = 'official_document'
+                    THEN EXCLUDED.official_document_hash
                 ELSE electoral.parliament_member.official_document_hash
             END,
             identity_method = CASE
