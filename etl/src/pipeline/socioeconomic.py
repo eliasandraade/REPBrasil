@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from decimal import Decimal
-from typing import Iterable, Protocol
+from typing import Protocol
 
 
 @dataclass(frozen=True)
