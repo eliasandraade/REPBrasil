@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import uuid
 from collections.abc import Iterable
@@ -35,6 +36,18 @@ class LakeError(RuntimeError):
     pass
 
 
+_UF = re.compile(r"[A-Z]{2}")
+_MUNICIPALITY = re.compile(r"\d{1,5}")
+
+
+def normalize_uf(value: str) -> str:
+    """UF em maiúsculas; só duas letras — o valor vira nome de diretório (nunca separador, ponto ou curinga)."""
+    uf = str(value).strip().upper()
+    if not _UF.fullmatch(uf):
+        raise LakeError(f"invalid UF: {value!r}")
+    return uf
+
+
 @dataclass(frozen=True)
 class LakeScope:
     year: int
@@ -42,9 +55,7 @@ class LakeScope:
     uf: str
 
     def normalized(self) -> LakeScope:
-        uf = self.uf.strip().upper()
-        if len(uf) != 2:
-            raise LakeError(f"invalid UF: {self.uf!r}")
+        uf = normalize_uf(self.uf)
         if self.year < 1900 or self.turn < 1:
             raise LakeError(f"invalid election scope: {self.year}/{self.turn}")
         return LakeScope(self.year, self.turn, uf)
@@ -56,7 +67,10 @@ def scope_path(root: Path, scope: LakeScope) -> Path:
 
 
 def municipality_path(root: Path, scope: LakeScope, municipality_tse_code: str) -> Path:
-    return scope_path(root, scope) / f"municipality={str(municipality_tse_code).zfill(5)}"
+    code = str(municipality_tse_code).strip()
+    if not _MUNICIPALITY.fullmatch(code):
+        raise LakeError(f"invalid municipality TSE code: {municipality_tse_code!r}")
+    return scope_path(root, scope) / f"municipality={int(code):05d}"
 
 
 def _sha256(path: Path) -> str:

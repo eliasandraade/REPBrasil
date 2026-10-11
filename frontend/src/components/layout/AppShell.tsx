@@ -49,6 +49,20 @@ function ResultsIcon({ className }: { className?: string }) {
   );
 }
 
+/** Rankings: lista ordenada (neutra). */
+function RankIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 6h11" />
+      <path d="M10 12h11" />
+      <path d="M10 18h11" />
+      <path d="M4 6h1v4" />
+      <path d="M4 10h2" />
+      <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+    </svg>
+  );
+}
+
 function LifeBuoyIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -87,6 +101,7 @@ const NAV_SECTIONS = [
       { href: "/", label: "Início", Icon: HomeIcon, exact: true },
       { href: "/politicos", label: "Políticos", Icon: UserIcon, exact: false },
       { href: "/eleicoes", label: "Eleições", Icon: ResultsIcon, exact: false },
+      { href: "/rankings", label: "Rankings", Icon: RankIcon, exact: false },
       { href: "/manifesto", label: "Manifesto", Icon: BookOpenIcon, exact: false },
     ],
   },

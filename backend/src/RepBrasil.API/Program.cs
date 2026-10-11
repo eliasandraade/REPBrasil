@@ -7,6 +7,7 @@ using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
 using RepBrasil.Application.Overview;
 using RepBrasil.Application.Politicians.Queries;
+using RepBrasil.Application.Rankings;
 using RepBrasil.Application.Score.Queries;
 using RepBrasil.Application.Search;
 using RepBrasil.Application.Sources.Queries;
@@ -59,6 +60,9 @@ builder.Services.AddScoped<IElectoralXrayRepository, HybridElectoralXrayReposito
 builder.Services.AddScoped<XrayService>();
 builder.Services.AddScoped<TerritoryService>();
 builder.Services.AddScoped<ComparisonService>();
+builder.Services.AddScoped<ElectoralBaseService>();
+builder.Services.AddScoped<IRankingRepository, RankingRepository>();
+builder.Services.AddScoped<RankingService>();
 
 // Busca global (políticos, territórios, partidos, pleitos); o catálogo pequeno fica na memória do processo
 builder.Services.AddMemoryCache();

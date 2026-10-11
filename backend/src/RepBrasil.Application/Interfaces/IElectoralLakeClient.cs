@@ -22,4 +22,7 @@ public interface IElectoralLakeClient
         string municipalityTseCode,
         int? zone,
         CancellationToken ct);
+
+    /// <summary>Base Eleitoral (escopo frio): posição da candidatura na disputa por urna ou local de votação.</summary>
+    Task<IReadOnlyList<ContestStatsRow>> SectionContestStatsAsync(ContestStatsQuery query, CancellationToken ct);
 }

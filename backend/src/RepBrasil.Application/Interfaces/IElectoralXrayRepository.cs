@@ -64,5 +64,11 @@ public interface IElectoralXrayRepository
 
     Task<IReadOnlyList<MunicipalityRefRow>> MunicipalitiesAsync(string uf, CancellationToken ct);
 
+    /// <summary>
+    /// Base Eleitoral: posição da candidatura entre os números votados da disputa em cada território do nível pedido
+    /// (município ou zona: agregados derivados híbridos; seção ou local: fatos do BU — no lake quando o escopo é frio).
+    /// </summary>
+    Task<IReadOnlyList<ContestStatsRow>> ContestStatsAsync(ContestStatsQuery query, CancellationToken ct);
+
     Task<FreshnessRow?> FreshnessAsync(CancellationToken ct);
 }

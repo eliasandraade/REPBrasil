@@ -42,6 +42,16 @@ export const AB: Record<DataTheme, { a: string; b: string; tie: string }> = {
   dark: { a: CATEGORICAL.dark[0], b: CATEGORICAL.dark[1], tie: "#8597aa" },
 };
 
+/**
+ * Ordinal de 5 passos (um matiz), do mais fraco ao mais forte — classes da Base Eleitoral. Validado com
+ * `--ordinal` contra a terra do mapa: claro sobre #E4EAF0 (o passo mais claro ≥ 2:1), escuro sobre #15304D
+ * (no escuro, mais forte = mais claro).
+ */
+export const ORDINAL_5: Record<DataTheme, readonly string[]> = {
+  light: ["#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"],
+  dark: ["#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6", "#e6f0fc"],
+};
+
 /** "Outros" (dobra de categorias além do limite seguro). */
 export const OTHER: Record<DataTheme, string> = { light: "#9aa6b2", dark: "#6b7f94" };
 

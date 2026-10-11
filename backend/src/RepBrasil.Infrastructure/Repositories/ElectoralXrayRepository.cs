@@ -305,6 +305,68 @@ public class ElectoralXrayRepository(ApplicationDbContext db) : IElectoralXrayRe
                AND ({3} = '' OR k.scope <> 'municipal' OR k.electoral_unit = {3})
             """, ct, year, round, uf, municipalityTseCode ?? "");
 
+    // Posição entre TODOS os números de candidatura votados da disputa (vinculados ou não a um perfil). "Ahead" conta
+    // concorrentes com mais votos que a candidatura no território; empates dividem a posição.
+    private const string ContestStatsSelect = """
+        , tv AS (
+          SELECT mun, zone, section, place, coalesce(sum(votes) FILTER (WHERE is_target), 0)::bigint AS target_votes
+            FROM cand GROUP BY mun, zone, section, place
+        )
+        SELECT c.mun AS "MunicipalityTseCode", c.zone AS "Zone", c.section AS "Section", c.place AS "PlaceCode",
+               max(c.votes)::bigint AS "LeaderVotes", max(c.votes) FILTER (WHERE NOT c.is_target)::bigint AS "BestOtherVotes",
+               (count(*) FILTER (WHERE c.votes > 0))::int AS "Contestants",
+               (count(*) FILTER (WHERE NOT c.is_target AND c.votes > tv.target_votes))::int AS "Ahead",
+               tv.target_votes AS "TargetVotes"
+          FROM cand c
+          JOIN tv ON tv.mun = c.mun AND tv.zone = c.zone AND tv.section = c.section AND tv.place = c.place
+         GROUP BY c.mun, c.zone, c.section, c.place, tv.target_votes
+        """;
+
+    public Task<IReadOnlyList<ContestStatsRow>> ContestStatsAsync(ContestStatsQuery q, CancellationToken ct) =>
+        q.Level is "section" or "place"
+            // Fatos do BU vigente do município (seção ou local de votação).
+            ? Query<ContestStatsRow>($$"""
+                WITH target AS (
+                  SELECT vc.votable_id FROM electoral.votable_candidacy vc WHERE vc.candidacy_id = {0} AND vc.uf = {1}
+                ), latest AS MATERIALIZED (
+                  SELECT l.ingestion_run_id FROM electoral.latest_bu_ingestion_run l
+                   WHERE l.year = {2} AND l.turn = {3} AND l.uf = {1} AND l.municipality_tse_code = {7} AND ({8} < 0 OR l.zone = {8})
+                ), res AS (
+                  SELECT r.id, r.municipality_tse_code AS mun, r.zone, r.section, coalesce(r.polling_place_code::text, '') AS place
+                    FROM electoral.section_office_result r
+                    JOIN latest ON latest.ingestion_run_id = r.ingestion_run_id
+                   WHERE r.year = {2} AND r.turn = {3} AND r.uf = {1} AND r.municipality_tse_code = {7}
+                     AND r.office_code = {4} AND ({8} < 0 OR r.zone = {8})
+                ), cand AS (
+                  SELECT res.mun, res.zone,
+                         CASE WHEN {6} THEN res.section ELSE 0 END AS section,
+                         CASE WHEN {6} THEN '' ELSE res.place END AS place,
+                         v.votable_id, sum(v.votes)::bigint AS votes,
+                         bool_or(v.votable_id IN (SELECT votable_id FROM target)) AS is_target
+                    FROM res
+                    JOIN electoral.section_office_vote v ON v.result_id = res.id
+                    JOIN electoral.votable t ON t.id = v.votable_id AND t.vote_kind = 'candidate' AND t.election_code = {5}
+                   GROUP BY 1, 2, 3, 4, 5
+                ){{ContestStatsSelect}}
+                """, ct, q.CandidacyId, q.Uf, q.Year, q.Round, q.OfficeCode, q.ElectionCode, q.Level == "section",
+                q.MunicipalityTseCode ?? "", q.Zone ?? -1)
+            // Agregados derivados por zona × cargo (híbridos: escopos frios vêm do snapshot persistente).
+            : Query<ContestStatsRow>($$"""
+                WITH target AS (
+                  SELECT vc.votable_id FROM electoral.votable_candidacy vc WHERE vc.candidacy_id = {0} AND vc.uf = {1}
+                ), cand AS (
+                  SELECT z.municipality_tse_code AS mun, CASE WHEN {6} THEN z.zone ELSE 0 END AS zone, 0 AS section, '' AS place,
+                         z.votable_id, sum(z.votes)::bigint AS votes,
+                         bool_or(z.votable_id IN (SELECT votable_id FROM target)) AS is_target
+                    FROM electoral.votable_zone_votes_current z
+                    JOIN electoral.votable t ON t.id = z.votable_id AND t.vote_kind = 'candidate' AND t.election_code = {5}
+                   WHERE z.year = {2} AND z.turn = {3} AND z.uf = {1} AND z.office_code = {4}
+                     AND ({7} = '' OR z.municipality_tse_code = {7}) AND ({8} < 0 OR z.zone = {8})
+                   GROUP BY 1, 2, 3, 4, 5
+                ){{ContestStatsSelect}}
+                """, ct, q.CandidacyId, q.Uf, q.Year, q.Round, q.OfficeCode, q.ElectionCode, q.Level == "zone",
+                q.MunicipalityTseCode ?? "", q.Zone ?? -1);
+
     public Task<IReadOnlyList<MunicipalityRefRow>> MunicipalitiesAsync(string uf, CancellationToken ct) =>
         Query<MunicipalityRefRow>("""
             SELECT m.state_code::text AS "Uf", m.tse_code::text AS "TseCode", m.ibge_code AS "IbgeCode", m.name AS "Name",

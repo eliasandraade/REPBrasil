@@ -121,4 +121,22 @@ public sealed class ElectoralLakeClient(HttpClient http) : IElectoralLakeClient
             },
             $"candidacy votes {uf}/{municipalityTseCode}",
             ct) ?? [];
+
+    public async Task<IReadOnlyList<ContestStatsRow>> SectionContestStatsAsync(ContestStatsQuery query, CancellationToken ct) =>
+        await PostAsync<List<ContestStatsRow>>(
+            "/v1/section-contest-stats",
+            new
+            {
+                candidacyId = query.CandidacyId,
+                year = query.Year,
+                round = query.Round,
+                electionCode = query.ElectionCode,
+                officeCode = query.OfficeCode,
+                uf = query.Uf.Trim().ToUpperInvariant(),
+                municipalityTseCode = query.MunicipalityTseCode,
+                zone = query.Zone,
+                level = query.Level,
+            },
+            $"contest stats {query.Year}/{query.Round}/{query.Uf}/{query.MunicipalityTseCode}",
+            ct) ?? [];
 }

@@ -5,6 +5,7 @@ import type { AssetDeclarationItem, DataSourceItem, ElectionResultItem, Politici
 import { TransitionLink } from "@/motion/navigation";
 import { AssetsPanel, FinancePanel, RecordsPanel, TerritoryPanel } from "@/components/xray/CandidacyPanels";
 import { CandidacyPicker } from "@/components/xray/CandidacyPicker";
+import { ElectoralBasePanel } from "@/components/xray/ElectoralBasePanel";
 import { EvolutionList, XrayTimeline } from "@/components/xray/XrayTimeline";
 import { byRecency, latestCandidacy, useXray } from "@/components/xray/useXray";
 import { DataState, RetryButton } from "@/components/ui/DataState";
@@ -21,9 +22,9 @@ import { ScoreTab } from "./tabs/ScoreTab";
 export { IDENTITY_VT, InitialAvatar, type LoadState } from "./ProfileHeader";
 
 /** Abas na ordem de leitura; o id vai para a URL (?aba=…), então é estável e em português. */
-type TabId = "visao-geral" | "historico" | "territorio" | "patrimonio" | "contas" | "fontes" | "score" | "camara";
+type TabId = "visao-geral" | "historico" | "territorio" | "base" | "patrimonio" | "contas" | "fontes" | "score" | "camara";
 
-const TAB_IDS: readonly TabId[] = ["visao-geral", "historico", "territorio", "patrimonio", "contas", "fontes", "score", "camara"];
+const TAB_IDS: readonly TabId[] = ["visao-geral", "historico", "territorio", "base", "patrimonio", "contas", "fontes", "score", "camara"];
 
 /** Links antigos e do explorador: ?aba=eleicoes / ?aba=raio-x abrem o histórico eleitoral. */
 const TAB_ALIASES: Record<string, TabId> = { eleicoes: "historico", "raio-x": "historico", overview: "visao-geral", camara: "camara" };
@@ -50,7 +51,7 @@ function writeUrl(tab: TabId, candidacy: string | null) {
   const url = new URL(window.location.href);
   if (tab === "visao-geral") url.searchParams.delete("aba");
   else url.searchParams.set("aba", tab);
-  if (candidacy && (tab === "territorio" || tab === "patrimonio" || tab === "contas" || tab === "fontes")) url.searchParams.set("candidatura", candidacy);
+  if (candidacy && (tab === "territorio" || tab === "base" || tab === "patrimonio" || tab === "contas" || tab === "fontes")) url.searchParams.set("candidatura", candidacy);
   else url.searchParams.delete("candidatura");
   if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
 }
@@ -96,6 +97,7 @@ export function PoliticianProfile({
     { id: "visao-geral", label: "Visão geral" },
     { id: "historico", label: "Histórico eleitoral" },
     { id: "territorio", label: "Território" },
+    { id: "base", label: "Base eleitoral" },
     { id: "patrimonio", label: "Patrimônio" },
     { id: "contas", label: "Contas" },
     { id: "fontes", label: "Fontes" },
@@ -138,6 +140,16 @@ export function PoliticianProfile({
               <>
                 {picker}
                 {selected && <TerritoryPanel key={selected.candidacyId} c={selected} />}
+              </>
+            ),
+            () => <Unavailable>Sem votação importada na camada eleitoral para este perfil.</Unavailable>,
+          )}
+        {tab === "base" &&
+          electoralOr(
+            () => (
+              <>
+                {picker}
+                {selected && <ElectoralBasePanel key={selected.candidacyId} c={selected} />}
               </>
             ),
             () => <Unavailable>Sem votação importada na camada eleitoral para este perfil.</Unavailable>,

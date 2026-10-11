@@ -36,7 +36,7 @@ const LIMITS = [
   "Os votos por seção cobrem as eleições listadas acima; outros estados e anos ainda não foram importados.",
   "Quando a fonte não informa um dado, a tela mostra “—”: ausência não é zero.",
   "Candidatura e pessoa só são ligadas por identificador oficial; sem prova, ficam separadas.",
-  "Nenhuma nota, índice ou ranking de político é exibido.",
+  "Nenhuma nota ou índice de político é exibido. Rankings só ordenam dados oficiais dentro de uma disputa comparável, com o critério publicado.",
   "A plataforma não substitui as fontes oficiais: confira sempre o arquivo vinculado.",
 ] as const;
 

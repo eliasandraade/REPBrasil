@@ -22,7 +22,8 @@ namespace RepBrasil.API.Controllers;
 ///   GET /api/v1/elections/candidacies/{candidacyId}/assets?compareTo=
 ///   GET /api/v1/elections/candidacies/{candidacyId}/finance
 ///   GET /api/v1/elections/{year}/{round}/states/{uf}/candidates?municipality=&amp;zone=&amp;office=&amp;party=&amp;q=&amp;status=&amp;elected=&amp;minVotes=&amp;sort=&amp;dir=&amp;page=&amp;pageSize=
-///   GET /api/v1/elections/{year}/{round}/states/{uf}/map?layer=intensity|share|winner|growth|decline|ab&amp;office=&amp;candidacy=&amp;base=&amp;a=&amp;b=&amp;municipality=
+///   GET /api/v1/elections/{year}/{round}/states/{uf}/map?layer=intensity|share|winner|growth|decline|ab|base&amp;office=&amp;candidacy=&amp;base=&amp;a=&amp;b=&amp;municipality=
+///   GET /api/v1/elections/candidacies/{id}/base?level=municipality|zone|section|place&amp;uf=&amp;municipality=&amp;zone=&amp;compareTo=
 ///   GET /api/v1/elections/compare?candidacy=…(máx. 5)&amp;uf=CE&amp;level=state|municipality|zone|section|place&amp;municipality=&amp;zone=
 ///
 /// <c>{municipality}</c> aceita slug, código TSE (5 dígitos) ou IBGE (7 dígitos).
@@ -37,7 +38,8 @@ public class ElectionsController(
     SectionResultsService results,
     CandidacyService candidacies,
     TerritoryService territory,
-    ComparisonService comparison) : ControllerBase
+    ComparisonService comparison,
+    ElectoralBaseService electoralBase) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(ElectionsResponse), StatusCodes.Status200OK)]
@@ -87,6 +89,25 @@ public class ElectionsController(
         CancellationToken ct) =>
         territory.DistributionAsync(candidacyId, level, uf, municipality, zone, ct);
 
+    /// <summary>
+    /// Base Eleitoral da candidatura: posição, margem, percentis, classificação explicável (fórmula versionada) e variação
+    /// em relação à candidatura comparável anterior, por município, zona, seção ou local de votação.
+    /// </summary>
+    [HttpGet("candidacies/{candidacyId:guid}/base")]
+    [EnableRateLimiting(ApiRateLimits.Heavy)]
+    [ProducesResponseType(typeof(ElectoralBaseResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public Task<ElectoralBaseResponse> CandidacyBase(
+        Guid candidacyId,
+        [FromQuery] string? level,
+        [FromQuery] string? uf,
+        [FromQuery] string? municipality,
+        [FromQuery] int? zone,
+        [FromQuery] Guid? compareTo,
+        CancellationToken ct) =>
+        electoralBase.BuildAsync(candidacyId, level, uf, municipality, zone, compareTo, ct);
+
     [HttpGet("candidacies/{candidacyId:guid}/assets")]
     [ProducesResponseType(typeof(CandidacyAssetsResponse), StatusCodes.Status200OK)]
     public Task<CandidacyAssetsResponse> CandidacyAssets(Guid candidacyId, [FromQuery] Guid? compareTo, CancellationToken ct) =>
@@ -132,7 +153,9 @@ public class ElectionsController(
         [FromQuery] Guid? b,
         [FromQuery] string? municipality,
         CancellationToken ct) =>
-        territory.MapAsync(new MapQuery(year, round, uf, layer, office, candidacy, baseCandidacy, a, b, municipality), ct);
+        string.Equals(layer?.Trim(), "base", StringComparison.OrdinalIgnoreCase)
+            ? electoralBase.MapAsync(new MapQuery(year, round, uf, "base", office, candidacy, null, null, null, municipality), ct)
+            : territory.MapAsync(new MapQuery(year, round, uf, layer!, office, candidacy, baseCandidacy, a, b, municipality), ct);
 
     /// <summary>Comparação de até 5 candidaturas (limite imposto aqui e no frontend).</summary>
     [HttpGet("compare")]

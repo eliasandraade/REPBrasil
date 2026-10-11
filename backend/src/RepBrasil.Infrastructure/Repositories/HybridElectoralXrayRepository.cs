@@ -180,4 +180,18 @@ public sealed class HybridElectoralXrayRepository(
         inner.MunicipalitiesAsync(uf, ct);
 
     public Task<FreshnessRow?> FreshnessAsync(CancellationToken ct) => inner.FreshnessAsync(ct);
+
+    /// <summary>
+    /// Município e zona: agregados derivados (já híbridos no Postgres). Seção e local de escopo arquivado: os fatos
+    /// detalhados estão no lake — o Postgres responderia "sem votos" e a posição sairia errada.
+    /// </summary>
+    public async Task<IReadOnlyList<ContestStatsRow>> ContestStatsAsync(ContestStatsQuery query, CancellationToken ct)
+    {
+        if (query.Level is not ("section" or "place"))
+            return await inner.ContestStatsAsync(query, ct);
+        var archived = await ArchivedScopesAsync(query.Uf, ct);
+        return archived.Contains((query.Year, query.Round))
+            ? await lake.SectionContestStatsAsync(query, ct)
+            : await inner.ContestStatsAsync(query, ct);
+    }
 }

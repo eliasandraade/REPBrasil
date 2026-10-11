@@ -221,3 +221,30 @@ public sealed class FreshnessRow
     public int CurrentRuns { get; init; }
     public DateTime? CurrentLastFinishedAt { get; init; }
 }
+
+/// <summary>Recorte das estatísticas de disputa por território (Base Eleitoral).</summary>
+public sealed record ContestStatsQuery(
+    Guid CandidacyId, int Year, int Round, int ElectionCode, int OfficeCode, string Uf, string? MunicipalityTseCode,
+    int? Zone, string Level);
+
+/// <summary>
+/// Posição de uma candidatura entre TODOS os números de candidatura votados da disputa num território
+/// (município, zona, urna ou local de votação). Contagens de votáveis do BU — vinculados ou não ao perfil.
+/// </summary>
+public sealed class ContestStatsRow
+{
+    public string MunicipalityTseCode { get; init; } = string.Empty;
+    /// <summary>0 no nível município.</summary>
+    public int Zone { get; init; }
+    /// <summary>Seção principal da urna (0 fora do nível seção).</summary>
+    public int Section { get; init; }
+    /// <summary>Vazio fora do nível local de votação.</summary>
+    public string PlaceCode { get; init; } = string.Empty;
+    public long LeaderVotes { get; init; }
+    /// <summary>Melhor votação de OUTRA candidatura no território (null = sem concorrente votado).</summary>
+    public long? BestOtherVotes { get; init; }
+    public int Contestants { get; init; }
+    /// <summary>Quantas candidaturas tiveram mais votos que esta no território.</summary>
+    public int Ahead { get; init; }
+    public long TargetVotes { get; init; }
+}

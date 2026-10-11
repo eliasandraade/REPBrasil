@@ -190,3 +190,114 @@ def result_votes(
         }
         for row in metadata
     ]
+
+
+# ---------------------------------------------------------------------------
+# Base Eleitoral (escopo frio): posição da candidatura entre os números votados da disputa, por urna ou local.
+
+CONTEST_STATS_LEVELS = ("section", "place")
+
+
+def contest_stats_frame(
+    votes: pl.LazyFrame,
+    results: pl.DataFrame,
+    *,
+    target_votable_ids: set[int],
+    level: str,
+) -> list[dict[str, Any]]:
+    """Mesma regra do SQL do backend (ElectoralXrayRepository.ContestStatsAsync): por território, votos do mais votado,
+    do melhor concorrente, concorrentes votados, quantos tiveram mais votos que a candidatura e os votos dela.
+
+    `votes`: fatos (result_id, votable_id, votes) já filtrados aos números de candidatura do cargo/eleição.
+    `results`: urnas vigentes (result_id, municipality_tse_code, zone, section, place)."""
+    if level not in CONTEST_STATS_LEVELS:
+        raise ValueError(f"level must be one of {CONTEST_STATS_LEVELS}")
+    key = ["municipality_tse_code", "zone", "section"] if level == "section" else ["municipality_tse_code", "zone", "place"]
+    per = (
+        votes.select("result_id", "votable_id", "votes")
+        .join(results.lazy(), on="result_id", how="inner")
+        .group_by([*key, "votable_id"])
+        .agg(pl.col("votes").sum().alias("votes"))
+        .with_columns(pl.col("votable_id").is_in(sorted(target_votable_ids)).alias("is_target"))
+    )
+    target = per.group_by(key).agg(pl.col("votes").filter(pl.col("is_target")).sum().alias("target_votes"))
+    stats = (
+        per.join(target, on=key, how="inner")
+        .group_by(key)
+        .agg(
+            pl.col("votes").max().alias("leader"),
+            pl.col("votes").filter(~pl.col("is_target")).max().alias("best_other"),
+            (pl.col("votes") > 0).sum().alias("contestants"),
+            ((~pl.col("is_target")) & (pl.col("votes") > pl.col("target_votes"))).sum().alias("ahead"),
+            pl.col("target_votes").first().alias("target"),
+        )
+        .sort(key)
+        .collect()
+    )
+    return [
+        {
+            "municipalityTseCode": str(row["municipality_tse_code"]),
+            "zone": int(row["zone"]),
+            "section": int(row["section"]) if level == "section" else 0,
+            "placeCode": str(row["place"]) if level == "place" else "",
+            "leaderVotes": int(row["leader"] or 0),
+            "bestOtherVotes": int(row["best_other"]) if row["best_other"] is not None else None,
+            "contestants": int(row["contestants"]),
+            "ahead": int(row["ahead"]),
+            "targetVotes": int(row["target"] or 0),
+        }
+        for row in stats.iter_rows(named=True)
+    ]
+
+
+def section_contest_stats(
+    conn: psycopg.Connection,
+    root: Path,
+    *,
+    candidacy_id: str,
+    year: int,
+    turn: int,
+    election_code: int,
+    office_code: int,
+    uf: str,
+    municipality_tse_code: str,
+    zone: int | None = None,
+    level: str = "section",
+) -> list[dict[str, Any]]:
+    uf = uf.upper()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT votable_id::bigint FROM votable_candidacy WHERE candidacy_id = %s AND uf = %s",
+            (_uuid_values([candidacy_id])[0], uf),
+        )
+        targets = {int(row[0]) for row in cur.fetchall()}
+        cur.execute(
+            """SELECT id::bigint FROM votable
+                WHERE uf = %s AND vote_kind = 'candidate' AND election_code = %s AND office_code = %s""",
+            (uf, election_code, office_code),
+        )
+        candidates = [int(row[0]) for row in cur.fetchall()]
+        # urnas vigentes (metadados preservados no Postgres depois do prune): seção e local de votação
+        cur.execute(
+            """SELECT r.id::bigint, r.municipality_tse_code::text, r.zone::int, r.section::int,
+                      coalesce(r.polling_place_code::text, '')
+                 FROM latest_bu_ingestion_run l
+                 JOIN section_office_result r ON r.ingestion_run_id = l.ingestion_run_id
+                WHERE r.year = %s AND r.turn = %s AND r.uf = %s AND r.municipality_tse_code = %s
+                  AND r.office_code = %s AND (%s::int IS NULL OR r.zone = %s::int)""",
+            (year, turn, uf, municipality_tse_code, office_code, zone, zone),
+        )
+        meta = cur.fetchall()
+    if not candidates or not meta:
+        return []
+    results = pl.DataFrame(
+        meta, schema=("result_id", "municipality_tse_code", "zone", "section", "place"), orient="row"
+    )
+    votes = scan_scope(
+        root,
+        LakeScope(year, turn, uf),
+        municipality_tse_code=municipality_tse_code,
+        zone=zone,
+        votable_ids=candidates,
+    ).filter(pl.col("office_code") == int(office_code))
+    return contest_stats_frame(votes, results, target_votable_ids=targets, level=level)
