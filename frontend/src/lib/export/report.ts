@@ -294,7 +294,13 @@ export async function reportPng(report: ExportReport): Promise<Blob> {
   });
 }
 
-function download(filename: string, data: BlobPart, type: string) {
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
+function download(filename: string, data: string | Blob | ArrayBuffer, type: string) {
   const blob = data instanceof Blob ? data : new Blob([data], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -311,7 +317,7 @@ export type ExportFormat = "csv" | "xlsx" | "pdf" | "png";
 export async function downloadReport(report: ExportReport, format: ExportFormat): Promise<void> {
   const base = safeFilename(report.filename);
   if (format === "csv") download(`${base}.csv`, reportCsv(report), "text/csv;charset=utf-8");
-  else if (format === "xlsx") download(`${base}.xlsx`, reportXlsx(report), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  else if (format === "pdf") download(`${base}.pdf`, reportPdf(report), "application/pdf");
+  else if (format === "xlsx") download(`${base}.xlsx`, bytesToArrayBuffer(reportXlsx(report)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  else if (format === "pdf") download(`${base}.pdf`, bytesToArrayBuffer(reportPdf(report)), "application/pdf");
   else download(`${base}.png`, await reportPng(report), "image/png");
 }
