@@ -52,8 +52,10 @@ def parse_sidra_value(raw: object) -> Decimal | None:
 
 def _header_field(header: dict[str, Any], labels: tuple[str, ...]) -> str | None:
     for key, raw_label in header.items():
+        if not key.endswith("C"):
+            continue
         label = str(raw_label).strip().casefold()
-        if any(candidate in label for candidate in labels):
+        if any(label == candidate or candidate in label for candidate in labels):
             return key
     return None
 
@@ -63,12 +65,24 @@ def _detect_sidra_fields(payload: list[dict[str, Any]]) -> tuple[str, str]:
         return "D1C", "D2C"
 
     header = payload[0]
-    municipality_field = _header_field(header, ("município (código)", "municipio (código)", "municipio (codigo)"))
+    municipality_field = _header_field(
+        header,
+        (
+            "município",
+            "municipio",
+            "município (código)",
+            "municipio (código)",
+            "municipio (codigo)",
+        ),
+    )
     period_field = _header_field(
         header,
         (
+            "ano",
             "ano (código)",
             "ano (codigo)",
+            "período",
+            "periodo",
             "período (código)",
             "periodo (código)",
             "periodo (codigo)",
