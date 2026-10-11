@@ -323,7 +323,7 @@ export function SearchBox({ variant, autoFocus, onNavigate, onEscapeEmpty, place
           aria-autocomplete="list"
           aria-activedescendant={showPanel && activeOption ? `${listId}-${activeOption.id}` : undefined}
           aria-describedby={statusId}
-          aria-label="Buscar políticos, lugares, partidos, eleições e indicadores"
+          aria-label="Buscar políticos, lugares, partidos e eleições"
           placeholder={placeholder ?? "Buscar político, município, partido, eleição ou indicador"}
           autoComplete="off"
           spellCheck={false}
