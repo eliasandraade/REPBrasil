@@ -12,7 +12,7 @@ def test_source_hash_uses_acquired_bytes_not_only_numeric_observations() -> None
     first = b'{"D1C":"2304400","V":"1","note":"release-a"}'
     second = b'{"D1C":"2304400","V":"1","note":"release-b"}'
     assert content_sha256(first) != content_sha256(second)
-    assert content_sha256(first) == content_sha256(first)
+    assert content_sha256(first) == "d49523ebbf3d856f377b74d259919b1493922fb6b5009599c4a7a1863c252947"
 
 
 def test_changed_counts_only_real_value_changes() -> None:
