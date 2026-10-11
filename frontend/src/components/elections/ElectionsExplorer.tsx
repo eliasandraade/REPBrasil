@@ -19,7 +19,7 @@ import { SectionResults, type VoteTypeFilter } from "./SectionResults";
 import { TerritoryCandidates } from "./TerritoryCandidates";
 import { TerritoryMap, type MapPoint, type MapScope } from "./TerritoryMap";
 
-const LAYER_KINDS: ReadonlySet<MapLayerKind> = new Set(["intensity", "share", "winner", "growth", "decline", "ab"]);
+const LAYER_KINDS: ReadonlySet<MapLayerKind> = new Set(["intensity", "share", "winner", "growth", "decline", "ab", "base"]);
 
 const ibge = (code: number | null | undefined) => (code == null ? null : String(code));
 const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;

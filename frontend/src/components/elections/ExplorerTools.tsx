@@ -18,7 +18,7 @@ export interface LayerState {
   b: string | null;
 }
 
-const LAYERS: MapLayerKind[] = ["intensity", "share", "winner", "growth", "decline", "ab"];
+const LAYERS: MapLayerKind[] = ["intensity", "share", "base", "winner", "growth", "decline", "ab"];
 
 /** Nomes das candidaturas selecionadas (a URL guarda só os ids). */
 export function useSelectionNames(ids: string[], uf: string | null) {
@@ -42,7 +42,7 @@ export function useMapLayer(year: number, round: number, uf: string | null, muni
     if (!s.layer || !uf) return null;
     const p: MapLayerParams = { layer: s.layer, municipality };
     if (s.layer === "winner") return s.office ? { ...p, office: s.office } : null;
-    if (s.layer === "intensity" || s.layer === "share") return s.candidacy ? { ...p, candidacy: s.candidacy } : null;
+    if (s.layer === "intensity" || s.layer === "share" || s.layer === "base") return s.candidacy ? { ...p, candidacy: s.candidacy } : null;
     if (s.layer === "growth" || s.layer === "decline") return s.candidacy && s.base ? { ...p, candidacy: s.candidacy, base: s.base } : null;
     return s.a && s.b ? { ...p, a: s.a, b: s.b } : null;
   }, [s, uf, municipality]);
@@ -127,7 +127,7 @@ export function MapLayerBar({
               ))}
             </select>
           )}
-          {(state.layer === "intensity" || state.layer === "share") && options(state.candidacy, (v) => onChange({ candidacy: v }), "Candidatura")}
+          {(state.layer === "intensity" || state.layer === "share" || state.layer === "base") && options(state.candidacy, (v) => onChange({ candidacy: v }), "Candidatura")}
           {(state.layer === "growth" || state.layer === "decline") && (
             <>
               {options(state.base, (v) => onChange({ base: v }), "De (base)")}

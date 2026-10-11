@@ -9,6 +9,7 @@ import {
   mix,
   type DataTheme,
 } from "@/lib/dataviz/palette";
+import { BASE_CLASS_LABEL, BASE_CLASSES, baseClassColor, type BaseClass } from "./base";
 import { formatCount, formatPercent } from "./format";
 import { CELL_STATE_LABEL, comparabilityLabel, signed, signedPercent } from "./xray";
 import type { CellState, MapFeature, MapLayerKind, MapLayerResponse } from "./xray-types";
@@ -25,6 +26,7 @@ export const LAYER_LABEL: Record<MapLayerKind, string> = {
   growth: "Crescimento",
   decline: "Queda",
   ab: "A × B",
+  base: "Base eleitoral",
 };
 
 /** Paleta da camada: neutra, sem cor de partido (src/lib/dataviz/palette.ts). Tema claro por padrão. */
@@ -101,8 +103,21 @@ function abText(r: MapLayerResponse, f: MapFeature): string {
   return a === null || b === null ? reason : `${reason} · A ${formatCount(a)} × B ${formatCount(b)}`;
 }
 
+function baseText(f: MapFeature): string {
+  if (!f.categoryLabel) return stateText(f.state);
+  const votes = num(f.details.votes);
+  const rank = num(f.details.rank);
+  const contestants = num(f.details.contestants);
+  const parts = [f.categoryLabel];
+  if (votes !== null) parts.push(`${formatCount(votes)} votos`);
+  if (rank !== null && contestants !== null) parts.push(`${rank}º de ${contestants}`);
+  return parts.join(" · ");
+}
+
 function valueText(r: MapLayerResponse, f: MapFeature): string {
   switch (r.layer) {
+    case "base":
+      return baseText(f);
     case "intensity":
       return intensityText(f);
     case "share":
@@ -162,6 +177,8 @@ function deltaColor(value: number, scale: Scale): string {
 }
 
 function colorOf(r: MapLayerResponse, f: MapFeature, scale: Scale): string | null {
+  // classe da Base Eleitoral: ordinal de um matiz; território não classificado fica sem cor (nunca "muito fraco")
+  if (r.layer === "base") return f.category && (BASE_CLASSES as readonly string[]).includes(f.category) ? baseClassColor(f.category as BaseClass, scale.theme) : null;
   if (r.layer === "winner" && !manyWinners(r)) return winnerColor(f, scale);
   if (f.value === null) return null;
   if (r.layer === "ab") return abColor(f, f.value, scale);
@@ -172,6 +189,7 @@ function colorOf(r: MapLayerResponse, f: MapFeature, scale: Scale): string | nul
 }
 
 function legendOf(r: MapLayerResponse, theme: DataTheme): LegendEntry[] {
+  if (r.layer === "base") return BASE_CLASSES.map((c) => ({ key: c, label: BASE_CLASS_LABEL[c], color: baseClassColor(c, theme) }));
   if (manyWinners(r)) return [];
   if (r.layer === "winner") {
     const shown = r.legend.slice(0, CHOROPLETH_SLOTS).map((l, i) => ({ key: l.category, label: l.label, color: PALETTE_CATEGORICAL[theme][i] }));

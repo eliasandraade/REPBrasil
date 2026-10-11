@@ -15,7 +15,12 @@ if str(ROOT) not in sys.path:
 
 from src.electoral import db as electoral_db
 from src.electoral.lake import LakeError, lake_root_from_env
-from src.electoral.lake_query import candidacy_votes_by_result, result_votes, valid_votes_by_result
+from src.electoral.lake_query import (
+    candidacy_votes_by_result,
+    result_votes,
+    section_contest_stats,
+    valid_votes_by_result,
+)
 from src.electoral.lake_result_query import result_votes_from_archive, section_results
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -107,6 +112,20 @@ class Handler(BaseHTTPRequestHandler):
                         uf=str(body["uf"]),
                         municipality_tse_code=str(body["municipalityTseCode"]),
                         zone=int(body["zone"]) if body.get("zone") is not None else None,
+                    )
+                elif self.path == "/v1/section-contest-stats":
+                    result = section_contest_stats(
+                        conn,
+                        root,
+                        candidacy_id=str(body["candidacyId"]),
+                        year=int(body["year"]),
+                        turn=int(body["round"]),
+                        election_code=int(body["electionCode"]),
+                        office_code=int(body["officeCode"]),
+                        uf=str(body["uf"]),
+                        municipality_tse_code=str(body["municipalityTseCode"]),
+                        zone=int(body["zone"]) if body.get("zone") is not None else None,
+                        level=str(body.get("level", "section")),
                     )
                 elif self.path == "/v1/result-votes":
                     result_id = int(body["resultId"])

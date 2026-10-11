@@ -74,20 +74,31 @@ public class TerritoryService(IElectoralXrayRepository repo)
         var lvl = ParseLevel(level, "municipality", "zone", "section", "place");
         var c = await CandidacyAsync(candidacyId, ct);
         var contest = ContestInfo.From(c);
-        var mun = Municipality(municipality) ?? (contest.Scope == "municipal" ? contest.ElectoralUnit : null);
-        var ufCode = uf is null ? contest.Uf : Uf(uf);
-        if (lvl is "section" or "place" && (mun is null || ufCode is null))
-            throw new ElectoralBadRequestException("Seção e local de votação exigem UF e município.");
-
-        var territories = lvl is "section" or "place"
-            ? await SectionTerritoriesAsync(c, contest, lvl, ufCode!, mun!, zone, ct)
-            : await ZoneTerritoriesAsync(c, contest, lvl, ufCode, mun, zone, ct);
+        var (ufCode, mun) = Scope(contest, lvl, uf, municipality);
+        var territories = await TerritoriesAsync(c, contest, lvl, ufCode, mun, zone, ct);
         var summary = Summarize(territories);
         var insights = DistributionInsights(lvl, territories, summary, BaseOf(contest, mun, zone, territories));
         return new CandidacyTerritoryResponse(
             c.Id, contest.ToDto(), lvl, mun, zone, territories, summary, insights,
             XrayService.Freshness(await repo.FreshnessAsync(ct)), Definitions);
     }
+
+    /// <summary>Recorte validado: município padrão = o da disputa municipal; seção e local exigem UF e município.</summary>
+    public static (string? Uf, string? Municipality) Scope(ContestInfo contest, string level, string? uf, string? municipality)
+    {
+        var mun = Municipality(municipality) ?? (contest.Scope == "municipal" ? contest.ElectoralUnit : null);
+        var ufCode = uf is null ? contest.Uf : Uf(uf);
+        if (level is "section" or "place" && (mun is null || ufCode is null))
+            throw new ElectoralBadRequestException("Seção e local de votação exigem UF e município.");
+        return (ufCode, mun);
+    }
+
+    /// <summary>Valores da candidatura por território do nível pedido (fatos/agregados, com estado de cada valor).</summary>
+    public Task<IReadOnlyList<TerritoryValueDto>> TerritoriesAsync(
+        XrayCandidacyRow c, ContestInfo contest, string level, string? uf, string? mun, int? zone, CancellationToken ct) =>
+        level is "section" or "place"
+            ? SectionTerritoriesAsync(c, contest, level, uf!, mun!, zone, ct)
+            : ZoneTerritoriesAsync(c, contest, level, uf, mun, zone, ct);
 
     private async Task<IReadOnlyList<TerritoryValueDto>> ZoneTerritoriesAsync(
         XrayCandidacyRow c, ContestInfo contest, string level, string? uf, string? mun, int? zone, CancellationToken ct)
@@ -202,7 +213,7 @@ public class TerritoryService(IElectoralXrayRepository repo)
             counted.Where(t => t.Share is not null).OrderByDescending(t => t.Share).FirstOrDefault());
     }
 
-    private static string Label(TerritoryValueDto t, string level) => level switch
+    public static string Label(TerritoryValueDto t, string level) => level switch
     {
         "zone" => $"{t.MunicipalityName} · zona {t.Zone}",
         "section" => $"{t.MunicipalityName} · zona {t.Zone} · seção {t.Section}",

@@ -22,7 +22,7 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 |---|---|---|---|---|---|
 | B | Vínculo votável → candidatura idempotente pelo conteúdo das entradas; vínculo de escopo arquivado; lake com token e 503 "indisponível"; guardas do PR #4 no loader estadual | DONE | [#16](https://github.com/eliasandraade/REPBrasil/pull/16) | `128d98b` | pendente: aplicar migration 013 (via `/migrate`) e configurar `REPBRASIL_LAKE_TOKEN` igual no back-v2 e no worker |
 | A | Brand Kit (tokens, Inter, light/dark, assets oficiais, favicon/PWA/OG), salvage do PR #8 (busca, segurança HTTP, SEO, nomes oficiais, home com cobertura real) | IN PROGRESS | — | — | — |
-| C | Base Eleitoral + rankings | TODO | — | — | — |
+| C | Base Eleitoral (fórmula versionada `electoral-base/v1` com decomposição, por município/zona/seção/local, mudança só na mesma disputa, camada do mapa) + rankings determinísticos (14 tipos, guardas de comparabilidade, ausência ≠ zero, página `/rankings`) | IN PROGRESS | — | — | — |
 | D | Partidos + força partidária | TODO | — | — | — |
 | E | Data Intelligence (socioeconomia, correlações, clusters) | TODO | — | — | — |
 | F | Parlamento + emendas | TODO | — | — | — |
@@ -54,11 +54,11 @@ PRs antigas:
 | Arquitetura híbrida PostGIS + lake Parquet (2022/2024 frios, 2026 quente) | DONE (antes desta missão) |
 | Vínculo do BU idempotente por conteúdo (bug da invalidação manual) | DONE (#16) |
 | Perfil unificado (cabeçalho = candidaturas do Raio X) | TODO |
-| Base Eleitoral | TODO |
-| Rankings | TODO |
+| Base Eleitoral | IN PROGRESS (PR C) — `docs/ELECTORAL_BASE.md` |
+| Rankings | IN PROGRESS (PR C) — `docs/ELECTORAL_BASE.md` §2 |
 | Partidos / força partidária | TODO |
 | Patrimônio / contas (avançado) | TODO (dados já existem no Raio X) |
-| Mapas temáticos (base, partido, socioeconomia, emendas) | TODO |
+| Mapas temáticos (base, partido, socioeconomia, emendas) | IN PROGRESS — camada "Base eleitoral" (PR C); partido, socioeconomia, emendas nos PRs D/E/F |
 | Comparador universal | TODO |
 | Município / estado / eleição como entidades | TODO |
 | Data Intelligence / correlações / clusters | TODO |

@@ -13,6 +13,20 @@ export class ApiError extends Error {
   }
 }
 
+/** Mensagem legível do corpo de erro da API (`{ message }` ou ProblemDetails), sem o prefixo técnico. */
+export function apiErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const body = error.message.indexOf(" — ");
+  if (body < 0) return null;
+  try {
+    const parsed = JSON.parse(error.message.slice(body + 3)) as { message?: unknown; detail?: unknown; title?: unknown };
+    const text = [parsed.message, parsed.detail, parsed.title].find((v) => typeof v === "string" && v.trim());
+    return typeof text === "string" ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, init);
   if (!res.ok) {

@@ -20,12 +20,12 @@ public class ElectoralXraySchemaTests
     private static readonly Guid A99 = Guid.Parse("00000000-0000-0000-0000-00000000a099");
     private static readonly Guid B99 = Guid.Parse("00000000-0000-0000-0000-00000000b099");
 
-    private static ApplicationDbContext Db() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
+    internal static ApplicationDbContext Db() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseNpgsql(Environment.GetEnvironmentVariable(ElectoralSchemaFactAttribute.Variable))
         .Options);
 
     // Sem chaves literais no SQL: ExecuteSqlRaw formata o texto (string.Format).
-    private const string Seed = """
+    internal const string Seed = """
         SET LOCAL search_path TO electoral, public;
         INSERT INTO state (code, name) VALUES ('XX', 'UF Fictícia');
         INSERT INTO election (id, year, round, election_date, tse_cycle) VALUES
@@ -161,6 +161,37 @@ public class ElectoralXraySchemaTests
             Assert.DoesNotContain(await repo.SectionVotesAsync([A98], "XX", "99991", null, Ct), v => v.ResultId == 800104);
             Assert.Equal(2, (await repo.ElectionCandidaciesAsync(2099, 1, "XX", null, Ct)).Count);
             Assert.True(XrayService.Freshness(await repo.FreshnessAsync(Ct)).Stale); // lotes novos sem refresh registrado
+            return 0;
+        });
+    }
+
+    [ElectoralSchemaFact]
+    public async Task Contest_stats_rank_every_voted_candidate_number_per_territory()
+    {
+        await WithSeedAsync(async db =>
+        {
+            var repo = new ElectoralXrayRepository(db);
+            ContestStatsQuery Q(Guid c, int year, int code, string level) =>
+                new(c, year, 1, code, 7, "XX", level is "section" or "place" ? "99991" : null, null, level);
+
+            // município: A 15 × B 29 (legenda fora da disputa entre números de candidatura)
+            var mun = Assert.Single(await repo.ContestStatsAsync(Q(A98, 2098, 980, "municipality"), Ct));
+            Assert.Equal(("99991", 0, 29L, 29L, 2, 1, 15L), (mun.MunicipalityTseCode, mun.Zone, mun.LeaderVotes, mun.BestOtherVotes!.Value, mun.Contestants, mun.Ahead, mun.TargetVotes));
+            var zone = Assert.Single(await repo.ContestStatsAsync(Q(A98, 2098, 980, "zone"), Ct));
+            Assert.Equal((1, 1), (zone.Zone, zone.Ahead));
+
+            // urna: 100 (A 10 × B 20), 101 (empate 5 × 5 — ninguém à frente), 104 (só B votado; A sem voto = 0 afirmado)
+            var sections = (await repo.ContestStatsAsync(Q(A98, 2098, 980, "section"), Ct)).ToDictionary(r => r.Section);
+            Assert.Equal((1, 10L, 20L), (sections[100].Ahead, sections[100].TargetVotes, sections[100].LeaderVotes));
+            Assert.Equal((0, 5L, 5L), (sections[101].Ahead, sections[101].TargetVotes, sections[101].BestOtherVotes!.Value));
+            Assert.Equal((1, 0L, 1), (sections[104].Ahead, sections[104].TargetVotes, sections[104].Contestants));
+
+            // local de votação 1001 = todas as urnas
+            var place = Assert.Single(await repo.ContestStatsAsync(Q(A98, 2098, 980, "place"), Ct));
+            Assert.Equal(("1001", 15L, 29L), (place.PlaceCode, place.TargetVotes, place.LeaderVotes));
+
+            var lead = (await repo.ContestStatsAsync(Q(A99, 2099, 990, "section"), Ct)).ToDictionary(r => r.Section);
+            Assert.Equal((0, 7L, 1L), (lead[101].Ahead, lead[101].TargetVotes, lead[101].BestOtherVotes!.Value));
             return 0;
         });
     }

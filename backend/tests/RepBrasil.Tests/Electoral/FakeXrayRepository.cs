@@ -21,6 +21,7 @@ public sealed class FakeXrayRepository : IElectoralXrayRepository
     public List<SectionCandidacyVotesRow> SectionVotes { get; } = [];
     public List<PlaceNameRow> Places { get; } = [];
     public List<MunicipalityRefRow> Municipalities { get; } = [];
+    public List<(Guid CandidacyId, string Level, ContestStatsRow Row)> ContestStats { get; } = [];
     public FreshnessRow? Freshness { get; set; } = new() { RefreshedAt = DateTime.UtcNow, StoredRuns = 1, CurrentRuns = 1 };
 
     private static IReadOnlyList<T> L<T>(IEnumerable<T> items) => items.ToList();
@@ -93,6 +94,13 @@ public sealed class FakeXrayRepository : IElectoralXrayRepository
         Task.FromResult(L(Municipalities.Where(m => m.Uf == uf)));
 
     public Task<FreshnessRow?> FreshnessAsync(CancellationToken ct) => Task.FromResult(Freshness);
+
+    public Task<IReadOnlyList<ContestStatsRow>> ContestStatsAsync(ContestStatsQuery query, CancellationToken ct) =>
+        Task.FromResult(L(ContestStats
+            .Where(s => s.CandidacyId == query.CandidacyId && s.Level == query.Level
+                && (query.MunicipalityTseCode is null || s.Row.MunicipalityTseCode == query.MunicipalityTseCode)
+                && (query.Zone is null || s.Row.Zone == query.Zone))
+            .Select(s => s.Row)));
 }
 
 /// <summary>Construtores de linhas sintéticas (dados fictícios; nenhum resultado real).</summary>
