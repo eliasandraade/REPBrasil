@@ -78,9 +78,9 @@ jobs:
       - name: Migrations up from zero
         working-directory: backend
         run: dotnet tool run dotnet-ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
-      - name: Check schema (28 electoral tables/views + 2 derived materialized views + PostGIS)
+      - name: Check schema (31 electoral tables/views + 2 derived materialized views + PostGIS)
         run: |
-          test "$($PSQL -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='electoral'")" = "28"
+          test "$($PSQL -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='electoral'")" = "31"
           test "$($PSQL -c "SELECT count(*) FROM pg_matviews WHERE schemaname='electoral'")" = "2"
           $PSQL -c "SELECT extversion FROM pg_extension WHERE extname='postgis'" | grep -q .
       - name: Migrations down to AddMandate
@@ -97,7 +97,7 @@ jobs:
         working-directory: backend
         env:
           REPBRASIL_ELECTORAL_TEST_DB: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
-        run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral|FullyQualifiedName~Search|FullyQualifiedName~Rankings|FullyQualifiedName~Parties"
+        run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral|FullyQualifiedName~Search|FullyQualifiedName~Rankings|FullyQualifiedName~Parties|FullyQualifiedName~DataIntelligence"
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.12"
@@ -150,7 +150,12 @@ jobs:
           python-version: "3.12"
       - name: Install (lockfile only; the project itself is imported from the checkout)
         run: uv sync --extra dev --frozen --no-install-project --no-build
-      - name: Lint (electoral layer)
-        run: uv run --frozen --no-sync --no-build ruff check src/electoral tests/electoral scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
+      - name: Lint (electoral + data intelligence)
+        run: >-
+          uv run --frozen --no-sync --no-build ruff check
+          src/electoral tests/electoral
+          src/sources/ibge/sidra.py src/sources/atlas.py src/pipeline/socioeconomic.py
+          tests/sources/ibge/test_sidra.py tests/sources/test_atlas.py tests/pipeline/test_socioeconomic.py
+          scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
       - name: Test (DB tests skip without database)
         run: uv run --frozen --no-sync --no-build pytest -q
