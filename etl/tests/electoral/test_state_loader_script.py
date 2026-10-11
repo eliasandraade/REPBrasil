@@ -41,3 +41,63 @@ def test_hybrid_lake_scripts_run_directly_from_scripts_directory(
     result = _run_help(script_name)
     assert result.returncode == 0, result.stderr
     assert expected_option in result.stdout
+
+
+def _loader():
+    import importlib.util
+
+    script = Path(__file__).resolve().parents[2] / "scripts" / "import_electoral_state.py"
+    spec = importlib.util.spec_from_file_location("import_electoral_state", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("value", ["ce", " CE ", "Ce"])
+def test_uf_is_normalized(value: str) -> None:
+    assert _loader()._normalize_uf(value) == "CE"
+
+
+@pytest.mark.parametrize("value", ["", "C", "CEA", "C1", "../", "ÇE"])
+def test_invalid_uf_is_refused(value: str) -> None:
+    with pytest.raises(SystemExit, match="invalid UF"):
+        _loader()._normalize_uf(value)
+
+
+def test_manifest_must_match_scope_and_record_the_verified_official_checksum() -> None:
+    loader = _loader()
+    good = {"scope": {"year": 2024, "turn": 1, "uf": "CE"}, "official_checksum": {"verified": True}}
+    loader._validate_manifest(good, year=2024, turn=1, uf="CE")
+    with pytest.raises(SystemExit, match="does not match"):
+        loader._validate_manifest(good, year=2022, turn=1, uf="CE")
+    with pytest.raises(SystemExit, match="verified official TSE checksum"):
+        loader._validate_manifest({**good, "official_checksum": {"verified": False}}, year=2024, turn=1, uf="CE")
+    with pytest.raises(SystemExit, match="verified official TSE checksum"):
+        loader._validate_manifest({"scope": good["scope"]}, year=2024, turn=1, uf="CE")
+
+
+def test_failure_message_never_carries_connection_credentials() -> None:
+    error = RuntimeError("connection to postgresql://repbrasil:s3cret@db.internal:5432/x failed")
+    message = _loader()._safe_error(error)
+    assert "s3cret" not in message and "postgresql://***@db.internal" in message
+
+
+def test_preprocessing_failures_are_recorded_in_the_progress_file(tmp_path: Path) -> None:
+    """Regressão (review do PR #16): UF/manifesto inválidos falham ANTES da carga e mesmo assim ficam no progresso."""
+    import json
+
+    loader = _loader()
+    progress = tmp_path / "progress.json"
+    progress.write_text(json.dumps({"status": "succeeded", "progress": {"done": 9, "total": 9}}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="invalid UF"):
+        loader.main(["--uf", "C1", "--year", "2024", "--turn", "1", "--manifest", str(tmp_path / "m.json"),
+                     "--progress", str(progress)])
+    recorded = json.loads(progress.read_text(encoding="utf-8"))
+    assert recorded["status"] == "failed" and "invalid UF" in recorded["error"]
+    assert recorded["csv_sha256_verified"] is False
+
+    with pytest.raises(Exception):  # noqa: B017 - manifesto ausente: qualquer erro de leitura vale
+        loader.main(["--uf", "CE", "--year", "2024", "--turn", "1", "--manifest", str(tmp_path / "missing.json"),
+                     "--progress", str(progress)])
+    assert json.loads(progress.read_text(encoding="utf-8"))["status"] == "failed"

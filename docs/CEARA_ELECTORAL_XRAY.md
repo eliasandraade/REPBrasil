@@ -158,8 +158,9 @@ python -m src.electoral.candidates.cli import-records --year 2024 --uf CE --kind
 # 5. Boletim de Urna + vínculo votável → candidatura; as eleições podem rodar em paralelo
 python -m src.electoral.cli acquire-open-data-bu --year 2022 --turn 1 --uf CE --out ../data/raw/tse/bu
 python scripts/import_electoral_state.py --year 2022 --turn 1 --uf CE --manifest ../data/raw/tse/bu/<sha> --link-votables --no-refresh
-# (idem 2022/2, 2024/1, 2024/2). Se o vínculo rodou antes do complementar ou de uma regra nova,
-# rode-o de novo — a versão da regra faz parte da chave do lote:
+# (idem 2022/2, 2024/1, 2024/2). Se o vínculo rodou antes do complementar, de um arquivo de
+# candidaturas mais novo, de zonas novas do BU ou de uma regra nova, rode-o de novo: a chave do lote
+# é a impressão digital do conteúdo das entradas (migration 013) — nada é invalidado à mão:
 python -m src.electoral.candidates.cli link-votables --year 2022 --turn 1 --uf CE
 
 # 6. agregados derivados (uma vez, depois de todos os BUs)
@@ -329,6 +330,26 @@ ausente, zero real, troca de cargo, mesmo número em municípios diferentes, vic
 sem vínculo, limite de 5, idempotência e privacidade dos importadores, substituição de candidatura
 (inserida na urna; substituída depois da carga das urnas, com veto pelo nome de urna), evolução com a
 candidatura anterior da mesma disputa e base nomeada dos percentuais (candidatura, importado, recorte).
+
+### 7.5 Idempotência do vínculo votável → candidatura
+
+O lote de vínculo é identificado por `scope->>'inputs_fingerprint'`: SHA-256 do conteúdo que decide o
+vínculo — votáveis do escopo (id, CD_ELEICAO, cargo, número, nome de urna, município), candidaturas
+casáveis (disputa, número, nome de urna), sinalizadores do complementar oficial mais recente ("inserido
+na urna", "substituída"), `LINK_RULES` e `LINK_INPUTS_VERSION`. Os lotes de candidaturas e do
+complementar usados ficam em `scope->'inputs'` como proveniência.
+
+- Mesmas entradas ⇒ `already_imported`. Qualquer entrada nova ⇒ lote novo, que só acrescenta vínculos;
+  um vínculo existente que passasse a apontar outra candidatura falha fechado (`CandidatesError`).
+- Regressão coberta (`test_complement_imported_after_the_first_link_creates_a_new_link_batch`): na carga
+  real de 2024 o primeiro vínculo deixou 69 votáveis ambíguos (12.079/12.148); o complementar oficial
+  chegou depois (68 "inserido na urna" + 1 substituição ⇒ 12.148/12.148), mas a chave antiga
+  (lote de candidaturas + regra) respondia `already_imported` e o índice único impedia um lote novo.
+- Escopo arquivado no lake (fatos de voto podados do Postgres): os votáveis vêm do agregado persistente
+  auditado `electoral_archive.votable_zone_votes` (`scope->>'archived_scope' = true`), nunca de um
+  "zero votáveis" falso.
+- A migration 013 inclui a impressão digital no índice único; o rollback falha (não apaga lotes) se já
+  houver lotes que só ela distingue.
 
 ## 10. Limites conhecidos
 

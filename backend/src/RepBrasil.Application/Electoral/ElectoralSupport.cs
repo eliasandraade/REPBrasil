@@ -13,6 +13,12 @@ public class ElectoralBadRequestException(string message) : Exception(message);
 /// <summary>Divergência entre fontes/cadastro que impede responder com segurança (500, nunca dado inventado).</summary>
 public class ElectoralIntegrityException(string message) : Exception(message);
 
+/// <summary>
+/// Dado existente mas temporariamente inacessível (ex.: arquivo eleitoral frio fora do ar) — 503
+/// "indisponível". Nunca vira zero nem resposta vazia; a mensagem não carrega detalhes internos.
+/// </summary>
+public class ElectoralUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
+
 public static partial class Slug
 {
     /// <summary>Mesmo algoritmo do ETL (cadaster/territories.py): slug é navegação, nunca identidade.</summary>

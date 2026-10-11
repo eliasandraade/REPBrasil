@@ -446,3 +446,98 @@ def test_substitution_flag_never_overrides_a_ballot_name_conflict(conn, tmp_path
         """SELECT count(*) FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id
             WHERE c.tse_candidate_id IN (9101, 9104)""").fetchone()
     assert linked == (0,)
+
+
+# ------------------------------------------------------------------ idempotência do vínculo (regressão 2024)
+
+
+def _link_runs(conn) -> list[tuple]:
+    return conn.execute(
+        """SELECT stats->>'linked', stats->>'ambiguous', scope->>'inputs_fingerprint'
+             FROM ingestion_run WHERE source = 'electoral-identity-link' AND status = 'succeeded'
+            ORDER BY started_at, id"""
+    ).fetchall()
+
+
+@db
+def test_complement_imported_after_the_first_link_creates_a_new_link_batch(conn, tmp_path):
+    """Regressão da carga real de 2024 (12.079/12.148 ligados, 69 ambíguos): o complementar oficial chegou
+    DEPOIS do vínculo e o lote antigo respondia "already_imported" — foi preciso invalidá-lo à mão.
+    A impressão digital das entradas inclui os sinalizadores do complementar: o vínculo roda de novo,
+    resolve o ambíguo e não refaz nem altera os vínculos existentes."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    twin = state(9104, 1111, "OUTRA PESSOA COM O MESMO NÚMERO", "DEPUTADA FICTÍCIA GAMA", cpf(100000005))
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, twin, DELTA])
+
+    first = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert (first["linked"], [a["number"] for a in first["ambiguous"]]) == (2, [1111])
+    assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
+
+    _complement(conn, {9101: ("SIM", "N"), 9104: ("NÃO", "N")})  # complementar oficial chega depois
+    second = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert second["status"] == "succeeded"
+    assert (second["linked"], second["already_linked"], second["resolved_by_inserted_in_urn"]) == (1, 2, 1)
+    assert second["ambiguous"] == []
+    assert second["scope"]["inputs"]["complement_records"] == 2
+    assert second["scope"]["inputs_fingerprint"] != first["scope"]["inputs_fingerprint"]
+
+    runs = _link_runs(conn)
+    assert [(r[0], r[1]) for r in runs] == [("2", "1"), ("1", "0")]  # os dois lotes ficam registrados
+    assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
+    linked = conn.execute(
+        """SELECT c.tse_candidate_id, vc.method FROM votable_candidacy vc JOIN candidacy c ON c.id = vc.candidacy_id
+            ORDER BY 1"""
+    ).fetchall()
+    assert linked == [(9001, "contest_number"), (9002, "contest_number"), (9101, "contest_number_inserted_in_urn")]
+
+
+@db
+def test_a_new_link_rule_version_creates_a_new_batch_on_the_same_data(conn, tmp_path, monkeypatch):
+    from src.electoral.candidates import store
+
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA])
+    assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "succeeded"
+    assert link_votables(conn, year=2099, turn=1, uf="XX")["status"] == "already_imported"
+    monkeypatch.setattr(store, "LINK_RULES", store.LINK_RULES + 1)
+    rerun = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert (rerun["status"], rerun["linked"], rerun["already_linked"]) == ("succeeded", 0, 3)
+
+
+@db
+def test_a_changed_ballot_name_in_a_superseding_candidates_file_changes_the_link_inputs(conn, tmp_path):
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    run_import(conn, tmp_path / "a", [ALFA, BETA], [GAMA, DELTA])
+    first = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert [m["number"] for m in first["name_mismatch"]] == [2222]
+    fixed = DELTA | {"NM_URNA_CANDIDATO": "DEPUTADO FICTÍCIO DELTA"}  # nome de urna corrigido pelo TSE
+    run_import(conn, tmp_path / "b", [ALFA, BETA], [GAMA, fixed], sha="e", supersede=True)
+    second = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert (second["status"], second["linked"], second["name_mismatch"]) == ("succeeded", 1, [])
+
+
+@db
+def test_archived_scope_links_from_the_persistent_aggregate_not_from_pruned_facts(conn, tmp_path):
+    """Escopo arquivado no lake: os fatos de voto detalhados foram podados do Postgres. O vínculo usa o
+    agregado persistente auditado (mesmos votáveis) — nunca um lote "vazio" com zero votáveis."""
+    assert import_prepared(conn, prepared(tmp_path / "bu"))["status"] == "succeeded"
+    run_import(conn, tmp_path / "cand", [ALFA, BETA], [GAMA, DELTA])
+    hot = conn.execute(
+        """SELECT DISTINCT v.id FROM votable v JOIN section_office_vote sv ON sv.votable_id = v.id
+            WHERE v.vote_kind = 'candidate' ORDER BY 1"""
+    ).fetchall()
+    conn.execute("REFRESH MATERIALIZED VIEW votable_zone_votes_current")
+    conn.execute(
+        """INSERT INTO electoral_archive.votable_zone_votes
+           SELECT * FROM votable_zone_votes_current WHERE year = 2099 AND turn = 1 AND uf = 'XX'"""
+    )
+    conn.execute(
+        """INSERT INTO electoral_archive.derived_archive_scope (year, turn, uf, votable_rows, votable_votes, zone_rows, zone_votes)
+           SELECT 2099, 1, 'XX', count(*), sum(votes), 0, 0 FROM electoral_archive.votable_zone_votes"""
+    )
+    conn.execute("DELETE FROM section_office_vote")  # prune (os metadados das urnas ficam)
+
+    report = link_votables(conn, year=2099, turn=1, uf="XX")
+    assert report["scope"]["archived_scope"] is True
+    assert report["votables"] == len(hot) == 4
+    assert report["linked"] == 3  # ALFA, BETA, GAMA; DELTA diverge no nome de urna

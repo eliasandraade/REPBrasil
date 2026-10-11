@@ -90,11 +90,50 @@ public class ElectoralLakeClientTests
         using var http = new HttpClient(handler) { BaseAddress = new Uri("http://lake.test") };
         var client = new ElectoralLakeClient(http);
 
-        var error = await Assert.ThrowsAsync<HttpRequestException>(
+        var error = await Assert.ThrowsAsync<ElectoralUnavailableException>(
             () => client.ResultVotesAsync(99, "CE", CancellationToken.None));
 
-        Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, Assert.IsType<HttpRequestException>(error.InnerException).StatusCode);
         Assert.Contains("result 99", error.Message);
+        Assert.DoesNotContain("invalid_request", error.Message); // corpo interno do worker nunca vaza
+    }
+
+    [Fact]
+    public async Task Unreachable_or_slow_worker_is_unavailable_not_empty()
+    {
+        var down = new StubHandler(_ => throw new HttpRequestException("connection refused"));
+        using var downHttp = new HttpClient(down) { BaseAddress = new Uri("http://lake.test") };
+        await Assert.ThrowsAsync<ElectoralUnavailableException>(
+            () => new ElectoralLakeClient(downHttp).ResultVotesAsync(1, "CE", CancellationToken.None));
+
+        var slow = new StubHandler(_ => throw new TaskCanceledException("timeout"));
+        using var slowHttp = new HttpClient(slow) { BaseAddress = new Uri("http://lake.test") };
+        await Assert.ThrowsAsync<ElectoralUnavailableException>(
+            () => new ElectoralLakeClient(slowHttp).ResultVotesAsync(1, "CE", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Configured_token_is_sent_as_bearer_and_absent_token_sends_no_header()
+    {
+        string? seen = "unset";
+        var handler = new StubHandler(request =>
+        {
+            seen = request.Headers.Authorization?.ToString();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("[]", Encoding.UTF8, "application/json"),
+            });
+        });
+
+        using var withToken = new HttpClient(handler) { BaseAddress = new Uri("http://lake.test") };
+        ElectoralLakeClient.ConfigureAuthorization(withToken, " lake-secret ");
+        await new ElectoralLakeClient(withToken).ResultVotesAsync(1, "CE", CancellationToken.None);
+        Assert.Equal("Bearer lake-secret", seen);
+
+        using var withoutToken = new HttpClient(handler) { BaseAddress = new Uri("http://lake.test") };
+        ElectoralLakeClient.ConfigureAuthorization(withoutToken, "  ");
+        await new ElectoralLakeClient(withoutToken).ResultVotesAsync(1, "CE", CancellationToken.None);
+        Assert.Null(seen);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
