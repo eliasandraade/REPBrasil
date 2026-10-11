@@ -3,13 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { ExportActions } from "@/components/export/ExportActions";
-import { getIndicatorValues, getIndicators, type Indicator, type IndicatorValue } from "@/lib/data-intelligence";
+import { getIndicatorValues, getIndicators, type IndicatorValue } from "@/lib/data-intelligence";
 import { electionsApi } from "@/lib/elections/api";
 import type { ElectionItem, MunicipalityItem, StateItem } from "@/lib/elections/types";
-import type { ExportReport, ReportValue } from "@/lib/export/report";
-import { defaultPick, partiesApi, resultFor, type PartiesResponse, type PartyResult, type PartySummary } from "@/lib/parties";
+import type { ExportReport } from "@/lib/export/report";
+import { defaultPick, partiesApi, resultFor, type PartyResult, type PartySummary } from "@/lib/parties";
 
 const MAX_ITEMS = 5;
 const DEFAULT_UF = "CE";
@@ -44,12 +44,19 @@ function percent(value: number | null | undefined): string {
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }
 
+function displayIsoDate(value: string): string {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return parts ? `${parts[3]}/${parts[2]}/${parts[1]}` : value;
+}
+
 function currentUrl(): string {
   return typeof window === "undefined" ? "" : window.location.href;
 }
 
 function leader<T>(items: T[], value: (item: T) => number | null | undefined): { items: T[]; value: number } | null {
-  const observed = items.map((item) => ({ item, value: value(item) })).filter((entry): entry is { item: T; value: number } => entry.value !== null && entry.value !== undefined && Number.isFinite(entry.value));
+  const observed = items
+    .map((item) => ({ item, value: value(item) }))
+    .filter((entry): entry is { item: T; value: number } => entry.value !== null && entry.value !== undefined && Number.isFinite(entry.value));
   if (observed.length === 0) return null;
   const maximum = Math.max(...observed.map((entry) => entry.value));
   return { items: observed.filter((entry) => entry.value === maximum).map((entry) => entry.item), value: maximum };
@@ -79,7 +86,8 @@ function EmptyHint({ children }: Readonly<{ children: React.ReactNode }>) {
 function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<string, string | null>) => void }>) {
   const search = useSearchParams();
   const uf = (search.get("uf") ?? DEFAULT_UF).toUpperCase();
-  const selected = split(search.get("itens"));
+  const selectedRaw = search.get("itens");
+  const selected = useMemo(() => split(selectedRaw), [selectedRaw]);
   const dataQuery = useQuery({ queryKey: ["parties", uf], queryFn: () => partiesApi.list(uf), staleTime: 60_000 });
   const data = dataQuery.data;
   const fallback = data ? defaultPick(data) : null;
@@ -93,11 +101,15 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
   }, [fallback, office, round, search, setParam, uf, year]);
 
   const parties = useMemo(() => data?.parties.filter((party) => selected.includes(party.slug)) ?? [], [data, selected]);
-  const rows = parties.map((party) => ({ party, result: resultFor(party, year, round, office) }));
-  const contexts = data?.elections.flatMap((election) => election.offices.map((item) => ({ year: election.year, round: election.round, office: item.code, name: item.name, covered: item.covered }))) ?? [];
+  const rows = useMemo(() => parties.map((party) => ({ party, result: resultFor(party, year, round, office) })), [office, parties, round, year]);
+  const contexts = useMemo(
+    () => data?.elections.flatMap((election) => election.offices.map((item) => ({ year: election.year, round: election.round, office: item.code, name: item.name, covered: item.covered }))) ?? [],
+    [data],
+  );
   const contextKey = `${year}-${round}-${office}`;
 
   const insights = useMemo(() => {
+    if (rows.length < 2) return [];
     const result: DeterministicInsight[] = [];
     const withResult = rows.filter((row): row is { party: PartySummary; result: PartyResult } => Boolean(row.result));
     const share = leader(withResult, (row) => row.result.share);
@@ -109,12 +121,14 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
     return result;
   }, [rows]);
 
-  const report: ExportReport | null = data && rows.length > 0 ? {
+  const report: ExportReport | null = data && rows.length >= 2 ? {
     filename: `repbrasil-partidos-${year}-${round}-${office}`,
     title: "REPBrasil — Comparação de partidos",
     subtitle: `${uf} · ${year} · ${round}º turno · cargo ${office}`,
     headers: ["Partido", "Votos", "% válidos", "Candidaturas", "Eleitos", "Municípios com votos", "Estado do dado"],
-    rows: rows.map(({ party, result }) => result ? [party.acronym, result.votes, result.share, result.candidacies, result.elected, result.municipalitiesWithVotes, result.votes === null ? "Ausente" : "Observado"] : [party.acronym, null, null, null, null, null, "Partido não disputou este recorte"]),
+    rows: rows.map(({ party, result }) => result
+      ? [party.acronym, result.votes, result.share, result.candidacies, result.elected, result.municipalitiesWithVotes, result.votes === null ? "Ausente" : "Observado"]
+      : [party.acronym, null, null, null, null, null, "Partido não disputou este recorte"]),
     metadata: [{ label: "UF", value: uf }, { label: "Ano", value: String(year) }, { label: "Turno", value: String(round) }, { label: "Cargo", value: String(office) }],
     sources: ["Tribunal Superior Eleitoral (TSE) — candidaturas e Boletins de Urna oficiais"],
     methodology: [data.methodology, "Ausência de resultado não é convertida em zero. Insights usam regras determinísticas versionadas."],
@@ -151,6 +165,7 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
       {rows.length === 0 ? <EmptyHint>Escolha de 2 a {MAX_ITEMS} partidos para comparar. O sistema não trata partido ausente da disputa como zero.</EmptyHint> : (
         <>
           <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[760px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Partido</th><th className="px-4 py-3 text-right">Votos</th><th className="px-4 py-3 text-right">% válidos</th><th className="px-4 py-3 text-right">Candidaturas</th><th className="px-4 py-3 text-right">Eleitos</th><th className="px-4 py-3 text-right">Municípios</th></tr></thead><tbody>{rows.map(({ party, result }) => <tr key={party.slug} className="border-t border-line"><td className="px-4 py-3 font-medium text-fg">{party.acronym}</td><td className="px-4 py-3 text-right text-fg-muted">{format(result?.votes, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{percent(result?.share)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(result?.candidacies, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(result?.elected, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(result?.municipalitiesWithVotes, 0)}</td></tr>)}</tbody></table></div>
+          {rows.length === 1 && <EmptyHint>Adicione mais um partido para ativar insights e exports comparativos.</EmptyHint>}
           <Insights items={insights} />
           {report && <ExportActions report={report} />}
         </>
@@ -162,9 +177,11 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
 function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Record<string, string | null>) => void }>) {
   const search = useSearchParams();
   const uf = (search.get("uf") ?? DEFAULT_UF).toUpperCase();
-  const selected = split(search.get("itens"));
+  const selectedRaw = search.get("itens");
+  const metricRaw = search.get("metricas");
+  const selected = useMemo(() => split(selectedRaw), [selectedRaw]);
+  const metricCodes = useMemo(() => split(metricRaw), [metricRaw]);
   const period = Number(search.get("periodo")) || 2022;
-  const metricCodes = split(search.get("metricas"));
   const elections = useQuery({ queryKey: ["elections-catalog"], queryFn: electionsApi.elections, staleTime: 5 * 60_000 });
   const reference = elections.data?.elections.find((item) => item.resultsAvailable) ?? elections.data?.elections[0];
   const municipalities = useQuery({
@@ -174,7 +191,10 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
     staleTime: 5 * 60_000,
   });
   const indicators = useQuery({ queryKey: ["data-indicators"], queryFn: getIndicators, staleTime: 5 * 60_000 });
-  const effectiveMetrics = metricCodes.length > 0 ? metricCodes : (indicators.data?.slice(0, 5).map((item) => item.code) ?? []);
+  const effectiveMetrics = useMemo(
+    () => metricCodes.length > 0 ? metricCodes : (indicators.data?.slice(0, MAX_ITEMS).map((item) => item.code) ?? []),
+    [indicators.data, metricCodes],
+  );
   const values = useQuery({
     queryKey: ["compare-municipality-values", effectiveMetrics.join(","), period, uf],
     queryFn: async () => Promise.all(effectiveMetrics.map(async (code) => ({ code, values: await getIndicatorValues(code, period, uf) }))),
@@ -186,25 +206,39 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
     if (metricCodes.length === 0 && effectiveMetrics.length > 0) setParam({ metricas: effectiveMetrics.join(","), periodo: String(period), uf });
   }, [effectiveMetrics, metricCodes.length, period, setParam, uf]);
 
-  const catalog = municipalities.data?.municipalities ?? [];
-  const picked = catalog.filter((item) => item.ibgeCode !== null && selected.includes(String(item.ibgeCode)));
-  const metrics = (indicators.data ?? []).filter((item) => effectiveMetrics.includes(item.code));
+  const catalog = useMemo(() => municipalities.data?.municipalities ?? [], [municipalities.data]);
+  const picked = useMemo(
+    () => catalog.filter((item) => item.ibgeCode !== null && selected.includes(String(item.ibgeCode))),
+    [catalog, selected],
+  );
+  const metrics = useMemo(
+    () => (indicators.data ?? []).filter((item) => effectiveMetrics.includes(item.code)),
+    [effectiveMetrics, indicators.data],
+  );
   const valueMap = useMemo(() => {
     const map = new Map<string, IndicatorValue>();
     for (const group of values.data ?? []) for (const item of group.values) map.set(`${group.code}:${item.municipalityIbgeCode}`, item);
     return map;
   }, [values.data]);
 
-  const insights = useMemo(() => metrics.flatMap((metric): DeterministicInsight[] => {
-    const observed = picked.map((municipality) => ({ municipality, value: valueMap.get(`${metric.code}:${municipality.ibgeCode}`)?.value })).filter((item): item is { municipality: MunicipalityItem; value: number } => item.value !== undefined);
-    if (observed.length < 2) return [];
-    const maximum = Math.max(...observed.map((item) => item.value));
-    const winners = observed.filter((item) => item.value === maximum).map((item) => item.municipality.name);
-    return [{ code: `municipality-max-${metric.code}`, version: "v1", title: `Maior ${metric.name}`, text: `${winners.join(" e ")} registra(m) o maior valor observado entre os municípios selecionados: ${format(maximum)} ${metric.unit}. A regra descreve o valor; não classifica o município como melhor ou pior.` }];
-  }), [metrics, picked, valueMap]);
+  const insights = useMemo(() => {
+    if (picked.length < 2) return [];
+    return metrics.flatMap((metric): DeterministicInsight[] => {
+      const observed = picked
+        .map((municipality) => ({ municipality, value: valueMap.get(`${metric.code}:${municipality.ibgeCode}`)?.value }))
+        .filter((item): item is { municipality: MunicipalityItem; value: number } => item.value !== undefined);
+      if (observed.length < 2) return [];
+      const maximum = Math.max(...observed.map((item) => item.value));
+      const winners = observed.filter((item) => item.value === maximum).map((item) => item.municipality.name);
+      return [{ code: `municipality-max-${metric.code}`, version: "v1", title: `Maior ${metric.name}`, text: `${winners.join(" e ")} registra(m) o maior valor observado entre os municípios selecionados: ${format(maximum)} ${metric.unit}. A regra descreve o valor; não classifica o município como melhor ou pior.` }];
+    });
+  }, [metrics, picked, valueMap]);
 
-  const sources = [...new Set((values.data ?? []).flatMap((group) => group.values.map((item) => `${item.provider} — ${item.dataset}`)))];
-  const report: ExportReport | null = picked.length > 0 && metrics.length > 0 ? {
+  const sources = useMemo(
+    () => [...new Set((values.data ?? []).flatMap((group) => group.values.map((item) => `${item.provider} — ${item.dataset}`)))],
+    [values.data],
+  );
+  const report: ExportReport | null = picked.length >= 2 && metrics.length > 0 ? {
     filename: `repbrasil-municipios-${period}`,
     title: "REPBrasil — Comparação de municípios",
     subtitle: `${uf} · período ${period}`,
@@ -240,6 +274,7 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
       {picked.length === 0 ? <EmptyHint>Escolha de 2 a {MAX_ITEMS} municípios. O vínculo com indicadores usa o código IBGE oficial, nunca semelhança de nome.</EmptyHint> : (
         <>
           <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[680px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Indicador</th>{picked.map((item) => <th key={item.tseCode} className="px-4 py-3 text-right">{item.name}</th>)}</tr></thead><tbody>{metrics.map((metric) => <tr key={metric.code} className="border-t border-line"><td className="px-4 py-3"><p className="font-medium text-fg">{metric.name}</p><p className="text-xs text-fg-muted">{metric.unit} · {period}</p></td>{picked.map((municipality) => <td key={municipality.tseCode} className="px-4 py-3 text-right text-fg-muted">{format(valueMap.get(`${metric.code}:${municipality.ibgeCode}`)?.value)}</td>)}</tr>)}</tbody></table></div>
+          {picked.length === 1 && <EmptyHint>Adicione mais um município para ativar insights e exports comparativos.</EmptyHint>}
           <Insights items={insights} />
           {report && <ExportActions report={report} />}
         </>
@@ -255,29 +290,40 @@ function electionKey(item: ElectionItem): string {
 function ElectionComparator({ setParam }: Readonly<{ setParam: (updates: Record<string, string | null>) => void }>) {
   const search = useSearchParams();
   const uf = (search.get("uf") ?? DEFAULT_UF).toUpperCase();
-  const selected = split(search.get("itens"));
+  const selectedRaw = search.get("itens");
+  const selected = useMemo(() => split(selectedRaw), [selectedRaw]);
   const catalog = useQuery({ queryKey: ["elections-catalog"], queryFn: electionsApi.elections, staleTime: 5 * 60_000 });
-  const selectedElections = (catalog.data?.elections ?? []).filter((item) => selected.includes(electionKey(item)));
+  const selectedElections = useMemo(
+    () => (catalog.data?.elections ?? []).filter((item) => selected.includes(electionKey(item))),
+    [catalog.data, selected],
+  );
   const states = useQuery({
     queryKey: ["compare-election-states", selected.join(","), uf],
     queryFn: async () => Promise.all(selectedElections.map(async (election) => ({ election, state: (await electionsApi.states(election.year, election.round)).states.find((item) => item.uf === uf) ?? null }))),
     enabled: selectedElections.length > 0,
     staleTime: 60_000,
   });
-  const rows = states.data ?? [];
+  const rows = useMemo(() => states.data ?? [], [states.data]);
   const insights = useMemo(() => {
+    if (rows.length < 2) return [];
     const coverage = leader(rows.filter((row): row is { election: ElectionItem; state: StateItem } => row.state !== null), (row) => row.state.resultsMunicipalities);
     if (!coverage) return [];
     return [{ code: "election-result-coverage", version: "v1", title: "Maior cobertura municipal de resultados", text: `${coverage.items.map((item) => `${item.election.year} ${item.election.round}º turno`).join(" e ")} possui(em) resultados para ${format(coverage.value, 0)} município(s) de ${uf}, a maior cobertura entre os pleitos selecionados.` }] satisfies DeterministicInsight[];
   }, [rows, uf]);
 
-  const report: ExportReport | null = rows.length > 0 ? {
+  const report: ExportReport | null = rows.length >= 2 ? {
     filename: `repbrasil-eleicoes-${uf.toLowerCase()}`,
     title: "REPBrasil — Comparação de eleições",
     subtitle: uf,
     headers: ["Eleição", "Data", "Cadastro", "Resultados", "Municípios", "Municípios com cadastro", "Municípios com resultados"],
     rows: rows.map(({ election, state }) => [
-      `${election.year} · ${election.round}º turno`, election.electionDate, election.cadasterAvailable ? "Disponível" : "Indisponível", election.resultsAvailable ? "Disponível" : "Indisponível", state?.municipalities ?? null, state?.cadasterMunicipalities ?? null, state?.resultsMunicipalities ?? null,
+      `${election.year} · ${election.round}º turno`,
+      election.electionDate,
+      election.cadasterAvailable ? "Disponível" : "Indisponível",
+      election.resultsAvailable ? "Disponível" : "Indisponível",
+      state?.municipalities ?? null,
+      state?.cadasterMunicipalities ?? null,
+      state?.resultsMunicipalities ?? null,
     ]),
     metadata: [{ label: "UF", value: uf }, { label: "Pleitos", value: String(rows.length) }],
     sources: ["Tribunal Superior Eleitoral (TSE) — cadastro eleitoral e Boletins de Urna oficiais"],
@@ -300,7 +346,8 @@ function ElectionComparator({ setParam }: Readonly<{ setParam: (updates: Record<
       </section>
       {selectedElections.length === 0 ? <EmptyHint>Escolha de 2 a {MAX_ITEMS} eleições para comparar cobertura e disponibilidade de dados no mesmo território.</EmptyHint> : states.isLoading ? <EmptyHint>Carregando cobertura dos pleitos…</EmptyHint> : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[760px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Eleição</th><th className="px-4 py-3">Data</th><th className="px-4 py-3 text-right">Municípios</th><th className="px-4 py-3 text-right">Cadastro</th><th className="px-4 py-3 text-right">Resultados</th></tr></thead><tbody>{rows.map(({ election, state }) => <tr key={electionKey(election)} className="border-t border-line"><td className="px-4 py-3 font-medium text-fg">{election.year} · {election.round}º turno</td><td className="px-4 py-3 text-fg-muted">{new Date(election.electionDate).toLocaleDateString("pt-BR")}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.municipalities, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.cadasterMunicipalities, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.resultsMunicipalities, 0)}</td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[760px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Eleição</th><th className="px-4 py-3">Data</th><th className="px-4 py-3 text-right">Municípios</th><th className="px-4 py-3 text-right">Cadastro</th><th className="px-4 py-3 text-right">Resultados</th></tr></thead><tbody>{rows.map(({ election, state }) => <tr key={electionKey(election)} className="border-t border-line"><td className="px-4 py-3 font-medium text-fg">{election.year} · {election.round}º turno</td><td className="px-4 py-3 text-fg-muted">{displayIsoDate(election.electionDate)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.municipalities, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.cadasterMunicipalities, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.resultsMunicipalities, 0)}</td></tr>)}</tbody></table></div>
+          {rows.length === 1 && <EmptyHint>Adicione mais uma eleição para ativar insights e exports comparativos.</EmptyHint>}
           <Insights items={insights} />
           {report && <ExportActions report={report} />}
         </>
@@ -314,9 +361,12 @@ export function UniversalCompare() {
   const router = useRouter();
   const pathname = usePathname() ?? "/comparar";
   const kind = (Object.hasOwn(KIND_LABEL, search.get("tipo") ?? "") ? search.get("tipo") : "partido") as CompareKind;
-  const setParam = useMemo(() => (updates: Record<string, string | null>) => {
+  const setParam = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(search.toString());
-    for (const [key, value] of Object.entries(updates)) value === null ? params.delete(key) : params.set(key, value);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null) params.delete(key);
+      else params.set(key, value);
+    }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [pathname, router, search]);
 
