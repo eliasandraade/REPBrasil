@@ -53,7 +53,6 @@ class CamaraApi:
         url = self._validate_url(urljoin(f"{CAMARA_API_BASE}/", path.lstrip("/")))
         pages: list[CamaraPage] = []
         request_params = dict(params or {})
-
         while True:
             response = self._client.get(url, params=request_params)
             response.raise_for_status()
@@ -61,7 +60,6 @@ class CamaraApi:
             if not isinstance(payload, dict):
                 raise ValueError("unexpected Câmara API payload")
             pages.append(CamaraPage(str(response.url), response.status_code, response.content, payload))
-
             links = payload.get("links", [])
             if not isinstance(links, list):
                 raise ValueError("unexpected Câmara API links payload")
@@ -84,23 +82,31 @@ class CamaraApi:
 
 def fetch_deputies(legislature: int) -> list[dict[str, Any]]:
     deputies: list[dict[str, Any]] = []
-    with CamaraApi() as api:
-        pages = api.fetch_all(
-            "/deputados",
+    page = 1
+    while True:
+        response = httpx.get(
+            f"{CAMARA_API_BASE}/deputados",
             params={
-                "idLegislatura": int(legislature),
+                "idLegislatura": legislature,
                 "itens": _ITEMS_PER_PAGE,
+                "pagina": page,
                 "ordem": "ASC",
                 "ordenarPor": "nome",
             },
+            timeout=30,
         )
-    for page_number, page in enumerate(pages, start=1):
-        batch = page.payload.get("dados", [])
-        if not isinstance(batch, list):
-            raise ValueError("unexpected Câmara deputies payload")
-        deputies.extend(row for row in batch if isinstance(row, dict))
+        response.raise_for_status()
+        body = response.json()
+        batch = body.get("dados", [])
+        if not batch:
+            break
+        deputies.extend(batch)
         logger.debug(
-            f"Página {page_number}: {len(batch)} deputados (total acumulado: {len(deputies)})"
+            f"Página {page}: {len(batch)} deputados (total acumulado: {len(deputies)})"
         )
+        has_next = any(link.get("rel") == "next" for link in body.get("links", []))
+        if not has_next:
+            break
+        page += 1
     logger.info(f"Deputados coletados: {len(deputies)} (legislatura {legislature})")
     return deputies
