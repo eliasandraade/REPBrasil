@@ -182,6 +182,9 @@ public class PartyTests
         Assert.Equal<(double?, string)>(
             [(10.0, "value"), (0.0, "zero"), (null, "not_on_ballot")], map.Features.Select(f => (f.Value, f.State)));
         Assert.Null(map.Features[2].Details["votes"]);
+        // dentro de um município o mapa continua por município (não há polígono de zona)
+        var inside = await service.MapAsync(new MapQuery(2024, 1, "CE", "party", 11, null, null, null, null, "00001"), 65, Ct);
+        Assert.Equal(("municipality", 3), (inside.Level, inside.Features.Count));
         await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>
             service.MapAsync(new MapQuery(2024, 1, "CE", "party", 12, null, null, null, null, null), 65, Ct)); // vice
         await Assert.ThrowsAsync<ElectoralBadRequestException>(() =>

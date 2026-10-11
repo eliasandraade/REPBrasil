@@ -222,15 +222,17 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
             XrayService.Freshness(await xray.FreshnessAsync(ct)));
     }
 
-    /// <summary>Camada "partido" do mapa: participação do partido em cada município (ou zona do município).</summary>
+    /// <summary>
+    /// Camada "partido" do mapa: participação do partido em cada município da UF. Sempre no nível de município (o mapa
+    /// não tem polígono de zona); dentro de um município o próprio polígono continua colorido.
+    /// </summary>
     public async Task<MapLayerResponse> MapAsync(MapQuery q, int? party, CancellationToken ct)
     {
         if (party is not { } number) throw new ElectoralBadRequestException("layer partido exige party (número do partido).");
         if (q.Office is not { } office) throw new ElectoralBadRequestException("layer partido exige office.");
         if (Comparability.IsTicketMember(office)) throw new ElectoralBadRequestException("Vice e suplente são votados na chapa: escolha o cargo do titular.");
         var uf = Uf(q.Uf);
-        var mun = string.IsNullOrWhiteSpace(q.Municipality) ? null : q.Municipality.Trim().PadLeft(5, '0');
-        var rows = await repo.TerritoriesAsync(uf, q.Year, q.Round, office, [number], mun, ct);
+        var rows = await repo.TerritoriesAsync(uf, q.Year, q.Round, office, [number], null, ct);
         var municipal = IsMunicipalOffice(office);
         var features = rows.Select(r =>
         {
@@ -252,7 +254,7 @@ public class PartyService(IPartyRepository repo, IRankingRepository rankings, IE
         }).ToList();
         var values = features.Where(f => f.Value is not null).Select(f => f.Value!.Value).ToList();
         return new MapLayerResponse(
-            q.Year, q.Round, uf, mun, "party", mun is null ? "municipality" : "zone", office, features, [],
+            q.Year, q.Round, uf, null, "party", "municipality", office, features, [],
             values.Count > 0 ? values.Min() : null, values.Count > 0 ? values.Max() : null, null,
             "Participação do partido: votos nominais nos números do partido (+ legenda nos cargos proporcionais) ÷ válidos do cargo. "
             + (municipal ? "Município sem candidatura do partido fica sem cor (não estava na urna)." : ""),

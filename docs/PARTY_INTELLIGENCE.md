@@ -37,8 +37,8 @@ Regras invariantes:
 - `GET /api/v1/parties/{slug}?uf=CE&year=&round=&office=` → identidade por eleição, resultados, `detail` (municípios com
   maior e menor participação, candidaturas com mais votos, cobertura do BU), notas. 404 = sigla sem candidatura na UF;
   400 = o partido não disputou a eleição × cargo pedidos.
-- Mapa: `GET /api/v1/elections/{year}/{round}/states/{uf}/map?layer=party&office=&party=` (número do partido); com
-  `municipality=` o nível passa a zona.
+- Mapa: `GET /api/v1/elections/{year}/{round}/states/{uf}/map?layer=party&office=&party=` (número do partido); sempre
+  por município da UF (o mapa não tem polígono de zona).
 
 ## 4. Telas
 
