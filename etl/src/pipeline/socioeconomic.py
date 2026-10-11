@@ -116,7 +116,8 @@ def load_observations(
         cursor.execute(
             """
             INSERT INTO electoral.socioeconomic_source
-                (indicator_code, period, provider, dataset, source_url, sha256, parser_version, metadata)
+                (indicator_code, period, provider, dataset, source_url,
+                 sha256, parser_version, metadata)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
             RETURNING id
             """,
