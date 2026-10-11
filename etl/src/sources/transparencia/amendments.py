@@ -5,7 +5,6 @@ import hashlib
 import io
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -45,7 +44,12 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "CNPJ/CPF do Beneficiário",
         "CNPJ/CPF do Beneficiario",
     ),
-    "beneficiary_name": ("Nome do Beneficiário", "Nome do Beneficiario", "Beneficiário", "Beneficiario"),
+    "beneficiary_name": (
+        "Nome do Beneficiário",
+        "Nome do Beneficiario",
+        "Beneficiário",
+        "Beneficiario",
+    ),
     "locality": ("Localidade do Gasto", "Município", "Municipio", "Localidade"),
     "committed_amount": ("Valor Empenhado", "Valor Empenhado (R$)"),
     "paid_amount": ("Valor Pago", "Valor Pago (R$)"),
