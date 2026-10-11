@@ -14,12 +14,13 @@ import { buildZoneModel } from "@/lib/elections/zone-model";
 import { parseSelection, serializeSelection, toggleSelection, xrayApi } from "@/lib/elections/xray";
 import type { MapLayerKind } from "@/lib/elections/xray-types";
 import { CountryPanel, MunicipalityPanel, StatePanel, ZonePanel } from "./ExplorerPanels";
+import { partiesApi, resultFor } from "@/lib/parties";
 import { CompareTray, MapLayerBar, useMapLayer, useSelectionNames, type LayerState } from "./ExplorerTools";
 import { SectionResults, type VoteTypeFilter } from "./SectionResults";
 import { TerritoryCandidates } from "./TerritoryCandidates";
 import { TerritoryMap, type MapPoint, type MapScope } from "./TerritoryMap";
 
-const LAYER_KINDS: ReadonlySet<MapLayerKind> = new Set(["intensity", "share", "winner", "growth", "decline", "ab", "base"]);
+const LAYER_KINDS: ReadonlySet<MapLayerKind> = new Set(["intensity", "share", "winner", "growth", "decline", "ab", "base", "party"]);
 
 const ibge = (code: number | null | undefined) => (code == null ? null : String(code));
 const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
@@ -261,6 +262,7 @@ export function ElectionsExplorer() {
     base: search.get("base"),
     a: search.get("a"),
     b: search.get("b"),
+    party: Number(search.get("partido")) || null,
   };
   const onLayerChange = (next: Partial<LayerState>) =>
     setParams({
@@ -270,6 +272,7 @@ export function ElectionsExplorer() {
       ...("base" in next ? { base: next.base ?? null } : {}),
       ...("a" in next ? { a: next.a ?? null } : {}),
       ...("b" in next ? { b: next.b ?? null } : {}),
+      ...("party" in next ? { partido: next.party ? String(next.party) : null } : {}),
     });
 
   const states = statesQ.data?.states ?? null;
@@ -287,9 +290,24 @@ export function ElectionsExplorer() {
   const officesQ = useQuery({
     queryKey: ["el-offices", year, round, ufCode, munTse],
     queryFn: () => xrayApi.candidates(year, round, ufCode!, { municipality: munTse, pageSize: 1 }),
-    enabled: !!parsed && !!ufCode && layerState.layer === "winner",
+    enabled: !!parsed && !!ufCode && (layerState.layer === "winner" || layerState.layer === "party"),
     staleTime: 5 * 60_000,
   });
+  const partiesQ = useQuery({
+    queryKey: ["parties", ufCode],
+    queryFn: () => partiesApi.list(ufCode!),
+    enabled: !!ufCode && layerState.layer === "party",
+    staleTime: 5 * 60_000,
+  });
+  const partyOptions = useMemo(() => {
+    if (!partiesQ.data || !layerState.office) return [];
+    return partiesQ.data.parties
+      .flatMap((p) => {
+        const r = resultFor(p, year, round, layerState.office!);
+        return r ? [{ value: r.partyNumber, label: `${p.acronym} (${r.partyNumber})`, votes: r.votes ?? -1 }] : [];
+      })
+      .sort((a, b) => b.votes - a.votes || a.label.localeCompare(b.label, "pt-BR"));
+  }, [partiesQ.data, layerState.office, year, round]);
   const mapLayer = useMapLayer(year, round, ufCode, munTse, layerState);
 
   const scope: MapScope = useMemo(
@@ -497,6 +515,7 @@ export function ElectionsExplorer() {
                     selection={selection}
                     names={mapNames}
                     offices={officesQ.data?.offices ?? []}
+                    parties={partyOptions}
                     note={mapLayer.view?.note ?? null}
                     loading={mapLayer.loading}
                     error={mapLayer.error}

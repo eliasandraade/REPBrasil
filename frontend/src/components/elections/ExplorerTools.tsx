@@ -16,9 +16,10 @@ export interface LayerState {
   base: string | null;
   a: string | null;
   b: string | null;
+  party: number | null;
 }
 
-const LAYERS: MapLayerKind[] = ["intensity", "share", "base", "winner", "growth", "decline", "ab"];
+const LAYERS: MapLayerKind[] = ["intensity", "share", "base", "winner", "party", "growth", "decline", "ab"];
 
 /** Nomes das candidaturas selecionadas (a URL guarda só os ids). */
 export function useSelectionNames(ids: string[], uf: string | null) {
@@ -42,6 +43,7 @@ export function useMapLayer(year: number, round: number, uf: string | null, muni
     if (!s.layer || !uf) return null;
     const p: MapLayerParams = { layer: s.layer, municipality };
     if (s.layer === "winner") return s.office ? { ...p, office: s.office } : null;
+    if (s.layer === "party") return s.office && s.party ? { ...p, office: s.office, party: s.party } : null;
     if (s.layer === "intensity" || s.layer === "share" || s.layer === "base") return s.candidacy ? { ...p, candidacy: s.candidacy } : null;
     if (s.layer === "growth" || s.layer === "decline") return s.candidacy && s.base ? { ...p, candidacy: s.candidacy, base: s.base } : null;
     return s.a && s.b ? { ...p, a: s.a, b: s.b } : null;
@@ -63,6 +65,7 @@ export function MapLayerBar({
   selection,
   names,
   offices,
+  parties = [],
   note,
   loading,
   error,
@@ -73,6 +76,8 @@ export function MapLayerBar({
   selection: string[];
   names: Map<string, string>;
   offices: Array<{ value: string; label: string }>;
+  /** Camada "party": partidos com candidatura ou voto no cargo escolhido. */
+  parties?: Array<{ value: number; label: string }>;
   note: string | null;
   loading: boolean;
   error: boolean;
@@ -117,12 +122,22 @@ export function MapLayerBar({
       </div>
       {state.layer && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {state.layer === "winner" && (
+          {(state.layer === "winner" || state.layer === "party") && (
             <select aria-label="Cargo" className={select} value={state.office ?? ""} onChange={(e) => onChange({ office: e.target.value ? Number(e.target.value) : null })}>
               <option value="">Escolha o cargo</option>
               {offices.map((o) => (
                 <option key={o.value} value={o.value}>
                   {displayName(o.label)}
+                </option>
+              ))}
+            </select>
+          )}
+          {state.layer === "party" && (
+            <select aria-label="Partido" className={select} value={state.party ?? ""} onChange={(e) => onChange({ party: e.target.value ? Number(e.target.value) : null })}>
+              <option value="">Escolha o partido</option>
+              {parties.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
                 </option>
               ))}
             </select>
@@ -144,7 +159,7 @@ export function MapLayerBar({
           {error && <span className="text-[11px] text-warn">camada indisponível</span>}
         </div>
       )}
-      {state.layer && state.layer !== "winner" && selection.length === 0 && !state.candidacy && (
+      {state.layer && state.layer !== "winner" && state.layer !== "party" && selection.length === 0 && !state.candidacy && (
         <p className="mt-1.5 text-[11px] text-fg-muted">Marque candidaturas para comparar (lista Candidaturas) ou use &ldquo;ver no mapa&rdquo;.</p>
       )}
       {note && <p className="mt-1.5 text-[11px] text-fg-muted">{note}</p>}
