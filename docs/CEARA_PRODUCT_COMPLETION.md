@@ -21,7 +21,7 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 | PR | Conteúdo | Status | PR | SHA | Produção |
 |---|---|---|---|---|---|
 | B | Vínculo votável → candidatura idempotente pelo conteúdo das entradas; vínculo de escopo arquivado; lake com token e 503 "indisponível"; guardas do PR #4 no loader estadual | DONE | [#16](https://github.com/eliasandraade/REPBrasil/pull/16) | `128d98b` | pendente: aplicar migration 013 (via `/migrate`) e configurar `REPBRASIL_LAKE_TOKEN` igual no back-v2 e no worker |
-| A | Brand Kit (tokens, Inter, light/dark, assets oficiais, favicon/PWA/OG), salvage do PR #8 (busca, segurança HTTP, SEO, nomes oficiais, home com cobertura real) | IN PROGRESS | — | — | — |
+| A | Brand Kit (tokens, Inter, light/dark, assets oficiais, favicon/PWA/OG), salvage do PR #8 (busca, segurança HTTP, SEO, nomes oficiais, home com cobertura real); achados do SonarCloud corrigidos (script de marca sem caminhos da linha de comando, SQL constante na busca, tema sem HTML inline) | DONE | [#17](https://github.com/eliasandraade/REPBrasil/pull/17) | `5f0d1f2` | pendente: `Migrate__Token` no back-v2, migrations 014 e slug via `/migrate`, deploy do front-v2 |
 | C | Base Eleitoral (fórmula versionada `electoral-base/v1` com decomposição, por município/zona/seção/local, mudança só na mesma disputa, camada do mapa) + rankings determinísticos (14 tipos, guardas de comparabilidade, ausência ≠ zero, página `/rankings`) | IN PROGRESS | — | — | — |
 | D | Partidos + força partidária | TODO | — | — | — |
 | E | Data Intelligence (socioeconomia, correlações, clusters) | TODO | — | — | — |
@@ -34,7 +34,7 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 
 PRs antigas:
 
-- **#8** (product readiness) — auditada arquivo a arquivo e incorporada no PR A (merge sobre a `main` com lake):
+- **#8** (product readiness) — auditada arquivo a arquivo e incorporada no PR A (#17); fechada como incorporada:
   reuse — pipeline HTTP endurecido (cabeçalhos, rate limit por IP, ProblemDetails sem detalhe interno, output
   cache, `/health/ready`, `/migrate` só com token), busca global (C# + SQL `search_fold` + trigramas), slugs
   permanentes `/politicos/<slug>`, nomes oficiais (IBGE/`official_case`), home com cobertura real, estados de
@@ -89,5 +89,5 @@ PRs antigas:
 |---|---|
 | Proveniência de todo dataset novo | TODO |
 | Zero serviço pago novo | DONE (mantido) |
-| CI verde por PR | IN PROGRESS |
+| CI verde por PR | IN PROGRESS — #16 e #17 verdes (CI, SonarCloud, GitGuardian, Codex); o painel do SonarCloud não abre deste ambiente: achados lidos da API pública por workflow temporário e reproduzidos com SonarQube local |
 | Smokes reais (General Sampaio 2024: 4.078 votos, 30/30 seções) | TODO (regressão automatizada + smoke real pendente de rede) |
