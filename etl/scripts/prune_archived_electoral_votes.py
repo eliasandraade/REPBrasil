@@ -28,6 +28,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--uf", required=True)
     p.add_argument("--root", type=Path, default=None)
     p.add_argument("--confirm", required=True, help="must equal YEAR/TURN/UF, e.g. 2022/1/CE")
+    p.add_argument("--dry-run", action="store_true", help="verify every prune gate and report the exact delete count without deleting")
     return p
 
 
@@ -145,6 +146,35 @@ def main() -> int:
                     f"refusing prune: current result rows differ from archived metadata: "
                     f"database={len(result_ids)} archive={result_parquet['rows']}"
                 )
+
+            cur.execute(
+                "SELECT count(*)::bigint FROM section_office_vote WHERE result_id = ANY(%s::bigint[])",
+                (result_ids,),
+            )
+            current_vote_rows = int(cur.fetchone()[0])
+            if current_vote_rows != vote_parquet["rows"]:
+                raise SystemExit(
+                    f"refusing prune: current vote rows differ from archived vote rows: "
+                    f"database={current_vote_rows} archive={vote_parquet['rows']}"
+                )
+
+            if args.dry_run:
+                print(
+                    json.dumps(
+                        {
+                            "status": "dry_run",
+                            "scope": {"year": scope.year, "turn": scope.turn, "uf": scope.uf},
+                            "votesArchive": vote_parquet,
+                            "resultsArchive": result_parquet,
+                            "derivedSnapshot": derived_snapshot,
+                            "wouldDeleteVotes": current_vote_rows,
+                            "preservedResults": len(result_ids),
+                            "deletedRuns": 0,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+                return 0
 
             cur.execute(
                 "DELETE FROM section_office_vote WHERE result_id = ANY(%s::bigint[])",
