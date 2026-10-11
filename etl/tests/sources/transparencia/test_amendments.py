@@ -20,7 +20,7 @@ def test_parse_amendments_csv_preserves_official_values() -> None:
 
 
 def test_parse_amendments_csv_fails_when_official_identity_columns_are_missing() -> None:
-    content = "Autor;Valor Pago\nMaria;10,00\n".encode()
+    content = b"Autor;Valor Pago\nMaria;10,00\n"
     with pytest.raises(ValueError, match="missing required fields"):
         parse_amendments_csv(content)
 
