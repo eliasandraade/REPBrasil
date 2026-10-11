@@ -7,6 +7,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from src.electoral.lake import LakeError, LakeScope, municipality_path, normalize_uf, scope_path
 from src.electoral.lake_query import contest_stats_frame
 
 # votáveis: 1 = candidata A (alvo), 2 = candidato B; a legenda já foi excluída pelo filtro de números de candidatura
@@ -29,18 +30,50 @@ RESULTS = pl.DataFrame(
 
 
 def test_section_stats_rank_ties_and_absent_target_votes() -> None:
-    rows = {r["section"]: r for r in contest_stats_frame(VOTES, RESULTS, target_votable_ids={1}, level="section")}
+    rows = {
+        r["section"]: r
+        for r in contest_stats_frame(VOTES, RESULTS, target_votable_ids={1}, level="section")
+    }
     assert (rows[100]["ahead"], rows[100]["targetVotes"], rows[100]["leaderVotes"]) == (1, 10, 20)
-    assert (rows[101]["ahead"], rows[101]["targetVotes"], rows[101]["bestOtherVotes"]) == (0, 5, 5)  # empate
+    assert (rows[101]["ahead"], rows[101]["targetVotes"], rows[101]["bestOtherVotes"]) == (
+        0,
+        5,
+        5,
+    )  # empate
     assert (rows[104]["ahead"], rows[104]["targetVotes"], rows[104]["contestants"]) == (1, 0, 1)
     assert all(r["placeCode"] == "" for r in rows.values())
 
 
 def test_place_stats_sum_the_place_urns() -> None:
     (row,) = contest_stats_frame(VOTES, RESULTS, target_votable_ids={1}, level="place")
-    assert (row["placeCode"], row["section"], row["targetVotes"], row["leaderVotes"], row["ahead"]) == ("1001", 0, 15, 29, 1)
+    assert (
+        row["placeCode"],
+        row["section"],
+        row["targetVotes"],
+        row["leaderVotes"],
+        row["ahead"],
+    ) == ("1001", 0, 15, 29, 1)
 
 
 def test_unknown_level_is_rejected() -> None:
     with pytest.raises(ValueError, match="level"):
         contest_stats_frame(VOTES, RESULTS, target_votable_ids={1}, level="zone")
+
+
+@pytest.mark.parametrize("uf", ["..", "C/", "*E", "C", "CEA", "1E"])
+def test_lake_paths_reject_a_uf_that_is_not_two_letters(tmp_path, uf):
+    with pytest.raises(LakeError):
+        scope_path(tmp_path, LakeScope(2024, 1, uf))
+    with pytest.raises(LakeError):
+        normalize_uf(uf)
+
+
+@pytest.mark.parametrize("code", ["../../etc", "1393a", "123456", "", "*"])
+def test_lake_paths_reject_a_municipality_code_that_is_not_numeric(tmp_path, code):
+    with pytest.raises(LakeError):
+        municipality_path(tmp_path, LakeScope(2024, 1, "CE"), code)
+
+
+def test_lake_paths_stay_inside_the_scope(tmp_path):
+    path = municipality_path(tmp_path, LakeScope(2024, 1, "ce"), "935")
+    assert path == tmp_path / "electoral" / "year=2024" / "turn=1" / "uf=CE" / "municipality=00935"

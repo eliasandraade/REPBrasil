@@ -6,7 +6,7 @@ from typing import Any
 import polars as pl
 import psycopg
 
-from .lake import LakeScope, scan_scope
+from .lake import LakeScope, normalize_uf, scan_scope
 from .lake_query import valid_votes_by_result
 from .lake_results import scan_results
 
@@ -81,7 +81,7 @@ def section_results(
 
 def _find_result(root: Path, result_id: int, uf: str) -> dict[str, Any] | None:
     base = root / "electoral"
-    for path in sorted(base.glob(f"year=*/turn=*/uf={uf.upper()}/results.parquet")):
+    for path in sorted(base.glob(f"year=*/turn=*/uf={normalize_uf(uf)}/results.parquet")):
         rows = pl.scan_parquet(path).filter(pl.col("result_id") == int(result_id)).limit(1).collect()
         if not rows.is_empty():
             return dict(rows.iter_rows(named=True).__next__())
