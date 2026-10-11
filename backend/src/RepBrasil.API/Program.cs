@@ -155,8 +155,9 @@ var migrationsEnabled = string.Equals(
     builder.Configuration["MigrateOnStartup"],
     "true",
     StringComparison.OrdinalIgnoreCase);
+var applyMigrationsOnStartup = migrationsEnabled && !builder.Configuration.GetValue<bool>("Migrate:SkipStartupApply");
 
-if (migrationsEnabled)
+if (applyMigrationsOnStartup)
 {
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
