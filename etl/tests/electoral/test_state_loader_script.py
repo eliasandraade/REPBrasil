@@ -32,7 +32,7 @@ def test_statewide_loader_runs_directly_from_scripts_directory() -> None:
         ("archive_electoral_votes.py", "--verify-only"),
         ("archive_electoral_results.py", "--verify-only"),
         ("snapshot_derived_scope.py", "--year"),
-        ("prune_archived_electoral_votes.py", "--confirm"),
+        ("prune_archived_electoral_votes.py", "--dry-run"),
     ],
 )
 def test_hybrid_lake_scripts_run_directly_from_scripts_directory(
