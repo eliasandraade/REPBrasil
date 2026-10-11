@@ -90,10 +90,10 @@ function sheetXml(report: ExportReport): string {
     .map((row, rowIndex) => {
       const cells = row
         .map((value, columnIndex) => {
-          if (value === null) return "";
           const ref = `${columnName(columnIndex)}${rowIndex + 1}`;
           if (typeof value === "number" && Number.isFinite(value)) return `<c r="${ref}"><v>${value}</v></c>`;
-          return `<c r="${ref}" t="inlineStr"><is><t>${xml(String(value))}</t></is></c>`;
+          const rendered = value === null ? "—" : String(value);
+          return `<c r="${ref}" t="inlineStr"><is><t>${xml(rendered)}</t></is></c>`;
         })
         .join("");
       return `<row r="${rowIndex + 1}">${cells}</row>`;
@@ -145,17 +145,18 @@ interface ZipEntry {
 function zipStore(entries: ZipEntry[]): Uint8Array {
   const body: Uint8Array[] = [];
   const directory: Uint8Array[] = [];
+  const dosDate1980 = 0x0021;
   let offset = 0;
   for (const entry of entries) {
     const name = utf8(entry.name);
     const crc = crc32(entry.data);
     const local = concat([
-      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(entry.data.length), u32(entry.data.length),
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(dosDate1980), u32(crc), u32(entry.data.length), u32(entry.data.length),
       u16(name.length), u16(0), name, entry.data,
     ]);
     body.push(local);
     directory.push(concat([
-      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(entry.data.length), u32(entry.data.length),
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(dosDate1980), u32(crc), u32(entry.data.length), u32(entry.data.length),
       u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), name,
     ]));
     offset += local.length;
@@ -181,8 +182,44 @@ export function reportXlsx(report: ExportReport): Uint8Array {
   ]);
 }
 
-function pdfEscape(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("(", "\\(").replaceAll(")", "\\)").replaceAll(/[^\x20-\x7E]/g, "?");
+const WIN_ANSI_SPECIAL = new Map<number, number>([
+  [0x20ac, 0x80],
+  [0x201a, 0x82],
+  [0x0192, 0x83],
+  [0x201e, 0x84],
+  [0x2026, 0x85],
+  [0x2020, 0x86],
+  [0x2021, 0x87],
+  [0x02c6, 0x88],
+  [0x2030, 0x89],
+  [0x0160, 0x8a],
+  [0x2039, 0x8b],
+  [0x0152, 0x8c],
+  [0x017d, 0x8e],
+  [0x2018, 0x91],
+  [0x2019, 0x92],
+  [0x201c, 0x93],
+  [0x201d, 0x94],
+  [0x2022, 0x95],
+  [0x2013, 0x96],
+  [0x2014, 0x97],
+  [0x02dc, 0x98],
+  [0x2122, 0x99],
+  [0x0161, 0x9a],
+  [0x203a, 0x9b],
+  [0x0153, 0x9c],
+  [0x017e, 0x9e],
+  [0x0178, 0x9f],
+]);
+
+function pdfWinAnsiHex(value: string): string {
+  let result = "";
+  for (const char of value) {
+    const codePoint = char.codePointAt(0) ?? 0x3f;
+    const byte = codePoint <= 0xff ? codePoint : (WIN_ANSI_SPECIAL.get(codePoint) ?? 0x3f);
+    result += byte.toString(16).padStart(2, "0");
+  }
+  return result;
 }
 
 function wrap(value: string, width = 92): string[] {
@@ -231,12 +268,18 @@ export function reportPdf(report: ExportReport): Uint8Array {
   }
   objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
   objects[2] = `<< /Type /Pages /Count ${pages.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] >>`;
-  objects[fontId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  objects[fontId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
   pages.forEach((page, index) => {
     const pageId = pageIds[index];
     const contentId = contentIds[index];
     objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
-    const stream = ["BT", "/F1 9 Tf", "42 802 Td", ...page.flatMap((line, lineIndex) => [lineIndex === 0 ? "" : "0 -17 Td", `(${pdfEscape(line)}) Tj`]).filter(Boolean), "ET"].join("\n");
+    const stream = [
+      "BT",
+      "/F1 9 Tf",
+      "42 802 Td",
+      ...page.flatMap((line, lineIndex) => [lineIndex === 0 ? "" : "0 -17 Td", `<${pdfWinAnsiHex(line)}> Tj`]).filter(Boolean),
+      "ET",
+    ].join("\n");
     objects[contentId] = `<< /Length ${utf8(stream).length} >>\nstream\n${stream}\nendstream`;
   });
 
