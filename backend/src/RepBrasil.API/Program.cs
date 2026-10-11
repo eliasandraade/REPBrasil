@@ -148,9 +148,24 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 
+var migrationsEnabled = string.Equals(
+    builder.Configuration["MigrateOnStartup"],
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
+if (migrationsEnabled)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseMigration");
+    logger.LogInformation("Applying database migrations on startup...");
+    await db.Database.MigrateAsync();
+    logger.LogInformation("Database migrations applied successfully.");
+}
+
 // Migração manual (POST /migrate) só com MigrateOnStartup=true E o token Migrate:Token no cabeçalho X-Migrate-Token.
 // Sem token configurado ou com token errado, o endpoint responde como se não existisse.
-if (string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase))
+if (migrationsEnabled)
 {
     var migrateToken = builder.Configuration["Migrate:Token"];
     app.MapPost("/migrate", async (HttpContext http, ApplicationDbContext db, ILogger<Program> logger) =>
