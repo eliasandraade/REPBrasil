@@ -50,15 +50,66 @@ def parse_sidra_value(raw: object) -> Decimal | None:
         raise ValueError(f"unexpected SIDRA value: {raw!r}") from exc
 
 
+def _header_field(header: dict[str, Any], labels: tuple[str, ...]) -> str | None:
+    for key, raw_label in header.items():
+        if not key.endswith("C"):
+            continue
+        label = str(raw_label).strip().casefold()
+        if any(label == candidate or candidate in label for candidate in labels):
+            return key
+    return None
+
+
+def _detect_sidra_fields(payload: list[dict[str, Any]]) -> tuple[str, str]:
+    if not payload or not isinstance(payload[0], dict):
+        return "D1C", "D2C"
+
+    header = payload[0]
+    municipality_field = _header_field(
+        header,
+        (
+            "município",
+            "municipio",
+            "município (código)",
+            "municipio (código)",
+            "municipio (codigo)",
+        ),
+    )
+    period_field = _header_field(
+        header,
+        (
+            "ano",
+            "ano (código)",
+            "ano (codigo)",
+            "período",
+            "periodo",
+            "período (código)",
+            "periodo (código)",
+            "periodo (codigo)",
+        ),
+    )
+
+    if municipality_field is None:
+        raise ValueError("SIDRA payload does not identify the municipality code dimension")
+    if period_field is None:
+        raise ValueError("SIDRA payload does not identify the period dimension")
+    return municipality_field, period_field
+
+
 def parse_sidra_payload(
     payload: list[dict[str, Any]],
     *,
-    municipality_field: str = "D1C",
-    period_field: str = "D2C",
+    municipality_field: str | None = None,
+    period_field: str | None = None,
     value_field: str = "V",
 ) -> list[SidraObservation]:
     if not isinstance(payload, list):
         raise ValueError("unexpected SIDRA payload: expected a list")
+
+    if municipality_field is None or period_field is None:
+        detected_municipality, detected_period = _detect_sidra_fields(payload)
+        municipality_field = municipality_field or detected_municipality
+        period_field = period_field or detected_period
 
     rows: list[SidraObservation] = []
     for item in payload:
@@ -100,7 +151,8 @@ def fetch_sidra(
     try:
         response = client.get(url)
         response.raise_for_status()
-        return SidraFetch(url, response.content, parse_sidra_payload(response.json()))
+        payload = response.json()
+        return SidraFetch(url, response.content, parse_sidra_payload(payload))
     finally:
         if own:
             client.close()
