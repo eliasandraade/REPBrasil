@@ -7,9 +7,9 @@ the declared columns do not match the expected contract.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Mapping
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,8 @@ def parse_atlas_rows(
 ) -> list[AtlasObservation]:
     parsed: list[AtlasObservation] = []
     for row in rows:
-        missing = [name for name in (municipality_column, period_column, value_column) if name not in row]
+        required = (municipality_column, period_column, value_column)
+        missing = [name for name in required if name not in row]
         if missing:
             raise ValueError(f"Atlas columns missing: {', '.join(missing)}")
         code = str(row[municipality_column]).strip()
