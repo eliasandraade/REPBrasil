@@ -142,29 +142,34 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    uf = _normalize_uf(args.uf)
-    protect_uf = _normalize_uf(args.protect_uf) if args.protect_uf else None
-    manifest, csv_path = load_manifest(args.manifest)
-    _validate_manifest(manifest, year=args.year, turn=args.turn, uf=uf)
-    verify_file_sha256(csv_path, manifest["csv"]["sha256"])
-    # Uma passada indexa o CSV estadual; cada município × zona lê só o seu trecho.
-    scope_index = load_or_build_scope_index(
-        csv_path, detect_layout(csv_path), csv_sha256=manifest["csv"]["sha256"], csv_size=int(manifest["csv"]["size"])
-    )
-
+    # Tudo — inclusive validar UF, manifesto, checksum oficial, hash do CSV e índice — fica dentro do bloco que
+    # registra a falha: um arquivo de progresso nunca continua dizendo "em andamento" ou "ok" depois de um erro.
     summary: dict[str, Any] = {
-        "uf": uf,
+        "uf": args.uf,
         "year": args.year,
         "turn": args.turn,
-        "csv_sha256_verified": True,
+        "csv_sha256_verified": False,
         "scopes_total": 0,
         "imported": 0,
         "already_present": 0,
         "vote_records_imported": 0,
         "votes_imported": 0,
     }
-
     try:
+        uf = _normalize_uf(args.uf)
+        summary["uf"] = uf
+        protect_uf = _normalize_uf(args.protect_uf) if args.protect_uf else None
+        manifest, csv_path = load_manifest(args.manifest)
+        _validate_manifest(manifest, year=args.year, turn=args.turn, uf=uf)
+        verify_file_sha256(csv_path, manifest["csv"]["sha256"])
+        summary["csv_sha256_verified"] = True
+        # Uma passada indexa o CSV estadual; cada município × zona lê só o seu trecho.
+        scope_index = load_or_build_scope_index(
+            csv_path,
+            detect_layout(csv_path),
+            csv_sha256=manifest["csv"]["sha256"],
+            csv_size=int(manifest["csv"]["size"]),
+        )
         return _run(
             args, uf=uf, protect_uf=protect_uf, scope_index=scope_index, summary=summary
         )

@@ -81,3 +81,23 @@ def test_failure_message_never_carries_connection_credentials() -> None:
     error = RuntimeError("connection to postgresql://repbrasil:s3cret@db.internal:5432/x failed")
     message = _loader()._safe_error(error)
     assert "s3cret" not in message and "postgresql://***@db.internal" in message
+
+
+def test_preprocessing_failures_are_recorded_in_the_progress_file(tmp_path: Path) -> None:
+    """Regressão (review do PR #16): UF/manifesto inválidos falham ANTES da carga e mesmo assim ficam no progresso."""
+    import json
+
+    loader = _loader()
+    progress = tmp_path / "progress.json"
+    progress.write_text(json.dumps({"status": "succeeded", "progress": {"done": 9, "total": 9}}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="invalid UF"):
+        loader.main(["--uf", "C1", "--year", "2024", "--turn", "1", "--manifest", str(tmp_path / "m.json"),
+                     "--progress", str(progress)])
+    recorded = json.loads(progress.read_text(encoding="utf-8"))
+    assert recorded["status"] == "failed" and "invalid UF" in recorded["error"]
+    assert recorded["csv_sha256_verified"] is False
+
+    with pytest.raises(Exception):  # noqa: B017 - manifesto ausente: qualquer erro de leitura vale
+        loader.main(["--uf", "CE", "--year", "2024", "--turn", "1", "--manifest", str(tmp_path / "missing.json"),
+                     "--progress", str(progress)])
+    assert json.loads(progress.read_text(encoding="utf-8"))["status"] == "failed"
