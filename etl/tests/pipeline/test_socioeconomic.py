@@ -3,15 +3,16 @@ from decimal import Decimal
 from src.pipeline.socioeconomic import (
     Observation,
     change_kind,
+    content_sha256,
     derive_gdp_per_capita,
-    payload_sha256,
 )
 
 
-def test_payload_hash_is_order_independent() -> None:
-    a = Observation("2304400", 2022, Decimal("10"))
-    b = Observation("2304707", 2022, Decimal("20"))
-    assert payload_sha256([a, b]) == payload_sha256([b, a])
+def test_source_hash_uses_acquired_bytes_not_only_numeric_observations() -> None:
+    first = b'{"D1C":"2304400","V":"1","note":"release-a"}'
+    second = b'{"D1C":"2304400","V":"1","note":"release-b"}'
+    assert content_sha256(first) != content_sha256(second)
+    assert content_sha256(first) == content_sha256(first)
 
 
 def test_changed_counts_only_real_value_changes() -> None:

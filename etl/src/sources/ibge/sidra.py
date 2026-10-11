@@ -24,6 +24,13 @@ class SidraObservation:
     value: Decimal
 
 
+@dataclass(frozen=True)
+class SidraFetch:
+    url: str
+    content: bytes
+    observations: list[SidraObservation]
+
+
 def parse_sidra_value(raw: object) -> Decimal | None:
     """Parse the official SIDRA notation without inventing values.
 
@@ -60,8 +67,6 @@ def parse_sidra_payload(
         code = str(item.get(municipality_field, "")).strip()
         period_raw = str(item.get(period_field, "")).strip()
         if not (len(code) == 7 and code.isdigit()):
-            # SIDRA may prepend a metadata/header row; rows without a 7-digit
-            # municipality code are not observations.
             continue
         if not period_raw.isdigit():
             raise ValueError(f"invalid SIDRA period: {period_raw!r}")
@@ -88,15 +93,14 @@ def fetch_sidra(
     variable: int,
     period: int,
     client: httpx.Client | None = None,
-) -> tuple[str, list[SidraObservation]]:
+) -> SidraFetch:
     url = build_sidra_url(table=table, variable=variable, period=period)
     own = client is None
     client = client or httpx.Client(timeout=60)
     try:
         response = client.get(url)
         response.raise_for_status()
-        payload = response.json()
-        return url, parse_sidra_payload(payload)
+        return SidraFetch(url, response.content, parse_sidra_payload(response.json()))
     finally:
         if own:
             client.close()

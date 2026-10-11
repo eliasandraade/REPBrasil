@@ -20,8 +20,8 @@ namespace RepBrasil.Infrastructure.Migrations
         {
             migrationBuilder.Sql("""
                 DROP TABLE IF EXISTS electoral.indicator_value;
-                DROP TABLE IF EXISTS electoral.indicator;
                 DROP TABLE IF EXISTS electoral.socioeconomic_source;
+                DROP TABLE IF EXISTS electoral.indicator;
                 """);
         }
     }

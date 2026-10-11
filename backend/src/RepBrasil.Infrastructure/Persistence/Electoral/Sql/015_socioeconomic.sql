@@ -1,16 +1,3 @@
-CREATE TABLE IF NOT EXISTS socioeconomic_source (
-    id bigserial PRIMARY KEY,
-    provider text NOT NULL,
-    dataset text NOT NULL,
-    source_url text NOT NULL,
-    retrieved_at timestamptz NOT NULL DEFAULT now(),
-    published_at timestamptz,
-    sha256 char(64) NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
-    parser_version text NOT NULL,
-    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-    UNIQUE (provider, dataset, sha256)
-);
-
 CREATE TABLE IF NOT EXISTS indicator (
     code text PRIMARY KEY,
     name text NOT NULL,
@@ -20,6 +7,21 @@ CREATE TABLE IF NOT EXISTS indicator (
     derived boolean NOT NULL DEFAULT false,
     derivation text,
     created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS socioeconomic_source (
+    id bigserial PRIMARY KEY,
+    indicator_code text NOT NULL REFERENCES indicator(code) ON DELETE RESTRICT,
+    period integer NOT NULL CHECK (period BETWEEN 1900 AND 2200),
+    provider text NOT NULL,
+    dataset text NOT NULL,
+    source_url text NOT NULL,
+    retrieved_at timestamptz NOT NULL DEFAULT now(),
+    published_at timestamptz,
+    sha256 char(64) NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+    parser_version text NOT NULL,
+    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    UNIQUE (provider, dataset, indicator_code, period, sha256)
 );
 
 CREATE TABLE IF NOT EXISTS indicator_value (
@@ -36,7 +38,7 @@ CREATE TABLE IF NOT EXISTS indicator_value (
 CREATE INDEX IF NOT EXISTS indicator_value_lookup_idx
     ON indicator_value (indicator_code, period, municipality_ibge_code, source_id DESC);
 CREATE INDEX IF NOT EXISTS socioeconomic_source_recency_idx
-    ON socioeconomic_source (retrieved_at DESC, id DESC);
+    ON socioeconomic_source (indicator_code, period, retrieved_at DESC, id DESC);
 
 INSERT INTO indicator (code, name, unit, provider, description, derived, derivation) VALUES
     ('ibge.population', 'População', 'pessoas', 'IBGE/SIDRA', 'População municipal publicada pelo IBGE para o período informado.', false, NULL),

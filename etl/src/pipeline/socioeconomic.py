@@ -46,20 +46,8 @@ class ConnectionLike(Protocol):
     def rollback(self) -> None: ...
 
 
-def canonical_payload(observations: Iterable[Observation]) -> bytes:
-    rows = [
-        {
-            "municipality_ibge_code": row.municipality_ibge_code,
-            "period": row.period,
-            "value": str(row.value),
-        }
-        for row in sorted(observations, key=lambda x: (x.municipality_ibge_code, x.period, x.value))
-    ]
-    return json.dumps(rows, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
-
-
-def payload_sha256(observations: Iterable[Observation]) -> str:
-    return hashlib.sha256(canonical_payload(observations)).hexdigest()
+def content_sha256(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
 
 
 def derive_gdp_per_capita(
@@ -93,24 +81,33 @@ def load_observations(
     conn: ConnectionLike,
     *,
     indicator_code: str,
+    period: int,
     source: SourceMeta,
+    source_content: bytes,
     observations: list[Observation],
 ) -> LoadStats:
-    """Insert one official release.
+    """Insert one complete official indicator-period snapshot.
 
-    Same provider+dataset+SHA is a no-op. A later release gets a new source row,
-    preserving the earlier one for audit. `changed` counts only actual value
-    changes; unchanged values in a new release are stored but not called changed.
+    The SHA-256 is over the acquired source bytes, not normalized observations.
+    A later release gets a new source row even when its numeric values happen to
+    match an earlier release. Missing municipalities are represented by absence
+    from this latest snapshot and therefore supersede older observations.
     """
-    digest = payload_sha256(observations)
+    if not 1900 <= period <= 2200:
+        raise ValueError(f"invalid period: {period}")
+    if any(row.period != period for row in observations):
+        raise ValueError("all observations must belong to the declared period")
+
+    digest = content_sha256(source_content)
     cursor = conn.cursor()
     try:
         cursor.execute(
             """
             SELECT id FROM electoral.socioeconomic_source
-             WHERE provider = %s AND dataset = %s AND sha256 = %s
+             WHERE provider = %s AND dataset = %s AND indicator_code = %s
+               AND period = %s AND sha256 = %s
             """,
-            (source.provider, source.dataset, digest),
+            (source.provider, source.dataset, indicator_code, period, digest),
         )
         existing = cursor.fetchone()
         if existing is not None:
@@ -119,11 +116,13 @@ def load_observations(
         cursor.execute(
             """
             INSERT INTO electoral.socioeconomic_source
-                (provider, dataset, source_url, sha256, parser_version, metadata)
-            VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                (indicator_code, period, provider, dataset, source_url, sha256, parser_version, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
             RETURNING id
             """,
             (
+                indicator_code,
+                period,
                 source.provider,
                 source.dataset,
                 source.source_url,
@@ -147,10 +146,11 @@ def load_observations(
                   FROM electoral.indicator_value v
                   JOIN electoral.socioeconomic_source s ON s.id = v.source_id
                  WHERE v.indicator_code = %s AND v.municipality_ibge_code = %s AND v.period = %s
+                   AND s.id <> %s
                  ORDER BY s.retrieved_at DESC, s.id DESC
                  LIMIT 1
                 """,
-                (indicator_code, row.municipality_ibge_code, row.period),
+                (indicator_code, row.municipality_ibge_code, period, source_id),
             )
             previous_row = cursor.fetchone()
             previous = Decimal(str(previous_row[0])) if previous_row is not None else None
@@ -165,7 +165,7 @@ def load_observations(
                     (indicator_code, municipality_ibge_code, period, value, source_id)
                 VALUES (%s, %s, %s, %s, %s)
                 """,
-                (indicator_code, row.municipality_ibge_code, row.period, row.value, source_id),
+                (indicator_code, row.municipality_ibge_code, period, row.value, source_id),
             )
         conn.commit()
         return LoadStats(source_id, int(inserted), int(changed), int(unchanged), False)

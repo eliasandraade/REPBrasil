@@ -6,19 +6,21 @@ O módulo **Data Intelligence** combina indicadores socioeconômicos oficiais co
 
 A migration `015_socioeconomic.sql` cria três tabelas em `electoral`:
 
-- `socioeconomic_source`: proveniência de cada arquivo/resposta importada, incluindo URL, dataset, instante de coleta, SHA-256 e versão do parser;
 - `indicator`: catálogo dos indicadores;
+- `socioeconomic_source`: proveniência de cada snapshot completo de um indicador/período, incluindo URL, dataset, instante de coleta, SHA-256 do conteúdo bruto adquirido e versão do parser;
 - `indicator_value`: observações por município IBGE e período.
 
-A ausência de uma observação é representada pela **ausência de uma linha**. `0` só é armazenado quando a fonte oficial publicou zero.
+Cada linha de `socioeconomic_source` representa um **snapshot completo de um indicador em um período**. A leitura usa exclusivamente o snapshot mais recente. Assim, se uma reedição oficial retirar ou marcar um município como indisponível, a observação antiga não reaparece.
 
-Cada reedição oficial recebe uma nova linha de fonte. O loader é idempotente para o mesmo SHA-256 e preserva versões anteriores para auditoria.
+A ausência de uma observação é representada pela **ausência de uma linha no snapshot atual**. `0` só é armazenado quando a fonte oficial publicou zero.
+
+Cada reedição oficial com conteúdo diferente recebe uma nova linha de fonte. O SHA-256 é calculado sobre os bytes adquiridos, não sobre observações normalizadas: alterações de metadados ou de marcadores de ausência continuam auditáveis. O mesmo conteúdo bruto para o mesmo indicador/período é idempotente.
 
 ## Fontes
 
 ### IBGE / SIDRA
 
-O parser reconhece a notação do SIDRA: `-` é zero verdadeiro; `..`, `...` e `X` significam valor ausente. Períodos, tabela e variável passam por validação numérica antes de compor a URL.
+O parser reconhece a notação do SIDRA: `-` é zero verdadeiro; `..`, `...` e `X` significam valor ausente. Períodos, tabela e variável passam por validação numérica antes de compor a URL. O fetcher preserva os bytes da resposta para o hash de proveniência.
 
 O catálogo não fixa um identificador de tabela/variável de PIB per capita sem confirmação da fonte. A carga registra PIB municipal em `R$ mil` e população; `derived.gdp_per_capita` só é calculado quando os dois valores são do mesmo município e período.
 
@@ -34,7 +36,7 @@ O parser aceita fixtures/arquivos oficiais previamente baixados e exige código 
 - `GET /api/v1/data/correlation?...&candidacyId=...&year=...&round=...&office=...`
 - `GET /api/v1/data/clusters?indicator=...&period=...&uf=CE&k=3`
 
-A correlação eleitoral valida se a candidatura pertence exatamente à eleição, cargo e UF solicitados. Mismatch retorna `400`; não vira participação zero.
+A correlação eleitoral valida se a candidatura pertence exatamente à eleição, cargo e UF solicitados **e se existe vínculo auditável `votable_candidacy` para a UF**. Sem vínculo, a consulta falha fechada; ausência de performance nunca vira participação zero inventada.
 
 ## Estatística
 
@@ -46,4 +48,4 @@ O clustering usa K-means unidimensional determinístico: centróides iniciais po
 
 ## Frontend
 
-`/dados` exibe catálogo, período, dispersão, tabela dos pares, Pearson, Spearman, `N`, proveniência das observações e clusters. Estados sem dados são explícitos e nunca renderizados como zero.
+`/dados` exibe catálogo, período, dispersão, tabela dos pares, Pearson, Spearman, `N`, proveniência das observações e clusters. Estados sem dados são explícitos e nunca renderizados como zero. Os seletores impedem correlação de um indicador com ele mesmo.

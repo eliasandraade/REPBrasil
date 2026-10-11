@@ -21,35 +21,36 @@ public sealed class DataIntelligenceRepository(ApplicationDbContext db) : IDataI
     {
         object periodParameter = period.HasValue ? period.Value : DBNull.Value;
         return Query<IndicatorValueDto>("""
-            WITH current_value AS (
-              SELECT DISTINCT ON (v.indicator_code, v.municipality_ibge_code, v.period)
-                     v.indicator_code, v.municipality_ibge_code, v.period, v.value,
-                     s.provider, s.dataset, s.retrieved_at
-                FROM electoral.indicator_value v
-                JOIN electoral.socioeconomic_source s ON s.id = v.source_id
-               WHERE v.indicator_code = {0} AND ({1}::int IS NULL OR v.period = {1})
-               ORDER BY v.indicator_code, v.municipality_ibge_code, v.period, s.retrieved_at DESC, s.id DESC
+            WITH latest_source AS (
+              SELECT DISTINCT ON (s.indicator_code, s.period)
+                     s.id, s.indicator_code, s.period, s.provider, s.dataset, s.retrieved_at
+                FROM electoral.socioeconomic_source s
+               WHERE s.indicator_code = {0} AND ({1}::int IS NULL OR s.period = {1})
+               ORDER BY s.indicator_code, s.period, s.retrieved_at DESC, s.id DESC
             )
-            SELECT c.indicator_code AS "IndicatorCode", c.municipality_ibge_code::text AS "MunicipalityIbgeCode",
-                   coalesce(m.name, c.municipality_ibge_code::text) AS "MunicipalityName", c.period AS "Period",
-                   c.value AS "Value", c.provider AS "Provider", c.dataset AS "Dataset", c.retrieved_at AS "RetrievedAt"
-              FROM current_value c
-              LEFT JOIN electoral.municipality m ON m.ibge_code::text = c.municipality_ibge_code::text
+            SELECT v.indicator_code AS "IndicatorCode", v.municipality_ibge_code::text AS "MunicipalityIbgeCode",
+                   coalesce(m.name, v.municipality_ibge_code::text) AS "MunicipalityName", v.period AS "Period",
+                   v.value AS "Value", s.provider AS "Provider", s.dataset AS "Dataset", s.retrieved_at AS "RetrievedAt"
+              FROM latest_source s
+              JOIN electoral.indicator_value v ON v.source_id = s.id AND v.indicator_code = s.indicator_code AND v.period = s.period
+              LEFT JOIN electoral.municipality m ON m.ibge_code::text = v.municipality_ibge_code::text
              WHERE ({2} = '' OR m.state_code = {2})
-             ORDER BY c.period DESC, c.value DESC, c.municipality_ibge_code
+             ORDER BY v.period DESC, v.value DESC, v.municipality_ibge_code
             """, ct, indicator, periodParameter, uf ?? "");
     }
 
     public Task<IReadOnlyList<CorrelationPointDto>> IndicatorPairsAsync(
         string xIndicator, string yIndicator, int period, string? uf, CancellationToken ct) =>
         Query<CorrelationPointDto>("""
-            WITH current_value AS (
-              SELECT DISTINCT ON (v.indicator_code, v.municipality_ibge_code, v.period)
-                     v.indicator_code, v.municipality_ibge_code, v.period, v.value
-                FROM electoral.indicator_value v
-                JOIN electoral.socioeconomic_source s ON s.id = v.source_id
-               WHERE v.indicator_code IN ({0}, {1}) AND v.period = {2}
-               ORDER BY v.indicator_code, v.municipality_ibge_code, v.period, s.retrieved_at DESC, s.id DESC
+            WITH latest_source AS (
+              SELECT DISTINCT ON (s.indicator_code) s.id, s.indicator_code
+                FROM electoral.socioeconomic_source s
+               WHERE s.indicator_code IN ({0}, {1}) AND s.period = {2}
+               ORDER BY s.indicator_code, s.retrieved_at DESC, s.id DESC
+            ), current_value AS (
+              SELECT v.indicator_code, v.municipality_ibge_code, v.value
+                FROM latest_source s
+                JOIN electoral.indicator_value v ON v.source_id = s.id AND v.indicator_code = s.indicator_code AND v.period = {2}
             ), x AS (
               SELECT municipality_ibge_code, value FROM current_value WHERE indicator_code = {0}
             ), y AS (
@@ -82,10 +83,14 @@ public sealed class DataIntelligenceRepository(ApplicationDbContext db) : IDataI
                 JOIN electoral.election e ON e.id = k.election_id
                WHERE c.id = {0} AND e.year = {1} AND e.round = {2} AND k.office_code = {3}
                  AND (k.uf = {4} OR k.scope = 'federal')
+                 AND EXISTS (
+                     SELECT 1 FROM electoral.votable_candidacy vc
+                      WHERE vc.candidacy_id = c.id AND vc.uf = {4}
+                 )
             ) AS "Value"
             """, ct, candidacyId, year, round, office, uf);
         if (match.Count == 0 || !match[0].Value)
-            throw new ArgumentException("candidacyId does not belong to the requested election, office and UF");
+            throw new ArgumentException("candidacyId has no auditable vote mapping for the requested election, office and UF");
 
         return await Query<CorrelationPointDto>("""
             WITH selected AS (
@@ -95,13 +100,16 @@ public sealed class DataIntelligenceRepository(ApplicationDbContext db) : IDataI
                 JOIN electoral.election e ON e.id = k.election_id
                WHERE c.id = {1} AND e.year = {2} AND e.round = {3} AND k.office_code = {4}
                  AND (k.uf = {5} OR k.scope = 'federal')
+            ), latest_source AS (
+              SELECT s.id
+                FROM electoral.socioeconomic_source s
+               WHERE s.indicator_code = {0} AND s.period = {6}
+               ORDER BY s.retrieved_at DESC, s.id DESC
+               LIMIT 1
             ), current_x AS (
-              SELECT DISTINCT ON (v.municipality_ibge_code)
-                     v.municipality_ibge_code, v.value
-                FROM electoral.indicator_value v
-                JOIN electoral.socioeconomic_source s ON s.id = v.source_id
-               WHERE v.indicator_code = {0} AND v.period = {6}
-               ORDER BY v.municipality_ibge_code, s.retrieved_at DESC, s.id DESC
+              SELECT v.municipality_ibge_code, v.value
+                FROM latest_source s
+                JOIN electoral.indicator_value v ON v.source_id = s.id AND v.indicator_code = {0} AND v.period = {6}
             ), valid AS (
               SELECT z.municipality_tse_code, sum(z.nominal_votes + z.legend_votes)::bigint AS valid_votes
                 FROM electoral.zone_office_totals_current z

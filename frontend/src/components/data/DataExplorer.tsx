@@ -97,7 +97,12 @@ export function DataExplorer() {
   }, [xIndicator]);
 
   useEffect(() => {
-    if (!xIndicator || !yIndicator || period === null) {
+    if (!xIndicator || xIndicator !== yIndicator) return;
+    setYIndicator(catalog.find((item) => item.code !== xIndicator)?.code ?? "");
+  }, [catalog, xIndicator, yIndicator]);
+
+  useEffect(() => {
+    if (!xIndicator || !yIndicator || xIndicator === yIndicator || period === null) {
       setCorrelation(null);
       setClusters(null);
       return;
