@@ -18,13 +18,17 @@ from src.electoral.lake_results import database_result_totals, load_result_manif
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Delete one archived BU scope only after vote Parquet, result metadata and derived snapshots are verified."
+        description=(
+            "Delete only archived BU vote facts after vote Parquet, result metadata and derived snapshots are verified. "
+            "Ingestion runs and section-office result metadata are preserved for exact provenance and urn drill-down."
+        )
     )
     p.add_argument("--year", type=int, required=True)
     p.add_argument("--turn", type=int, required=True)
     p.add_argument("--uf", required=True)
     p.add_argument("--root", type=Path, default=None)
     p.add_argument("--confirm", required=True, help="must equal YEAR/TURN/UF, e.g. 2022/1/CE")
+    p.add_argument("--dry-run", action="store_true", help="verify every prune gate and report the exact delete count without deleting")
     return p
 
 
@@ -73,6 +77,21 @@ def _derived_snapshot(cur, scope: LakeScope) -> dict[str, dict[str, int]]:
     return actual
 
 
+def _current_result_ids(cur, scope: LakeScope) -> list[int]:
+    cur.execute(
+        """
+        SELECT r.id::bigint
+          FROM latest_bu_ingestion_run l
+          JOIN section_office_result r ON r.ingestion_run_id = l.ingestion_run_id
+         WHERE r.year = %s AND r.turn = %s AND r.uf = %s
+         ORDER BY r.id
+         FOR UPDATE OF r
+        """,
+        (scope.year, scope.turn, scope.uf),
+    )
+    return [int(row[0]) for row in cur.fetchall()]
+
+
 def main() -> int:
     args = parser().parse_args()
     scope = LakeScope(args.year, args.turn, args.uf).normalized()
@@ -112,27 +131,72 @@ def main() -> int:
             raise SystemExit(
                 f"database/result parquet totals differ: database={database_results} parquet={result_parquet}"
             )
+
         with conn.transaction(), conn.cursor() as cur:
             cur.execute("SELECT to_regclass('electoral_archive.derived_archive_scope')")
             if cur.fetchone()[0] is None:
                 raise SystemExit("refusing prune: hybrid serving schema missing")
             derived_snapshot = _derived_snapshot(cur, scope)
+
+            result_ids = _current_result_ids(cur, scope)
+            if not result_ids:
+                raise SystemExit("refusing prune: no current BU section-office results found for scope")
+            if len(result_ids) != result_parquet["rows"]:
+                raise SystemExit(
+                    f"refusing prune: current result rows differ from archived metadata: "
+                    f"database={len(result_ids)} archive={result_parquet['rows']}"
+                )
+
             cur.execute(
-                """
-                SELECT r.id
-                  FROM ingestion_run r
-                  JOIN open_data_source_file f ON f.id = r.source_file_id
-                 WHERE r.source = 'tse-open-data-bu' AND r.status = 'succeeded'
-                   AND f.year = %s AND f.turn = %s AND f.uf = %s
-                 FOR UPDATE OF r
-                """,
-                (scope.year, scope.turn, scope.uf),
+                "SELECT count(*)::bigint FROM section_office_vote WHERE result_id = ANY(%s::bigint[])",
+                (result_ids,),
             )
-            run_ids = [row[0] for row in cur.fetchall()]
-            if not run_ids:
-                raise SystemExit("no succeeded BU ingestion runs found for scope")
-            cur.execute("DELETE FROM ingestion_run WHERE id = ANY(%s::uuid[])", (run_ids,))
-            deleted_runs = cur.rowcount
+            current_vote_rows = int(cur.fetchone()[0])
+            if current_vote_rows != vote_parquet["rows"]:
+                raise SystemExit(
+                    f"refusing prune: current vote rows differ from archived vote rows: "
+                    f"database={current_vote_rows} archive={vote_parquet['rows']}"
+                )
+
+            if args.dry_run:
+                print(
+                    json.dumps(
+                        {
+                            "status": "dry_run",
+                            "scope": {"year": scope.year, "turn": scope.turn, "uf": scope.uf},
+                            "votesArchive": vote_parquet,
+                            "resultsArchive": result_parquet,
+                            "derivedSnapshot": derived_snapshot,
+                            "wouldDeleteVotes": current_vote_rows,
+                            "preservedResults": len(result_ids),
+                            "deletedRuns": 0,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+                return 0
+
+            cur.execute(
+                "DELETE FROM section_office_vote WHERE result_id = ANY(%s::bigint[])",
+                (result_ids,),
+            )
+            deleted_votes = cur.rowcount
+            if deleted_votes != vote_parquet["rows"]:
+                raise SystemExit(
+                    f"refusing prune: deleted vote rows differ from archived vote rows: "
+                    f"deleted={deleted_votes} archive={vote_parquet['rows']}"
+                )
+
+            cur.execute(
+                "SELECT count(*)::bigint FROM section_office_result WHERE id = ANY(%s::bigint[])",
+                (result_ids,),
+            )
+            preserved_results = int(cur.fetchone()[0])
+            if preserved_results != len(result_ids):
+                raise SystemExit(
+                    f"refusing prune: section-office metadata was not preserved: "
+                    f"expected={len(result_ids)} actual={preserved_results}"
+                )
 
         derived: dict[str, object] = refresh_derived(conn)
 
@@ -144,7 +208,9 @@ def main() -> int:
                 "votesArchive": vote_parquet,
                 "resultsArchive": result_parquet,
                 "derivedSnapshot": derived_snapshot,
-                "deletedRuns": deleted_runs,
+                "deletedVotes": deleted_votes,
+                "preservedResults": preserved_results,
+                "deletedRuns": 0,
                 "derived": derived,
             },
             ensure_ascii=False,
