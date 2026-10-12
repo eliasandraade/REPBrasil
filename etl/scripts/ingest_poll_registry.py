@@ -27,14 +27,26 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument(
         "--uf",
         default="CE",
-        help="CE by default; use BR for national registrations or ALL for every scope.",
+        help="Exact registry scope to load: CE by default, BR for national registrations.",
     )
     return result
 
 
+def normalized_scope(value: str) -> str:
+    scope = value.strip().upper()
+    if scope != "BR" and (len(scope) != 2 or not scope.isalpha()):
+        raise ValueError("--uf must be BR or a two-letter UF")
+    return scope
+
+
 def main() -> int:
     args = parser().parse_args()
-    uf_filter = None if args.uf.strip().upper() == "ALL" else args.uf.strip().upper()
+    try:
+        uf_filter = normalized_scope(args.uf)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         print("DATABASE_URL is required", file=sys.stderr)
@@ -56,7 +68,7 @@ def main() -> int:
 
     source = PollSource(
         provider="TSE/PesqEle",
-        dataset=f"pesquisa_eleitoral_{args.year}",
+        dataset=f"pesquisa_eleitoral_{args.year}_{uf_filter}",
         source_url=artifact.url,
         content=artifact.content,
         metadata={
@@ -65,6 +77,7 @@ def main() -> int:
             "uf_filter": uf_filter,
             "etag": artifact.etag,
             "last_modified": artifact.last_modified,
+            "complete_snapshot": True,
         },
     )
 
