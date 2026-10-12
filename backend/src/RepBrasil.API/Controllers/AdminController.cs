@@ -7,7 +7,7 @@ namespace RepBrasil.API.Controllers;
 
 [ApiController]
 [Route("api/v1/admin")]
-public sealed class AdminController(AccountService accounts, ApplicationDbContext db) : ControllerBase
+public sealed class AdminController(AccountService accounts, ApplicationDbContext db, IConfiguration configuration) : ControllerBase
 {
     private const string SessionCookie = "repbrasil_session";
 
@@ -16,7 +16,7 @@ public sealed class AdminController(AccountService accounts, ApplicationDbContex
     {
         var session = await CurrentSession(cancellationToken);
         if (session is null) return Unauthorized();
-        if (!await IsSuperadminAsync(session.UserId, cancellationToken)) return Forbid();
+        if (!await IsSuperadminAsync(session, cancellationToken)) return Forbid();
 
         return Ok(new
         {
@@ -32,8 +32,10 @@ public sealed class AdminController(AccountService accounts, ApplicationDbContex
         return await accounts.GetSessionAsync(token, cancellationToken);
     }
 
-    private async Task<bool> IsSuperadminAsync(Guid userId, CancellationToken cancellationToken)
+    private async Task<bool> IsSuperadminAsync(AccountSession session, CancellationToken cancellationToken)
     {
+        if (ConfiguredSuperadmins().Contains(session.Email, StringComparer.OrdinalIgnoreCase)) return true;
+
         await db.Database.OpenConnectionAsync(cancellationToken);
         try
         {
@@ -52,7 +54,7 @@ public sealed class AdminController(AccountService accounts, ApplicationDbContex
 
             var parameter = command.CreateParameter();
             parameter.ParameterName = "user_id";
-            parameter.Value = userId;
+            parameter.Value = session.UserId;
             command.Parameters.Add(parameter);
 
             var result = await command.ExecuteScalarAsync(cancellationToken);
@@ -63,4 +65,8 @@ public sealed class AdminController(AccountService accounts, ApplicationDbContex
             await db.Database.CloseConnectionAsync();
         }
     }
+
+    private string[] ConfiguredSuperadmins() =>
+        (configuration["Auth:SuperadminEmails"] ?? string.Empty)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 }
