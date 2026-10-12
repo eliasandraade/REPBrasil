@@ -34,13 +34,13 @@ class PollOption:
 class PollScenario:
     order: int
     name: str
+    round_number: int | None = None
     options: tuple[PollOption, ...] = ()
 
 
 @dataclass(frozen=True)
 class PollRecord:
     year: int
-    round_number: int
     office_code: int
     registration_number: str
     institute_name: str
@@ -64,8 +64,6 @@ def _json(value: dict[str, Any] | None) -> str:
 def _validate(record: PollRecord) -> tuple[str | None, str | None]:
     if record.year < 2012 or record.year > 2200:
         raise ValueError("poll year is outside the supported range")
-    if record.round_number not in {1, 2}:
-        raise ValueError("poll round must be 1 or 2")
     if record.office_code <= 0:
         raise ValueError("poll office must be positive")
     if not record.registration_number.strip():
@@ -96,6 +94,8 @@ def _validate(record: PollRecord) -> tuple[str | None, str | None]:
         if scenario.order < 0 or scenario.order in scenario_orders:
             raise ValueError("poll scenario order must be unique and non-negative")
         scenario_orders.add(scenario.order)
+        if scenario.round_number not in {None, 1, 2}:
+            raise ValueError("poll scenario round must be 1, 2 or absent")
         if not scenario.name.strip():
             raise ValueError("poll scenario name is required")
         option_orders: set[int] = set()
@@ -111,16 +111,18 @@ def _validate(record: PollRecord) -> tuple[str | None, str | None]:
                 raise ValueError("poll percentage must be in [0, 100]")
             if option.candidacy_id is not None and option.kind != "candidate":
                 raise ValueError("only candidate options may carry candidacy_id")
+            if option.candidacy_id is not None and scenario.round_number is None:
+                raise ValueError("audited candidacy linking requires an explicit scenario round")
     return state, municipality
 
 
 def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
     """Persist one audited poll snapshot.
 
-    `candidacy_id` is accepted only when an upstream audited mapping already exists. This
-    loader never resolves candidates by name, ballot label, institute text, or fuzzy match.
-    Empty result scenarios are valid: PesqEle registration metadata can be loaded before a
-    published result report is available. A single registration may contain multiple offices.
+    The PesqEle registration belongs to an election cycle, while a published report may
+    contain scenarios for different rounds. `candidacy_id` is accepted only when an upstream
+    audited mapping already exists and the scenario declares its round. This loader never
+    resolves candidates by name, ballot label, institute text, or fuzzy match.
     """
     state, municipality = _validate(record)
     digest = hashlib.sha256(source.content).hexdigest()
@@ -148,19 +150,6 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
         ),
     )
     source_id = str(cursor.fetchone()[0])
-
-    cursor.execute(
-        """
-        SELECT id FROM electoral.election
-         WHERE year = %s AND round = %s
-         ORDER BY id
-        """,
-        (record.year, record.round_number),
-    )
-    election_rows = cursor.fetchall()
-    if len(election_rows) != 1:
-        raise ValueError("poll requires exactly one matching electoral.election")
-    election_id = str(election_rows[0][0])
 
     cursor.execute(
         "SELECT 1 FROM electoral.office WHERE code = %s",
@@ -197,13 +186,13 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
     cursor.execute(
         """
         INSERT INTO electoral.poll
-            (election_id, office_code, state_code, municipality_id,
+            (year, office_code, state_code, municipality_id,
              registration_number, institute_id, field_start, field_end, published_at,
              sample_size, margin_error_pp, confidence_level, methodology, source_id)
-        VALUES (%s::uuid, %s, %s, %s::uuid, %s, %s::uuid, %s, %s, %s,
+        VALUES (%s, %s, %s, %s::uuid, %s, %s::uuid, %s, %s, %s,
                 %s, %s, %s, %s, %s::uuid)
         ON CONFLICT (
-            registration_number, office_code, state_code, municipality_id, source_id
+            year, registration_number, office_code, state_code, municipality_id, source_id
         ) DO UPDATE SET
             institute_id = EXCLUDED.institute_id,
             field_start = EXCLUDED.field_start,
@@ -216,7 +205,7 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
         RETURNING id
         """,
         (
-            election_id,
+            record.year,
             record.office_code,
             state,
             municipality_id,
@@ -238,11 +227,11 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
     for scenario in record.scenarios:
         cursor.execute(
             """
-            INSERT INTO electoral.poll_scenario (poll_id, name, scenario_order)
-            VALUES (%s::uuid, %s, %s)
+            INSERT INTO electoral.poll_scenario (poll_id, round, name, scenario_order)
+            VALUES (%s::uuid, %s, %s, %s)
             RETURNING id
             """,
-            (poll_id, scenario.name.strip(), scenario.order),
+            (poll_id, scenario.round_number, scenario.name.strip(), scenario.order),
         )
         scenario_id = str(cursor.fetchone()[0])
         for option in scenario.options:
@@ -252,14 +241,20 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
                     SELECT 1
                       FROM electoral.candidacy c
                       JOIN electoral.contest k ON k.id = c.contest_id
-                     WHERE c.id = %s::uuid AND k.election_id = %s::uuid
+                      JOIN electoral.election e ON e.id = k.election_id
+                     WHERE c.id = %s::uuid AND e.year = %s AND e.round = %s
                        AND k.office_code = %s
                     """,
-                    (option.candidacy_id, election_id, record.office_code),
+                    (
+                        option.candidacy_id,
+                        record.year,
+                        scenario.round_number,
+                        record.office_code,
+                    ),
                 )
                 if cursor.fetchone() is None:
                     raise ValueError(
-                        "audited poll candidacy_id does not match the requested election and office"
+                        "audited poll candidacy_id does not match the scenario year, round and office"
                     )
             cursor.execute(
                 """
