@@ -51,9 +51,9 @@ public sealed class ElectoralLiveRepository(ApplicationDbContext db) : IElectora
               JOIN electoral.poll p ON p.id = l.id
               JOIN electoral.poll_source src ON src.id = p.source_id
               JOIN electoral.poll_institute i ON i.id = p.institute_id
-              JOIN electoral.poll_scenario sc ON sc.poll_id = p.id
-              JOIN electoral.poll_result r ON r.scenario_id = sc.id
-             ORDER BY p.field_end DESC, p.registration_number, sc.scenario_order, r.option_order
+              LEFT JOIN electoral.poll_scenario sc ON sc.poll_id = p.id
+              LEFT JOIN electoral.poll_result r ON r.scenario_id = sc.id
+             ORDER BY p.field_end DESC, p.registration_number, sc.scenario_order NULLS LAST, r.option_order NULLS LAST
             """, ct, year, round, office, uf ?? "", municipalityTseCode ?? "");
 
     public Task<IReadOnlyList<LiveCountRow>> LatestLiveCountAsync(
