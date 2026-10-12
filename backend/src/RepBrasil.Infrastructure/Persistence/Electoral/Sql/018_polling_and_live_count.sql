@@ -26,9 +26,12 @@ CREATE TABLE IF NOT EXISTS poll_institute (
   UNIQUE (slug)
 );
 
+-- O registro PesqEle pertence ao ciclo/ano e ao cargo, não a um turno específico:
+-- uma única pesquisa pode testar cenários de 1º e 2º turno. O turno, quando auditável,
+-- vive em poll_scenario.
 CREATE TABLE IF NOT EXISTS poll (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  election_id uuid NOT NULL REFERENCES election(id) ON DELETE CASCADE,
+  year smallint NOT NULL CHECK (year BETWEEN 2012 AND 2200),
   office_code integer NOT NULL REFERENCES office(code),
   state_code char(2) REFERENCES state(code),
   municipality_id uuid REFERENCES municipality(id),
@@ -49,21 +52,24 @@ CREATE TABLE IF NOT EXISTS poll (
   CHECK (confidence_level IS NULL OR (confidence_level > 0 AND confidence_level <= 100)),
   CHECK (municipality_id IS NULL OR state_code IS NOT NULL),
   UNIQUE NULLS NOT DISTINCT (
-    registration_number, office_code, state_code, municipality_id, source_id
+    year, registration_number, office_code, state_code, municipality_id, source_id
   )
 );
 
 CREATE INDEX IF NOT EXISTS poll_scope_idx
-  ON poll (election_id, office_code, state_code, municipality_id, field_end DESC);
+  ON poll (year, office_code, state_code, municipality_id, field_end DESC);
 CREATE INDEX IF NOT EXISTS poll_registration_idx ON poll (registration_number);
 
 CREATE TABLE IF NOT EXISTS poll_scenario (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   poll_id uuid NOT NULL REFERENCES poll(id) ON DELETE CASCADE,
+  round smallint CHECK (round IN (1, 2)),
   name text NOT NULL,
   scenario_order integer NOT NULL CHECK (scenario_order >= 0),
   UNIQUE (poll_id, scenario_order)
 );
+
+CREATE INDEX IF NOT EXISTS poll_scenario_round_idx ON poll_scenario (poll_id, round);
 
 CREATE TABLE IF NOT EXISTS poll_result (
   id bigserial PRIMARY KEY,
