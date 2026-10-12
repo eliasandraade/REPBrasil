@@ -7,10 +7,11 @@ import unicodedata
 import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.electoral.polls import PollRecord
 
+_BRT = ZoneInfo("America/Sao_Paulo")
 _OFFICE_CODES = {
     "PRESIDENTE": 1,
     "GOVERNADOR": 3,
@@ -193,6 +194,7 @@ def parse_poll_registry_archive(
             "DT_FIM_PESQUISA",
             required=True,
         )
+        assert field_start is not None and field_end is not None
         publication = _parse_date(
             row.get("DT_DIVULGACAO", ""),
             "DT_DIVULGACAO",
@@ -218,7 +220,7 @@ def parse_poll_registry_archive(
                     state_code=state_code,
                     municipality_tse_code=municipality_code,
                     published_at=(
-                        datetime.combine(publication, datetime.min.time()).astimezone()
+                        datetime.combine(publication, datetime.min.time()).replace(tzinfo=_BRT)
                         if publication is not None
                         else None
                     ),
