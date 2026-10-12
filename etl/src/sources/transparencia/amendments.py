@@ -154,7 +154,9 @@ def parse_amendments_csv(content: bytes, *, encoding: str = "utf-8-sig") -> list
                 beneficiary_document=_text(row, mapping, "beneficiary_document"),
                 beneficiary_name=_text(row, mapping, "beneficiary_name"),
                 locality=_text(row, mapping, "locality"),
-                municipality_ibge_code=_municipality_code(_text(row, mapping, "municipality_ibge_code")),
+                municipality_ibge_code=_municipality_code(
+                    _text(row, mapping, "municipality_ibge_code")
+                ),
                 committed_amount=_money(_text(row, mapping, "committed_amount")),
                 paid_amount=_money(_text(row, mapping, "paid_amount")),
                 raw={str(k): str(v or "") for k, v in row.items() if k is not None},
