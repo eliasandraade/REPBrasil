@@ -19,7 +19,6 @@ using RepBrasil.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Logs estruturados (uma linha JSON por evento) fora do desenvolvimento.
 if (!builder.Environment.IsDevelopment())
 {
     builder.Logging.ClearProviders();
@@ -45,7 +44,6 @@ builder.Services.AddScoped<GetPoliticianScoreQuery>();
 builder.Services.AddScoped<GetPoliticianScoreHistoryQuery>();
 
 var lakeBaseUrl = builder.Configuration["ElectoralLake:BaseUrl"] ?? "http://electoral-lake.railway.internal:8080";
-// Mesmo segredo do worker (REPBRASIL_LAKE_TOKEN); ElectoralLake__Token tem precedência.
 var lakeToken = builder.Configuration["ElectoralLake:Token"] ?? builder.Configuration["REPBRASIL_LAKE_TOKEN"];
 builder.Services.AddHttpClient<IElectoralLakeClient, ElectoralLakeClient>(client =>
 {
@@ -73,31 +71,28 @@ builder.Services.AddScoped<DataIntelligenceService>();
 builder.Services.AddScoped<IElectoralLiveRepository, ElectoralLiveRepository>();
 builder.Services.AddScoped<ElectoralLiveService>();
 
-// Busca global (políticos, territórios, partidos, pleitos); o catálogo pequeno fica na memória do processo
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ISearchRepository, SearchRepository>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<IOverviewRepository, OverviewRepository>();
 builder.Services.AddScoped<OverviewService>();
 
-// Erros: ProblemDetails com id de rastreio; nunca mensagem interna nem pilha.
+builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<AuthExternalService>();
+builder.Services.AddHttpClient("google-auth", client => client.Timeout = TimeSpan.FromSeconds(15));
+
 builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
     ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
-// Limite técnico contra abuso (por IP de origem, nunca identidade comercial) e cache de respostas públicas.
 builder.Services.AddApiRateLimits(builder.Configuration);
 builder.Services.AddOutputCache(o =>
 {
     o.SizeLimit = 128L * 1024 * 1024;
-    // Dados eleitorais oficiais mudam só em cargas do ETL: 5 min de defasagem são aceitáveis. Varia pela consulta
-    // inteira e pela origem (o CORS responde por origem) — nada de uma origem é servido a outra.
     o.AddPolicy(CachePolicies.PublicData, b => b.Expire(TimeSpan.FromMinutes(5)).SetVaryByQuery("*").SetVaryByHeader("Origin"));
-    // Durante a totalização, o snapshot oficial pode mudar rapidamente; o cache curto reduz carga sem congelar a apuração.
     o.AddPolicy(CachePolicies.LiveData, b => b.Expire(TimeSpan.FromSeconds(15)).SetVaryByQuery("*").SetVaryByHeader("Origin"));
 });
 
-// Atrás do proxy do Railway: só o último salto de X-Forwarded-For/Proto é confiável (o que o proxy acrescenta).
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -106,7 +101,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
     o.KnownProxies.Clear();
 });
 
-// Swagger só em desenvolvimento ou com Swagger:Enabled=true (ex.: staging protegido). Nunca por padrão em produção.
 var swaggerEnabled = builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enabled");
 if (swaggerEnabled)
 {
@@ -114,7 +108,6 @@ if (swaggerEnabled)
     builder.Services.AddSwaggerGen(c =>
     {
         c.SwaggerDoc("v1", new() { Title = "REPBrasil API", Version = "v1" });
-        // Módulos diferentes têm DTOs homônimos (Assets.AssetItemDto × Electoral.AssetItemDto): id pelo módulo.
         c.CustomSchemaIds(SwaggerSchemaIds.For);
     });
 }
@@ -122,9 +115,12 @@ if (swaggerEnabled)
 var allowedOrigins = (builder.Configuration["AllowedOrigins"] ?? "http://localhost:3000")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-// A API pública é só leitura: o navegador só precisa de GET (o /migrate é chamada de servidor, sem CORS).
 builder.Services.AddCors(options =>
-    options.AddPolicy("App", policy => policy.WithOrigins(allowedOrigins).WithMethods("GET").WithHeaders("Accept", "Content-Type")));
+    options.AddPolicy("App", policy => policy
+        .WithOrigins(allowedOrigins)
+        .WithMethods("GET", "POST", "DELETE", "OPTIONS")
+        .WithHeaders("Accept", "Content-Type", "X-RepBrasil-CSRF", "X-Api-Key", "X-Alerts-Token")
+        .AllowCredentials()));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
@@ -135,7 +131,6 @@ builder.WebHost.UseUrls($"http://+:{port}");
 var app = builder.Build();
 
 app.UseForwardedHeaders();
-// Cabeçalhos de segurança e CORS por fora do tratador de erro: a resposta de erro continua legível pelo frontend.
 app.UseSecurityHeaders();
 app.UseCors("App");
 app.UseExceptionHandler();
@@ -149,17 +144,11 @@ if (swaggerEnabled)
     app.UseSwaggerUI();
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+if (app.Environment.IsDevelopment()) app.UseHttpsRedirection();
 
 app.MapControllers();
 
-var migrationsEnabled = string.Equals(
-    builder.Configuration["MigrateOnStartup"],
-    "true",
-    StringComparison.OrdinalIgnoreCase);
+var migrationsEnabled = string.Equals(builder.Configuration["MigrateOnStartup"], "true", StringComparison.OrdinalIgnoreCase);
 var applyMigrationsOnStartup = migrationsEnabled && !builder.Configuration.GetValue<bool>("Migrate:SkipStartupApply");
 
 if (applyMigrationsOnStartup)
@@ -172,15 +161,12 @@ if (applyMigrationsOnStartup)
     logger.LogInformation("Database migrations applied successfully.");
 }
 
-// Migração manual (POST /migrate) só com MigrateOnStartup=true E o token Migrate:Token no cabeçalho X-Migrate-Token.
-// Sem token configurado ou com token errado, o endpoint responde como se não existisse.
 if (migrationsEnabled)
 {
     var migrateToken = builder.Configuration["Migrate:Token"];
     app.MapPost("/migrate", async (HttpContext http, ApplicationDbContext db, ILogger<Program> logger) =>
     {
-        if (!HttpPipeline.SecretEquals(http.Request.Headers["X-Migrate-Token"], migrateToken))
-            return Results.NotFound();
+        if (!HttpPipeline.SecretEquals(http.Request.Headers["X-Migrate-Token"], migrateToken)) return Results.NotFound();
         try
         {
             logger.LogInformation("Applying database migrations...");
@@ -198,5 +184,4 @@ if (migrationsEnabled)
 
 app.Run();
 
-/// <summary>Visível para os testes de integração (WebApplicationFactory).</summary>
 public partial class Program;

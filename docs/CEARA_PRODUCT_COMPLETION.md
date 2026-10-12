@@ -10,11 +10,12 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 
 | Item | Situação |
 |---|---|
-| Baseline funcional | pós-PR #27 (`e9d727d`), com comparador universal, perfis territoriais, Data Intelligence, pesquisas eleitorais auditáveis e infraestrutura oficial de totalização |
-| Produção | PR #27 implantado; `front-v2`, `back-v2` e `electoral-etl-ce2026` concluíram rollout com sucesso |
+| Baseline funcional | pós-PR #30, com PR J e hotfixes PesqEle incorporados; comparador universal, perfis territoriais, Data Intelligence, pesquisas eleitorais auditáveis e infraestrutura oficial de totalização |
+| Produção | PR #27 implantado; hotfixes #29/#30 incorporados na `main`; `front-v2`, `back-v2` e `electoral-etl-ce2026` concluíram o rollout anterior com sucesso |
 | Data Intelligence | Censo 2022 carregado para os 184 municípios do Ceará: população, alfabetização 15+ e analfabetismo 15+; perfil socioeleitoral ativo |
 | Parlamento | migration e cinco tabelas auditáveis aplicadas em produção; fundação de Câmara/emendas pronta, sem linking por nome |
 | Pesquisas / apuração | schema, API, ETL e `/pesquisas` implantados; observações reais só aparecem após ingestão operacional das fontes oficiais, sem seed sintético |
+| Conta / comercial | PR H em validação no #31: Google + magic link, favoritos, watchlist, alertas, entitlements e API keys sem novo serviço pago obrigatório |
 | Custo novo | nenhum (regra da missão) |
 
 ## PRs
@@ -28,7 +29,7 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 | E | Data Intelligence: socioeconomia, proveniência, SIDRA/Atlas, Pearson/Spearman, `candidacy_share`, clusters e `/dados`; seguido pela primeira ingestão Censo 2022 e perfil socioeleitoral | DONE | [#20](https://github.com/eliasandraade/REPBrasil/pull/20), [#21](https://github.com/eliasandraade/REPBrasil/pull/21), [#22](https://github.com/eliasandraade/REPBrasil/pull/22) | `adde263` / `cc24a9f` / `a809e31` | validado |
 | F | Fundação auditável de Parlamento + emendas: fontes, membros, mandatos, atividades, emendas, Câmara paginada, parser fail-closed e identidade sem heurística de nome | DONE | [#23](https://github.com/eliasandraade/REPBrasil/pull/23) | `a428c56` | migration e schema verificados |
 | G | Busca por indicadores, comparador universal por tipo, insights determinísticos versionados e exports CSV/XLSX/PDF/PNG | DONE | [#24](https://github.com/eliasandraade/REPBrasil/pull/24) | `2a4f6bc` | deploy concluído; smoke humano do comparador/exports pendente |
-| H | Auth (Google + magic link), favoritos, watchlist, alertas, entitlements, API comercial | TODO | — | — | — |
+| H | Auth (Google + magic link), favoritos, watchlist, alertas, entitlements, API comercial | IN PROGRESS | [#31](https://github.com/eliasandraade/REPBrasil/pull/31) | — | CI verde; configuração de Google/SMTP/cookies e smoke real pendentes |
 | I | Município, estado, eleição, perfil unificado, SEO | DONE | [#25](https://github.com/eliasandraade/REPBrasil/pull/25) | `ec54967` | validado após correção de indicadores no #26 |
 | J | Pesquisas eleitorais auditáveis + snapshots oficiais de apuração, estados não iniciado/parcial/final, `/pesquisas` | DONE | [#27](https://github.com/eliasandraade/REPBrasil/pull/27) | `e9d727d` | rollout concluído; smoke humano de `/pesquisas` pendente |
 | K | PWA, mobile, segurança, performance, screenshots | TODO | — | — | — |
@@ -62,8 +63,8 @@ O H entra agora que o produto público possui valor recorrente suficiente para c
 | Município / estado / eleição como entidades | DONE (#25/#26) — perfis canônicos, SEO, sitemap, timeline, rankings e Data Intelligence |
 | Pesquisas eleitorais | DONE (#27) — registro, escopo e fonte auditáveis; percentuais só quando publicados por fonte auditada; carga real é operação separada |
 | Apuração oficial | DONE (#27) — snapshots oficiais TSE com `not_started`/`partial`/`final`, sem reconstrução ou projeção; captura real é operação separada |
-| Auth / favoritos / watchlist / alertas | TODO (H) |
-| Entitlements / API comercial | TODO (H) |
+| Auth / favoritos / watchlist / alertas | IN PROGRESS (#31) — implementação e CI concluídos; credenciais/configuração e smoke real pendentes |
+| Entitlements / API comercial | IN PROGRESS (#31) — entitlements temporais, API keys por hash e quota diária implementados; smoke real pendente |
 
 ## Checklist — dados, infra, qualidade
 
@@ -77,8 +78,8 @@ O H entra agora que o produto público possui valor recorrente suficiente para c
 | Linking de identidade por nome | PROIBIDO; Câmara exige evidência documental oficial; TSE live usa `SQ_CANDIDATO`; pesquisa só aceita `candidacy_id` previamente auditado |
 | Insights factuais gerados por IA | PROIBIDO no runtime; PR G usa regras determinísticas versionadas |
 | Zero serviço pago novo | DONE |
-| CI verde por PR | DONE até #27 |
-| Smoke de produção | deploy do #27 verificado no Railway; smoke humano específico de `/pesquisas` pendente |
+| CI verde por PR | DONE até #27; #31 verde na branch antes do merge |
+| Smoke de produção | deploy do #27 verificado no Railway; smoke humano específico de `/pesquisas` e smoke do H após configuração permanecem pendentes |
 
 ## Regras permanentes do Data Intelligence
 
@@ -119,3 +120,17 @@ Entregue no #24:
 - Nenhuma observação sintética é semeada em produção.
 - Ingestão real de pesquisas e captura real de totalização são operações explícitas e auditáveis, separadas do deploy do produto.
 - Contrato completo: `docs/ELECTORAL_LIVE.md`.
+
+## Contrato do PR H
+
+- Conteúdo público permanece público; autenticação adiciona estado pessoal e capacidades comerciais, não paywall sobre dados já abertos.
+- Google OAuth e magic link não criam senha local.
+- Sessões, desafios e API keys são persistidos somente por hash; segredos completos não são recuperáveis do banco.
+- OAuth `state` é one-shot e também vinculado ao navegador iniciador para impedir login-CSRF/session swap.
+- Mutações de conta exigem sessão + CSRF; CORS com credenciais aceita apenas origens e métodos explicitamente configurados.
+- Favoritos/watchlist preservam rota/query reproduzível e não criam FK ou nova identidade sobre fontes TSE/IBGE.
+- Alertas armazenam inscrições e notificações determinísticas; o publicador interno não inventa fatos.
+- Entitlements são capacidades temporais key/value; preço/plano não é inferido no código.
+- API keys possuem scopes, revogação e quota diária; o segredo aparece apenas na criação.
+- Zero serviço pago novo é requisito arquitetural; Google/SMTP usam integrações configuráveis.
+- Contrato completo: `docs/ACCOUNTS_AND_COMMERCIAL_API.md`.

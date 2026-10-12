@@ -23,8 +23,9 @@ public sealed class PipelineProbeController : ControllerBase
 }
 
 /// <summary>
-/// Pipeline HTTP de verdade (sem banco): cabeçalhos de segurança, CORS também no erro, ProblemDetails sem detalhe
-/// interno, limite técnico com Retry-After, Swagger desligado em produção e /migrate escondido sem token.
+/// Pipeline HTTP de verdade (sem banco): cabeçalhos de segurança, CORS explícito também no erro,
+/// ProblemDetails sem detalhe interno, limite técnico com Retry-After, Swagger desligado em produção
+/// e /migrate escondido sem token.
 /// </summary>
 public class HttpPipelineTests
 {
@@ -68,7 +69,7 @@ public class HttpPipelineTests
         using var factory = Factory();
         var response = await factory.CreateClient().SendAsync(Get("/__test/boom"));
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.Equal(Origin, response.Headers.GetValues("Access-Control-Allow-Origin").Single()); // CORS também no erro
+        Assert.Equal(Origin, response.Headers.GetValues("Access-Control-Allow-Origin").Single());
         Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
         var body = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("senha", body);
@@ -157,13 +158,26 @@ public class HttpPipelineTests
     }
 
     [Fact]
-    public async Task Browsers_may_only_read_the_api()
+    public async Task Browsers_may_use_explicit_account_methods_but_not_arbitrary_mutations()
     {
         using var factory = Factory();
-        var preflight = new HttpRequestMessage(HttpMethod.Options, "/api/v1/status");
-        preflight.Headers.Add("Origin", Origin);
-        preflight.Headers.Add("Access-Control-Request-Method", "DELETE");
-        var response = await factory.CreateClient().SendAsync(preflight);
-        Assert.False(response.Headers.TryGetValues("Access-Control-Allow-Methods", out var methods) && methods.Any(m => m.Contains("DELETE")));
+        var client = factory.CreateClient();
+
+        var allowed = new HttpRequestMessage(HttpMethod.Options, "/api/v1/account/saved");
+        allowed.Headers.Add("Origin", Origin);
+        allowed.Headers.Add("Access-Control-Request-Method", "DELETE");
+        allowed.Headers.Add("Access-Control-Request-Headers", "X-RepBrasil-CSRF");
+        var allowedResponse = await client.SendAsync(allowed);
+        Assert.Equal(HttpStatusCode.NoContent, allowedResponse.StatusCode);
+        Assert.Equal(Origin, allowedResponse.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Equal("true", allowedResponse.Headers.GetValues("Access-Control-Allow-Credentials").Single());
+        Assert.Contains(allowedResponse.Headers.GetValues("Access-Control-Allow-Methods"), value => value.Contains("DELETE", StringComparison.Ordinal));
+        Assert.Contains(allowedResponse.Headers.GetValues("Access-Control-Allow-Headers"), value => value.Contains("X-RepBrasil-CSRF", StringComparison.OrdinalIgnoreCase));
+
+        var denied = new HttpRequestMessage(HttpMethod.Options, "/api/v1/account/saved");
+        denied.Headers.Add("Origin", Origin);
+        denied.Headers.Add("Access-Control-Request-Method", "PATCH");
+        var deniedResponse = await client.SendAsync(denied);
+        Assert.False(deniedResponse.Headers.TryGetValues("Access-Control-Allow-Methods", out var methods) && methods.Any(m => m.Contains("PATCH", StringComparison.Ordinal)));
     }
 }
