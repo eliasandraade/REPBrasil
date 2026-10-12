@@ -25,10 +25,11 @@ public sealed class ParliamentController(ParliamentService service) : Controller
     public async Task<ActionResult<IReadOnlyList<ParliamentActivityDto>>> Activities(
         [FromQuery] long? memberId,
         [FromQuery] string? institution,
+        [FromQuery] string? uf,
         [FromQuery] int limit = 100,
         CancellationToken ct = default)
     {
-        try { return Ok(await service.ActivitiesAsync(memberId, institution, limit, ct)); }
+        try { return Ok(await service.ActivitiesAsync(memberId, institution, uf, limit, ct)); }
         catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
     }
 
