@@ -6,12 +6,12 @@ a próxima missão é **Nordeste** — nenhuma expansão automática.
 
 Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de merge e situação em produção.
 
-## Ambiente desta missão (11/10/2026)
+## Ambiente desta missão (12/10/2026)
 
 | Item | Situação |
 |---|---|
-| Baseline funcional | pós-PR #23 (`a428c56`), com Data Intelligence, primeira carga socioeleitoral oficial e fundação parlamentar em produção |
-| Produção | `front-v2`, `back-v2` e Electoral Lake validados; navegação, políticos, eleições, Base Eleitoral, rankings, partidos, mapa, busca e `/dados` passaram smoke manual |
+| Baseline funcional | pós-PR #25 (`ec54967`), com comparador universal e perfis de estado, município e eleição em produção |
+| Produção | `front-v2`, `back-v2` e Electoral Lake online após rollout do PR #25; smoke humano dos novos perfis ainda pendente |
 | Data Intelligence | Censo 2022 carregado para os 184 municípios do Ceará: população, alfabetização 15+ e analfabetismo 15+; perfil socioeleitoral ativo |
 | Parlamento | migration e cinco tabelas auditáveis aplicadas em produção; fundação de Câmara/emendas pronta, sem linking por nome |
 | Custo novo | nenhum (regra da missão) |
@@ -26,17 +26,17 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 | D | Partidos e força partidária (sigla oficial, BU, variação comparável, municípios, candidaturas, camada Partido, `/partidos`) | DONE | [#19](https://github.com/eliasandraade/REPBrasil/pull/19) | `f86be3e` | validado |
 | E | Data Intelligence: socioeconomia, proveniência, SIDRA/Atlas, Pearson/Spearman, `candidacy_share`, clusters e `/dados`; seguido pela primeira ingestão Censo 2022 e perfil socioeleitoral | DONE | [#20](https://github.com/eliasandraade/REPBrasil/pull/20), [#21](https://github.com/eliasandraade/REPBrasil/pull/21), [#22](https://github.com/eliasandraade/REPBrasil/pull/22) | `adde263` / `cc24a9f` / `a809e31` | validado |
 | F | Fundação auditável de Parlamento + emendas: fontes, membros, mandatos, atividades, emendas, Câmara paginada, parser fail-closed e identidade sem heurística de nome | DONE | [#23](https://github.com/eliasandraade/REPBrasil/pull/23) | `a428c56` | migration e schema verificados |
-| G | Busca por indicadores, comparador universal por tipo, insights determinísticos versionados e exports CSV/XLSX/PDF/PNG | DONE | [#24](https://github.com/eliasandraade/REPBrasil/pull/24) | PR #24 | validar no rollout do #24 |
+| G | Busca por indicadores, comparador universal por tipo, insights determinísticos versionados e exports CSV/XLSX/PDF/PNG | DONE | [#24](https://github.com/eliasandraade/REPBrasil/pull/24) | `2a4f6bc` | deploy concluído; smoke humano do comparador/exports pendente |
 | H | Auth (Google + magic link), favoritos, watchlist, alertas, entitlements, API comercial | TODO | — | — | — |
-| I | Município, estado, eleição, perfil unificado, SEO | TODO | — | — | — |
+| I | Município, estado, eleição, perfil unificado, SEO | DONE | [#25](https://github.com/eliasandraade/REPBrasil/pull/25) | `ec54967` | deploy concluído; smoke humano pendente |
 | J | Pesquisas eleitorais + apuração ao vivo | TODO | — | — | — |
 | K | PWA, mobile, segurança, performance, screenshots | TODO | — | — | — |
 
 ## Ordem recomendada a partir daqui
 
-**I → J → H → K**.
+**J → H → K**.
 
-O PR I transforma território/eleição em entidades de produto; o J adiciona o ciclo eleitoral vivo; o H entra quando há valor recorrente suficiente para conta, alertas e monetização; o K encerra a missão Ceará com acabamento de produção.
+O PR J adiciona o ciclo eleitoral vivo; o H entra quando há valor recorrente suficiente para conta, alertas e monetização; o K encerra a missão Ceará com acabamento de produção.
 
 ## Checklist — produto (Ceará)
 
@@ -58,7 +58,7 @@ O PR I transforma território/eleição em entidades de produto; o J adiciona o 
 | Insights determinísticos | DONE (#24) — regras versionadas, empate/ausência preservados, sem LLM factual em runtime |
 | Exports (CSV, XLSX, PDF, PNG) | DONE (#24) — contexto, fontes, metodologia, timestamp e URL reproduzível |
 | Busca por indicadores | DONE (#24) — catálogo oficial do Data Intelligence integrado à busca agrupada |
-| Município / estado / eleição como entidades | TODO (I) |
+| Município / estado / eleição como entidades | DONE (#25) — perfis canônicos, SEO, sitemap, timeline, rankings e Data Intelligence |
 | Pesquisas eleitorais | TODO (J) |
 | Apuração ao vivo | TODO (J) |
 | Auth / favoritos / watchlist / alertas | TODO (H) |
@@ -69,15 +69,15 @@ O PR I transforma território/eleição em entidades de produto; o J adiciona o 
 | Item | Status |
 |---|---|
 | Proveniência de todo dataset novo | DONE para Data Intelligence e fundação parlamentar: URL/dataset, SHA-256, parser e instante de coleta |
-| Ausência de dado nunca vira zero | DONE nas camadas eleitoral, socioeconômica e parlamentar; preservada no PR G |
+| Ausência de dado nunca vira zero | DONE nas camadas eleitoral, socioeconômica e parlamentar; preservada nos PRs G e I |
 | Reedição oficial preserva histórico | DONE no Data Intelligence: nova fonte por SHA; mesma SHA é idempotente |
 | Correlação com N/período/método e caveat causal | DONE (#20/#21) |
-| Falácia ecológica explicitamente sinalizada | DONE (#21), mantida no contrato analítico do #24 |
+| Falácia ecológica explicitamente sinalizada | DONE (#21), mantida no contrato analítico do #24 e perfis do #25 |
 | Linking de identidade por nome | PROIBIDO; Câmara exige evidência documental oficial; Senado/ALECE ficam `unlinked` sem evidência auditável |
 | Insights factuais gerados por IA | PROIBIDO no runtime; PR G usa regras determinísticas versionadas |
 | Zero serviço pago novo | DONE |
-| CI verde por PR | obrigatório antes de merge |
-| Smoke de produção | DONE até o PR F; repetir busca, `/dados`, `/comparar` e `/eleicoes/comparar` no rollout do G |
+| CI verde por PR | DONE até #25 |
+| Smoke de produção | DONE até o PR F; PRs G e I aguardam smoke humano específico |
 
 ## Regras permanentes do Data Intelligence
 
