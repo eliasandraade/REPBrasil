@@ -2,10 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { ExportActions } from "@/components/export/ExportActions";
 import { displayName, formatCount } from "@/lib/elections/format";
 import { buildElectionsPath } from "@/lib/elections/route";
-import { comparisonCsv, downloadText } from "@/lib/elections/compare-csv";
+import { candidacyComparisonReport } from "@/lib/elections/comparison-report";
 import { electionLabel, MAX_COMPARE, xrayApi } from "@/lib/elections/xray";
 import type { ComparisonResponse, TerritoryLevel } from "@/lib/elections/xray-types";
 import { searchAll, searchableQuery, type SearchPolitician } from "@/lib/search";
@@ -20,7 +21,6 @@ function useDebounced<T>(value: T, ms: number): T {
   return debounced;
 }
 
-/** Candidaturas de uma pessoa, para escolher qual entra na comparação (só as com voto próprio). */
 function PersonCandidacies({
   person,
   selected,
@@ -57,7 +57,6 @@ function PersonCandidacies({
   );
 }
 
-/** Montar a comparação aqui mesmo: procurar a pessoa pelo nome e escolher a candidatura. */
 export function AddCandidacy({
   selected,
   onAdd,
@@ -77,10 +76,7 @@ export function AddCandidacy({
   return (
     <div className="rounded-xl border border-line bg-surface p-4" data-testid="compare-add">
       <label htmlFor={inputId} className="text-sm font-medium text-fg-soft">
-        Adicionar candidatura{" "}
-        <span className="font-normal text-fg-muted">
-          ({selected.length} de {MAX_COMPARE})
-        </span>
+        Adicionar candidatura <span className="font-normal text-fg-muted">({selected.length} de {MAX_COMPARE})</span>
       </label>
       {full ? (
         <p className="mt-2 text-xs text-warn">Limite de {MAX_COMPARE} candidaturas: remova uma para adicionar outra.</p>
@@ -90,10 +86,7 @@ export function AddCandidacy({
             id={inputId}
             type="search"
             value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              setPerson(null);
-            }}
+            onChange={(e) => { setText(e.target.value); setPerson(null); }}
             placeholder="Nome de urna (ex.: Camilo)"
             autoComplete="off"
             className="focus-ring mt-2 w-full rounded-md border border-line bg-canvas/60 px-3 py-2 text-sm text-fg placeholder:text-fg-muted"
@@ -102,45 +95,30 @@ export function AddCandidacy({
             <div className="mt-3">
               <p className="flex items-center justify-between gap-2 text-sm text-fg-soft">
                 {displayName(person.ballotName ?? person.name)}
-                <button type="button" onClick={() => setPerson(null)} className="focus-ring rounded text-xs text-accent-text hover:underline">
-                  outra pessoa
-                </button>
+                <button type="button" onClick={() => setPerson(null)} className="focus-ring rounded text-xs text-accent-text hover:underline">outra pessoa</button>
               </p>
               <PersonCandidacies person={person} selected={selected} full={full} onAdd={onAdd} />
             </div>
-          ) : (
-            query !== null && (
-              <ul className="mt-2 space-y-1" aria-label="Pessoas encontradas">
-                {results.isLoading && <li className="skeleton h-8 rounded-md" aria-hidden="true" />}
-                {people.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => setPerson(p)}
-                      className="focus-ring w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-fg/[0.04]"
-                    >
-                      <span className="text-fg-soft">{displayName(p.ballotName ?? p.name)}</span>
-                      {p.candidacy && (
-                        <span className="text-fg-muted">
-                          {" "}
-                          · {p.candidacy.officeName} {p.candidacy.year}
-                          {p.candidacy.party ? ` · ${p.candidacy.party}` : ""}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-                {results.data && people.length === 0 && <li className="px-2 text-xs text-fg-muted">Ninguém encontrado com esse nome.</li>}
-              </ul>
-            )
-          )}
+          ) : query !== null ? (
+            <ul className="mt-2 space-y-1" aria-label="Pessoas encontradas">
+              {results.isLoading && <li className="skeleton h-8 rounded-md" aria-hidden="true" />}
+              {people.map((p) => (
+                <li key={p.id}>
+                  <button type="button" onClick={() => setPerson(p)} className="focus-ring w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-fg/[0.04]">
+                    <span className="text-fg-soft">{displayName(p.ballotName ?? p.name)}</span>
+                    {p.candidacy && <span className="text-fg-muted"> · {p.candidacy.officeName} {p.candidacy.year}{p.candidacy.party ? ` · ${p.candidacy.party}` : ""}</span>}
+                  </button>
+                </li>
+              ))}
+              {results.data && people.length === 0 && <li className="px-2 text-xs text-fg-muted">Ninguém encontrado com esse nome.</li>}
+            </ul>
+          ) : null}
         </>
       )}
     </div>
   );
 }
 
-/** Link compartilhável, mapa A × B (duas candidaturas da mesma eleição) e CSV da matriz. */
 export function CompareActions({
   data,
   columns,
@@ -153,36 +131,27 @@ export function CompareActions({
   const mapHref = sameElection
     ? `${buildElectionsPath({ year: a.contest.year, round: a.contest.round, state: uf.toLowerCase() })}?camada=ab&a=${a.candidacyId}&b=${b.candidacyId}`
     : null;
+  const report = useMemo(
+    () => candidacyComparisonReport(data, columns, level, typeof window === "undefined" ? "" : window.location.href),
+    [columns, data, level],
+  );
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="compare-actions">
-      <button
-        type="button"
-        onClick={() =>
-          navigator.clipboard
-            ?.writeText(window.location.href)
-            .then(() => setCopied("ok"))
-            .catch(() => setCopied("fail"))
-        }
-        className="focus-ring rounded-md border border-line-strong px-2.5 py-1 text-fg-soft hover:border-line-strong"
-      >
-        Copiar link
-      </button>
-      <button
-        type="button"
-        onClick={() => downloadText(`repbrasil-comparacao-${level}.csv`, comparisonCsv(data, columns, level))}
-        className="focus-ring rounded-md border border-line-strong px-2.5 py-1 text-fg-soft hover:border-line-strong"
-      >
-        Baixar CSV
-      </button>
-      {mapHref && (
-        <Link href={mapHref} className="focus-ring rounded-md border border-accent/30 bg-accent/10 px-2.5 py-1 font-medium text-accent-text hover:bg-accent/15">
-          Ver A × B no mapa →
-        </Link>
-      )}
-      <span role="status" aria-live="polite" className="text-fg-muted">
-        {copied === "ok" && "Link copiado."}
-        {copied === "fail" && "Não foi possível copiar; use a barra de endereço."}
-      </span>
+    <div className="space-y-2" data-testid="compare-actions">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => navigator.clipboard?.writeText(window.location.href).then(() => setCopied("ok")).catch(() => setCopied("fail"))}
+          className="focus-ring rounded-md border border-line-strong px-2.5 py-1 text-fg-soft hover:border-line-strong"
+        >
+          Copiar link
+        </button>
+        {mapHref && <Link href={mapHref} className="focus-ring rounded-md border border-accent/30 bg-accent/10 px-2.5 py-1 font-medium text-accent-text hover:bg-accent/15">Ver A × B no mapa →</Link>}
+        <span role="status" aria-live="polite" className="text-fg-muted">
+          {copied === "ok" && "Link copiado."}
+          {copied === "fail" && "Não foi possível copiar; use a barra de endereço."}
+        </span>
+      </div>
+      <ExportActions report={report} />
     </div>
   );
 }

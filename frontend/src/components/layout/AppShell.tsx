@@ -75,6 +75,18 @@ function RankIcon({ className }: { className?: string }) {
   );
 }
 
+/** Comparar: fluxos bidirecionais entre itens equivalentes. */
+function CompareIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 7h12" />
+      <path d="m16 3 4 4-4 4" />
+      <path d="M16 17H4" />
+      <path d="m8 13-4 4 4 4" />
+    </svg>
+  );
+}
+
 /** Dados: pontos conectados por eixos, sem iconografia partidária. */
 function DataIcon({ className }: Readonly<{ className?: string }>) {
   return (
@@ -128,6 +140,7 @@ const NAV_SECTIONS = [
       { href: "/eleicoes", label: "Eleições", Icon: ResultsIcon, exact: false },
       { href: "/partidos", label: "Partidos", Icon: GroupIcon, exact: false },
       { href: "/rankings", label: "Rankings", Icon: RankIcon, exact: false },
+      { href: "/comparar", label: "Comparar", Icon: CompareIcon, exact: false },
       { href: "/dados", label: "Dados", Icon: DataIcon, exact: false },
       { href: "/manifesto", label: "Manifesto", Icon: BookOpenIcon, exact: false },
     ],

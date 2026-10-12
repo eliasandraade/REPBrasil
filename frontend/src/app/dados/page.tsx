@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { DataExplorer } from "@/components/data/DataExplorer";
 import { pageMetadata } from "@/lib/seo";
 
@@ -9,5 +10,9 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default function DataPage() {
-  return <DataExplorer />;
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-canvas" />}>
+      <DataExplorer />
+    </Suspense>
+  );
 }
