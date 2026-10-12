@@ -33,9 +33,19 @@ _SAMPLE_COLUMNS = ("QT_ENTREVISTADO", "QT_ENTREVISTADOS")
 
 
 @dataclass(frozen=True)
+class PollRegistryWarning:
+    line_number: int
+    registration_number: str
+    field: str
+    raw_value: str
+    action: str
+
+
+@dataclass(frozen=True)
 class PollRegistryParseResult:
     member_name: str
     rows: tuple[PollRecord, ...]
+    warnings: tuple[PollRegistryWarning, ...] = ()
 
 
 def _decode(content: bytes) -> str:
@@ -67,17 +77,20 @@ def _parse_date(value: str, field: str, *, required: bool) -> date | None:
     raise ValueError(f"invalid PesqEle date in {field}: {value!r}")
 
 
-def _optional_int(value: str, field: str) -> int | None:
+def _optional_sample_size(value: str, field: str) -> tuple[int | None, bool]:
     text = value.strip()
     if not text:
-        return None
+        return None, False
     digits = re.sub(r"[^0-9-]", "", text)
     if not digits or digits in {"-", "+"}:
         raise ValueError(f"invalid integer in PesqEle {field}: {value!r}")
-    parsed = int(digits)
+    try:
+        parsed = int(digits)
+    except ValueError as exc:
+        raise ValueError(f"invalid integer in PesqEle {field}: {value!r}") from exc
     if parsed < 0:
-        raise ValueError(f"negative integer in PesqEle {field}: {value!r}")
-    return parsed
+        return None, True
+    return parsed, False
 
 
 def _office_codes(value: str) -> tuple[int, ...]:
@@ -136,6 +149,10 @@ def parse_poll_registry_archive(
 
     The open-data CSV contains registration/design metadata, not candidate percentages.
     Therefore every normalized PollRecord deliberately has no result scenarios.
+
+    A negative official sample-size value is treated as unavailable rather than coerced to
+    zero or to its absolute value. The anomaly is returned in ``warnings`` while the raw
+    archive remains the source of truth through its SHA-256 provenance.
     """
     if year < 2012 or year > 2200:
         raise ValueError("PesqEle year is outside the supported range")
@@ -168,6 +185,7 @@ def parse_poll_registry_archive(
     sample_column = next((column for column in _SAMPLE_COLUMNS if column in fields), None)
 
     records: list[PollRecord] = []
+    warnings: list[PollRegistryWarning] = []
     for line_number, raw_row in enumerate(reader, start=2):
         row = {str(key).strip(): str(value or "") for key, value in raw_row.items() if key}
         registration = row.get("NR_PROTOCOLO_REGISTRO", "").strip()
@@ -200,11 +218,20 @@ def parse_poll_registry_archive(
             "DT_DIVULGACAO",
             required=False,
         )
-        sample_size = (
-            _optional_int(row.get(sample_column, ""), sample_column)
-            if sample_column is not None
-            else None
-        )
+        sample_size: int | None = None
+        if sample_column is not None:
+            raw_sample = row.get(sample_column, "")
+            sample_size, negative_sample = _optional_sample_size(raw_sample, sample_column)
+            if negative_sample:
+                warnings.append(
+                    PollRegistryWarning(
+                        line_number=line_number,
+                        registration_number=registration,
+                        field=sample_column,
+                        raw_value=raw_sample,
+                        action="stored_as_missing",
+                    )
+                )
         methodology = row.get("DS_METODOLOGIA_PESQUISA", "").strip() or None
 
         for office_code in _office_codes(row.get(office_column, "")):
@@ -229,4 +256,8 @@ def parse_poll_registry_archive(
                 )
             )
 
-    return PollRegistryParseResult(member_name=member, rows=tuple(records))
+    return PollRegistryParseResult(
+        member_name=member,
+        rows=tuple(records),
+        warnings=tuple(warnings),
+    )

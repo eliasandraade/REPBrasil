@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import psycopg
@@ -66,6 +67,7 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
+    parser_warnings = [asdict(warning) for warning in parsed.warnings]
     source = PollSource(
         provider="TSE/PesqEle",
         dataset=f"pesquisa_eleitoral_{args.year}_{uf_filter}",
@@ -78,6 +80,7 @@ def main() -> int:
             "etag": artifact.etag,
             "last_modified": artifact.last_modified,
             "complete_snapshot": True,
+            "parser_warnings": parser_warnings,
         },
     )
 
@@ -108,6 +111,8 @@ def main() -> int:
                 "sha256": artifact.sha256,
                 "records": len(parsed.rows),
                 "polls": len(set(poll_ids)),
+                "warning_count": len(parser_warnings),
+                "warnings": parser_warnings,
             },
             ensure_ascii=False,
             sort_keys=True,
