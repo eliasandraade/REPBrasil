@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.electoral.poll_registry import parse_poll_registry_archive
-from src.electoral.polls import PollSource, load_poll
-from src.sources.tse.polls import TsePollArchiveClient
+from src.electoral.poll_registry import parse_poll_registry_archive  # noqa: E402
+from src.electoral.polls import PollSource, load_poll  # noqa: E402
+from src.sources.tse.polls import TsePollArchiveClient  # noqa: E402
 
 
 def parser() -> argparse.ArgumentParser:
