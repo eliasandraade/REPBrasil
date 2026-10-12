@@ -64,10 +64,11 @@ A migration `018_polling_and_live_count.sql` adiciona sete tabelas:
 5. **Cenários não são misturados.** Cada cenário preserva sua própria lista, ordem e turno opcional.
 6. **Registro sem resultado é válido.** O REPBrasil não fabrica percentuais para preencher uma pesquisa registrada.
 7. **Escopo é exato.** Brasil, UF e município são consultas diferentes; uma pesquisa nacional não é tratada como pesquisa estadual.
-8. **Totalização parcial não é final.** O status `not_started`, `partial` ou `final` é explícito.
-9. **Snapshots são imutáveis por conteúdo.** O SHA-256 é calculado sobre os bytes oficiais adquiridos; conteúdo idêntico é idempotente e nova edição oficial preserva o histórico.
-10. **Vínculo de candidatura é documental.** Resultado do TSE usa `SQ_CANDIDATO` dentro da eleição/cargo/código de eleição; pesquisa só aceita `candidacy_id` previamente auditado e compatível com ano/turno/cargo. Nunca nome ou fuzzy match.
-11. **Sem serviço pago novo.** O módulo usa a infraestrutura existente.
+8. **Reedição oficial é snapshot completo por escopo.** A consulta usa somente a edição PesqEle mais recente daquele ano/escopo; se uma pesquisa deixa de constar de uma reedição, uma linha antiga não é ressuscitada.
+9. **Totalização parcial não é final.** O status `not_started`, `partial` ou `final` é explícito.
+10. **Snapshots são imutáveis por conteúdo.** O SHA-256 é calculado sobre os bytes oficiais adquiridos; conteúdo idêntico é idempotente e nova edição oficial preserva o histórico.
+11. **Vínculo de candidatura é documental.** Resultado do TSE usa `SQ_CANDIDATO` dentro da eleição/cargo/código de eleição; pesquisa só aceita `candidacy_id` previamente auditado e compatível com ano/turno/cargo. Nunca nome ou fuzzy match.
+12. **Sem serviço pago novo.** O módulo usa a infraestrutura existente.
 
 ## APIs públicas
 
@@ -85,7 +86,7 @@ Parâmetros:
 
 O `round` filtra cenários classificados naquele turno. Um registro sem resultados/cenários continua visível porque o PesqEle registra a pesquisa do ciclo, não um resultado por turno. Se uma pesquisa tiver cenários explicitamente classificados apenas para o outro turno, ela não é mostrada como se tivesse cenário compatível.
 
-A resposta inclui fonte, data de coleta, metadados metodológicos e cenários auditados. A edição mais recente de uma mesma pesquisa, dentro do recorte exato, vence por `retrieved_at` sem apagar versões anteriores.
+A resposta inclui fonte, data de coleta, metadados metodológicos e cenários auditados. Para a fonte PesqEle, a API parte da edição completa mais recente do escopo (`BR`, `CE`, etc.); dentro dela, ausência de registro também é informação de versão e não permite recorrer silenciosamente a uma edição antiga.
 
 ### Apuração
 
@@ -113,7 +114,7 @@ A migration não semeia observações sintéticas em produção.
 
 ### Registro PesqEle
 
-O comando `etl/scripts/ingest_poll_registry.py` adquire o ZIP oficial, valida o CSV, normaliza os registros e grava a edição inteira em uma transação. Se qualquer linha necessária falhar, a edição não fica parcialmente publicada no banco.
+O comando `etl/scripts/ingest_poll_registry.py` adquire o ZIP oficial, valida o CSV, normaliza os registros do escopo pedido e grava a edição inteira em uma transação. Se qualquer linha necessária falhar, a edição não fica parcialmente publicada no banco. Cada UF e `BR` têm sua própria chave de snapshot completo.
 
 Ceará em 2026:
 
@@ -127,7 +128,7 @@ Pesquisas nacionais:
 python scripts/ingest_poll_registry.py --year 2026 --uf BR
 ```
 
-`--uf ALL` processa todos os escopos. O importador não cria cenários nem percentuais a partir do arquivo de registro porque o conjunto aberto do PesqEle é metadado de registro/desenho da pesquisa, não uma tabela de intenção de voto por candidata ou candidato. Resultados só entram depois por fonte de publicação auditável.
+O importador não cria cenários nem percentuais a partir do arquivo de registro porque o conjunto aberto do PesqEle é metadado de registro/desenho da pesquisa, não uma tabela de intenção de voto por candidata ou candidato. Resultados só entram depois por fonte de publicação auditável.
 
 ### Apuração TSE
 
