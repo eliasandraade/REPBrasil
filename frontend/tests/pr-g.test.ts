@@ -5,7 +5,7 @@ import { indicatorHref, searchOptions, withIndicatorResults, type SearchResponse
 
 const REPORT: ExportReport = {
   filename: "comparacao",
-  title: "REPBrasil — Teste",
+  title: "REPBrasil — José",
   headers: ["Entidade", "Valor"],
   rows: [["A", 0], ["B", null]],
   metadata: [{ label: "UF", value: "CE" }],
@@ -39,11 +39,18 @@ describe("PR G — exports auditáveis", () => {
     expect(csv).toContain("URL reproduzível;https://www.apprepbrasil.com.br/comparar?tipo=partido");
   });
 
-  it("gera XLSX OpenXML e PDF válidos sem serviço externo", () => {
+  it("gera XLSX OpenXML válido e grava ausência como marcador explícito", () => {
     const xlsx = reportXlsx(REPORT);
     expect(Array.from(xlsx.slice(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
-    const pdf = new TextDecoder().decode(reportPdf(REPORT).slice(0, 8));
-    expect(pdf).toBe("%PDF-1.4");
+    expect(new TextDecoder().decode(xlsx)).toContain("<t>—</t>");
+  });
+
+  it("gera PDF válido preservando caracteres portugueses em WinAnsi", () => {
+    const pdfBytes = reportPdf(REPORT);
+    const pdf = new TextDecoder().decode(pdfBytes);
+    expect(pdf.slice(0, 8)).toBe("%PDF-1.4");
+    expect(pdf).toContain("4a6f73e9");
+    expect(pdf).toContain("97");
   });
 });
 
