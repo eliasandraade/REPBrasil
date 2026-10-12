@@ -9,12 +9,12 @@ type Target = { resourceType: string; resourceKey: string };
 
 function targetFromLocation(pathname: string, query: string): Target | null {
   const parts = pathname.split("/").filter(Boolean);
+  const reproducible = query ? `${pathname}?${query}` : pathname;
   if (parts[0] === "politicos" && parts[1]) return { resourceType: "politician", resourceKey: parts[1] };
   if (parts[0] === "partidos" && parts[1]) return { resourceType: "party", resourceKey: parts[1] };
   if (parts[0] === "municipios" && parts[1] && parts[2]) return { resourceType: "municipality", resourceKey: `${parts[1]}/${parts[2]}` };
   if (parts[0] === "estados" && parts[1]) return { resourceType: "state", resourceKey: parts[1] };
-  if (parts[0] === "eleicoes" && parts[1] && parts[2]) return { resourceType: "election", resourceKey: `${parts[1]}/${parts[2]}` };
-  const reproducible = query ? `${pathname}?${query}` : pathname;
+  if (parts[0] === "eleicoes" && parts[1] && parts[2]) return { resourceType: "election", resourceKey: reproducible };
   if (parts[0] === "rankings") return { resourceType: "ranking", resourceKey: reproducible };
   if (parts[0] === "dados") return { resourceType: "indicator", resourceKey: reproducible };
   return null;
