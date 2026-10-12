@@ -81,6 +81,8 @@ async function verifyWebPath(path) {
 }
 
 async function assertRenderedData(page, path) {
+  let verifyCatalogState = false;
+
   if (path === "/parlamento") {
     await page.waitForFunction(
       () => {
@@ -92,7 +94,19 @@ async function assertRenderedData(page, path) {
       { timeout: 30000 },
     );
   } else if (path === "/dados") {
+    await page.getByTestId("causality-caveat").waitFor({ state: "visible", timeout: 30000 });
     await page.getByText("Carregando catálogo…", { exact: true }).waitFor({ state: "hidden", timeout: 30000 });
+    verifyCatalogState = true;
+  }
+
+  const errors = page.getByText(/Não foi possível/);
+  const renderedErrors = await errors.count();
+  if (renderedErrors > 0) {
+    const message = await errors.first().textContent();
+    assert.fail(`${path} rendered an application data error: ${message ?? "unknown error"}`);
+  }
+
+  if (verifyCatalogState) {
     const catalogEmpty = await page.getByText("Nenhum indicador cadastrado.", { exact: true }).count();
     const indicatorOptions = await page.getByLabel("Indicador X").locator("option").count();
     assert.ok(
@@ -100,9 +114,6 @@ async function assertRenderedData(page, path) {
       "/dados finished loading without an explicit catalog state",
     );
   }
-
-  const renderedErrors = await page.getByText(/Não foi possível/).count();
-  assert.equal(renderedErrors, 0, `${path} rendered an application data error`);
 }
 
 async function capturePage(context, slug, path, profile, waitMs) {
