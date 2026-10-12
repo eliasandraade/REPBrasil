@@ -5,10 +5,10 @@ import "./globals.css";
 import "@/motion/motion.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
+import { SaveCurrentPage } from "@/components/account/SaveCurrentPage";
 import { THEME_INIT_SRC } from "@/components/theme/theme-script";
 import { INDEXING, SITE_NAME, SITE_URL } from "@/lib/site";
 
-// Inter Variable (OFL), servida do próprio domínio: sem requisição a terceiros em tempo de execução.
 const inter = localFont({
   src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
   variable: "--font-inter",
@@ -23,7 +23,6 @@ export const metadata: Metadata = {
   description:
     "Resultados oficiais do TSE por seção, zona e município, com o histórico de cada candidatura, patrimônio declarado e contas de campanha.",
   applicationName: SITE_NAME,
-  // Sem endereço público definitivo + permissão explícita, nada é indexado (local e staging nunca aparecem em busca).
   robots: INDEXING ? { index: true, follow: true } : { index: false, follow: false },
   openGraph: { siteName: SITE_NAME, locale: "pt_BR", type: "website" },
   twitter: { card: "summary_large_image" },
@@ -50,14 +49,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* `html.js` + tema resolvido antes da primeira pintura (estados de revelação só existem com JS).
-            Síncrono de propósito: assíncrono pintaria o tema errado por um quadro. Arquivo pequeno, do próprio domínio. */}
         {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script src={THEME_INIT_SRC} />
       </head>
       <body>
         <Providers>
           <AppShell>{children}</AppShell>
+          <div className="fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
+            <SaveCurrentPage />
+          </div>
         </Providers>
       </body>
     </html>
