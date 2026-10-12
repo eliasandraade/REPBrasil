@@ -11,7 +11,8 @@ ETL_ROOT = Path(__file__).resolve().parents[2]
 def _load_script(name: str):
     path = ETL_ROOT / "scripts" / f"{name}.py"
     spec = importlib.util.spec_from_file_location(f"repbrasil_test_{name}", path)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -76,5 +77,6 @@ def test_prune_rejects_empty_derived_snapshot() -> None:
             return next(self._rows)
 
     scope = module.LakeScope(2022, 1, "CE")
+    cursor = Cursor()
     with pytest.raises(SystemExit, match="derived snapshot is empty"):
-        module._derived_snapshot(Cursor(), scope)
+        module._derived_snapshot(cursor, scope)
