@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PREFERRED_INDICATOR_CODES,
   chooseFeaturedOffice,
   electionProfilePath,
   indicatorValueText,
@@ -37,6 +38,17 @@ describe("PR I — perfis territoriais", () => {
         { code: 11, name: "Prefeito" },
       ]),
     ).toEqual({ code: 11, name: "Prefeito" });
+  });
+
+  it("usa os códigos canônicos do catálogo socioeconômico", () => {
+    expect(PREFERRED_INDICATOR_CODES).toEqual([
+      "ibge.population",
+      "derived.illiteracy_rate_15_plus",
+      "ibge.literacy_rate_15_plus",
+      "derived.gdp_per_capita",
+      "ibge.gdp_total",
+      "atlas.idhm",
+    ]);
   });
 
   it("preserva zero real e ausência como estados distintos", () => {
