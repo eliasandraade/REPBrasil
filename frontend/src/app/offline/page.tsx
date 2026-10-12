@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function OfflinePage() {
   return (
     <main className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center px-4 py-12 sm:px-6">
-      <section className="w-full rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8" role="status">
+      <output className="block w-full rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent-text">REPBrasil offline</p>
         <h1 className="mt-2 text-2xl font-semibold text-fg sm:text-3xl">Você está sem conexão</h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-fg-muted sm:text-base">
@@ -29,7 +29,7 @@ export default function OfflinePage() {
             Como tratamos os dados
           </TransitionLink>
         </div>
-      </section>
+      </output>
     </main>
   );
 }
