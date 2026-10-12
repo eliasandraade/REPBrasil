@@ -32,6 +32,7 @@ export function SocioeconomicMap({
     const span = max - min;
     const palette = SEQUENTIAL[theme];
     const municipalities: MapLayerView["municipalities"] = {};
+    const unitSuffix = unit ? ` ${unit}` : "";
 
     for (const row of current) {
       const value = Number(row.value);
@@ -39,7 +40,7 @@ export function SocioeconomicMap({
       const t = span === 0 ? 0.55 : (value - min) / span;
       municipalities[row.municipalityIbgeCode] = {
         color: mix(palette.low, palette.high, t),
-        text: `${label}: ${number.format(value)}${unit ? ` ${unit}` : ""}`,
+        text: `${label}: ${number.format(value)}${unitSuffix}`,
       };
     }
 
@@ -52,8 +53,8 @@ export function SocioeconomicMap({
       gradient: {
         from: palette.low,
         to: palette.high,
-        min: `${number.format(min)}${unit ? ` ${unit}` : ""}`,
-        max: `${number.format(max)}${unit ? ` ${unit}` : ""}`,
+        min: `${number.format(min)}${unitSuffix}`,
+        max: `${number.format(max)}${unitSuffix}`,
       },
       note: "Escala sequencial do menor ao maior valor observado. Município sem cor não possui observação no recorte; ausência nunca é convertida em zero.",
     };
