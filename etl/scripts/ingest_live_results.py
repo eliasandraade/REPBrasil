@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.electoral.live_count import load_live_result, parse_live_result
-from src.sources.tse.live_results import (
+from src.electoral.live_count import load_live_result, parse_live_result  # noqa: E402
+from src.sources.tse.live_results import (  # noqa: E402
     TseLiveResultsClient,
     official_2026_election_code,
     result_url,
@@ -37,7 +37,10 @@ def parser() -> argparse.ArgumentParser:
         "--watch-seconds",
         type=int,
         default=0,
-        help="0 executes once; otherwise poll the official artifact at this interval (minimum 15s).",
+        help=(
+            "0 executes once; otherwise poll the official artifact at this interval "
+            "(minimum 15s)."
+        ),
     )
     result.add_argument(
         "--until-final",
@@ -47,7 +50,13 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-def resolve_election_code(*, year: int, round_number: int, office: int, explicit: int | None) -> int:
+def resolve_election_code(
+    *,
+    year: int,
+    round_number: int,
+    office: int,
+    explicit: int | None,
+) -> int:
     if explicit is not None:
         if explicit <= 0:
             raise ValueError("--election-code must be positive")
