@@ -6,16 +6,18 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 PARSER_VERSION = "tse-ea20-v1"
 _BRT = ZoneInfo("America/Sao_Paulo")
+_OFFICIAL_RESULTS_HOST = "resultados.tse.jus.br"
 
 
 @dataclass(frozen=True)
 class LiveCandidate:
-    tse_candidate_id: int | None
-    candidate_number: int | None
+    tse_candidate_id: int
+    candidate_number: int
     label: str
     party_acronym: str | None
     votes: int | None
@@ -29,6 +31,9 @@ class LiveResult:
     election_code: int
     round_number: int
     office_code: int
+    phase: str
+    scope_type: str
+    scope_code: str
     generated_at: datetime | None
     status: str
     total_sections: int | None
@@ -56,7 +61,8 @@ def _required_int(value: Any, field: str) -> int:
 def _optional_decimal(value: Any) -> Decimal | None:
     if value is None or str(value).strip() == "":
         return None
-    text = str(value).strip().replace(".", "").replace(",", ".") if "," in str(value) else str(value).strip()
+    raw = str(value).strip()
+    text = raw.replace(".", "").replace(",", ".") if "," in raw else raw
     try:
         parsed = Decimal(text)
     except InvalidOperation as exc:
@@ -94,6 +100,21 @@ def parse_live_result(content: bytes, *, office_code: int) -> LiveResult:
     round_number = _required_int(payload.get("t"), "t")
     if round_number not in {1, 2}:
         raise ValueError("unexpected TSE election round")
+
+    phase = str(payload.get("f") or "").strip().lower()
+    if phase not in {"o", "s"}:
+        raise ValueError("unexpected TSE live-result phase")
+    scope_type = str(payload.get("tpabr") or "").strip().lower()
+    if scope_type not in {"br", "uf", "mu", "zona"}:
+        raise ValueError("unexpected TSE live-result scope type")
+    scope_code = str(payload.get("cdabr") or "").strip().lower()
+    if not scope_code:
+        raise ValueError("TSE live result is missing scope code")
+
+    andamento = str(payload.get("and") or "").strip().lower()
+    status_by_andamento = {"n": "not_started", "p": "partial", "f": "final"}
+    if andamento not in status_by_andamento:
+        raise ValueError("unexpected TSE live-result progress status")
 
     sections = payload.get("s")
     if not isinstance(sections, dict):
@@ -133,7 +154,6 @@ def parse_live_result(content: bytes, *, office_code: int) -> LiveResult:
     groups = cargo.get("agr")
     if not isinstance(groups, list):
         raise ValueError("TSE live-result office is missing agremiações")
-    fallback_position = 1
     for group in groups:
         if not isinstance(group, dict):
             raise ValueError("unexpected TSE agremiação payload")
@@ -150,15 +170,15 @@ def parse_live_result(content: bytes, *, office_code: int) -> LiveResult:
             for row in rows:
                 if not isinstance(row, dict):
                     raise ValueError("unexpected TSE candidate row")
-                label = str(row.get("nmu") or row.get("nm") or "").strip()
+                label = str(row.get("nmu") or "").strip()
                 if not label:
-                    raise ValueError("TSE candidate row without published label")
-                position = _optional_int(row.get("seq")) or fallback_position
-                fallback_position = max(fallback_position + 1, position + 1)
-                while position in seen_positions:
-                    position = fallback_position
-                    fallback_position += 1
+                    raise ValueError("TSE candidate row without published ballot name")
+                position = _required_int(row.get("seq"), "cand.seq")
+                if position <= 0 or position in seen_positions:
+                    raise ValueError("TSE candidate sequence must be unique and positive")
                 seen_positions.add(position)
+                candidate_number = _required_int(row.get("n"), "cand.n")
+                tse_candidate_id = _required_int(row.get("sqcand"), "cand.sqcand")
                 votes = _optional_int(row.get("vap"))
                 percentage = _optional_decimal(row.get("pvapn"))
                 if votes is not None and votes < 0:
@@ -167,8 +187,8 @@ def parse_live_result(content: bytes, *, office_code: int) -> LiveResult:
                     raise ValueError("candidate percentage is outside 0..100")
                 candidates.append(
                     LiveCandidate(
-                        tse_candidate_id=_optional_int(row.get("sqcand")),
-                        candidate_number=_optional_int(row.get("n")),
+                        tse_candidate_id=tse_candidate_id,
+                        candidate_number=candidate_number,
                         label=label,
                         party_acronym=party_acronym,
                         votes=votes,
@@ -183,8 +203,11 @@ def parse_live_result(content: bytes, *, office_code: int) -> LiveResult:
         election_code=election_code,
         round_number=round_number,
         office_code=office_code,
+        phase=phase,
+        scope_type=scope_type,
+        scope_code=scope_code,
         generated_at=_generated_at(payload),
-        status="final" if str(payload.get("and") or "").strip().lower() == "f" else "partial",
+        status=status_by_andamento[andamento],
         total_sections=total_sections,
         counted_sections=counted_sections,
         counted_percent=counted_percent,
@@ -204,6 +227,11 @@ def load_live_result(
     ingestion_run_id: str | None = None,
 ) -> str:
     """Persist one immutable official snapshot; candidate linking uses SQ_CANDIDATO only."""
+    if parsed.phase != "o":
+        raise ValueError("only official TSE result artifacts may be persisted")
+    source = urlparse(source_url)
+    if source.scheme != "https" or source.hostname != _OFFICIAL_RESULTS_HOST:
+        raise ValueError("live snapshot source must be the official TSE results host")
     if parsed.round_number not in {1, 2}:
         raise ValueError("round must be 1 or 2")
     normalized_uf = uf.upper() if uf else None
@@ -214,6 +242,17 @@ def load_live_result(
             raise ValueError("municipality snapshot requires UF")
         if len(municipality_tse_code) != 5 or not municipality_tse_code.isdigit():
             raise ValueError("TSE municipality code must contain five digits")
+
+    expected_scope_type = "mu" if municipality_tse_code is not None else "uf" if normalized_uf is not None else "br"
+    expected_scope_code = (
+        municipality_tse_code.lower()
+        if municipality_tse_code is not None
+        else normalized_uf.lower()
+        if normalized_uf is not None
+        else "br"
+    )
+    if parsed.scope_type != expected_scope_type or parsed.scope_code != expected_scope_code:
+        raise ValueError("TSE artifact scope does not match the requested snapshot scope")
 
     cursor = conn.cursor()
     cursor.execute(
@@ -228,6 +267,18 @@ def load_live_result(
     if len(election_rows) != 1:
         raise ValueError("live snapshot requires exactly one matching electoral.election")
     election_id = str(election_rows[0][0])
+
+    cursor.execute(
+        """
+        SELECT 1
+          FROM electoral.contest
+         WHERE election_id = %s::uuid AND office_code = %s AND tse_election_code = %s
+         LIMIT 1
+        """,
+        (election_id, parsed.office_code, parsed.election_code),
+    )
+    if cursor.fetchone() is None:
+        raise ValueError("TSE artifact election code does not match the audited contest")
 
     municipality_id: str | None = None
     if municipality_tse_code is not None:
@@ -308,21 +359,20 @@ def load_live_result(
     snapshot_id = str(inserted[0])
     for item in parsed.candidates:
         candidacy_id: str | None = None
-        if item.tse_candidate_id is not None:
-            cursor.execute(
-                """
-                SELECT c.id
-                  FROM electoral.candidacy c
-                  JOIN electoral.contest k ON k.id = c.contest_id
-                 WHERE k.election_id = %s::uuid AND k.office_code = %s
-                   AND c.tse_candidate_id = %s
-                 ORDER BY c.id
-                """,
-                (election_id, parsed.office_code, item.tse_candidate_id),
-            )
-            matches = cursor.fetchall()
-            if len(matches) == 1:
-                candidacy_id = str(matches[0][0])
+        cursor.execute(
+            """
+            SELECT c.id
+              FROM electoral.candidacy c
+              JOIN electoral.contest k ON k.id = c.contest_id
+             WHERE k.election_id = %s::uuid AND k.office_code = %s
+               AND k.tse_election_code = %s AND c.tse_candidate_id = %s
+             ORDER BY c.id
+            """,
+            (election_id, parsed.office_code, parsed.election_code, item.tse_candidate_id),
+        )
+        matches = cursor.fetchall()
+        if len(matches) == 1:
+            candidacy_id = str(matches[0][0])
 
         cursor.execute(
             """
