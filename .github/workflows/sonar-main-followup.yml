@@ -19,6 +19,7 @@ jobs:
             --data-urlencode 'componentKeys=eliasandraade_REPBrasil' \
             --data-urlencode 'branch=main' \
             --data-urlencode 'issueStatuses=OPEN,CONFIRMED' \
+            --data-urlencode 'types=BUG,VULNERABILITY' \
             --data-urlencode 'inNewCodePeriod=true' \
             --data-urlencode 'ps=100' \
             -o /tmp/issues.json
@@ -32,7 +33,7 @@ jobs:
           import json
           from pathlib import Path
           issues = json.loads(Path('/tmp/issues.json').read_text())
-          print(f"MAIN NEW ISSUES total={issues.get('total')}")
+          print(f"MAIN BUG/VULNERABILITY ISSUES total={issues.get('total')}")
           for issue in issues.get('issues', []):
               component = issue.get('component', '').split(':', 1)[-1]
               line = issue.get('line') or issue.get('textRange', {}).get('startLine')
