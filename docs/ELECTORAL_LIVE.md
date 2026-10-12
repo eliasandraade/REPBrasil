@@ -106,7 +106,29 @@ A rota `/pesquisas` reúne:
 
 A migration não semeia observações sintéticas em produção. O adquirente do PesqEle preserva o ZIP oficial e o loader aceita registros normalizados e auditados; qualquer normalizador específico do layout anual deve falhar fechado se o schema da fonte mudar. Percentuais de pesquisa só podem ser carregados a partir de publicação auditável do resultado.
 
-Da mesma forma, a existência do parser EA20 não cria uma apuração por conta própria: um job de aquisição precisa buscar o artefato oficial, validar o contrato e persistir o snapshot. Até haver observações reais carregadas, `/pesquisas` deve mostrar os estados vazios previstos.
+A apuração possui um comando operacional em `etl/scripts/ingest_live_results.py`. Ele usa `DATABASE_URL`, adquire o JSON oficial, valida o contrato EA20, calcula SHA-256 dos bytes recebidos e persiste um snapshot idempotente.
+
+Uma captura única do 1º turno de governador no Ceará em 2026:
+
+```bash
+python scripts/ingest_live_results.py --year 2026 --round 1 --office 3 --uf CE
+```
+
+Modo de acompanhamento, consultando a fonte a cada 30 segundos e encerrando apenas quando o TSE publicar estado final:
+
+```bash
+python scripts/ingest_live_results.py --year 2026 --round 1 --office 3 --uf CE --watch-seconds 30 --until-final
+```
+
+Um município usa seu código TSE de cinco dígitos:
+
+```bash
+python scripts/ingest_live_results.py --year 2026 --round 1 --office 3 --uf CE --municipality-tse-code 13897
+```
+
+Para 2026, o comando resolve automaticamente o `CD_ELEICAO` a partir de turno/cargo e ainda o reconfirma contra o `contest` auditado no banco. Fora desse mapeamento, `--election-code` é obrigatório. Intervalos de acompanhamento menores que 15 segundos são recusados; respostas HTTP `304` não criam snapshots duplicados.
+
+Até haver observações reais carregadas, `/pesquisas` deve mostrar os estados vazios previstos. A existência do comando não autoriza fabricar uma totalização nem executar contra ambiente de simulação.
 
 ## Smoke manual
 
