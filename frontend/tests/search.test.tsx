@@ -58,8 +58,8 @@ const RESPONSE: SearchResponse = {
 
 describe("destinos da busca", () => {
   it("leva cada resultado a uma rota que já existe", () => {
-    expect(territoryHref(RESPONSE.territories[0])).toBe("/eleicoes/2024/2/ce/fortaleza");
-    expect(territoryHref({ ...RESPONSE.territories[0], kind: "state", slug: null })).toBe("/eleicoes/2024/2/ce");
+    expect(territoryHref(RESPONSE.territories[0])).toBe("/municipios/ce/fortaleza");
+    expect(territoryHref({ ...RESPONSE.territories[0], kind: "state", slug: null })).toBe("/estados/ce");
     expect(electionHref(RESPONSE.elections[0])).toBe("/eleicoes/2024/1/ce/fortaleza?cargo=11");
     expect(electionHref({ ...RESPONSE.elections[0], municipality: null, officeCode: null })).toBe("/eleicoes/2024/1/ce");
     expect(partyHref({ acronym: "PC do B", name: null, number: 65, candidacies: 1, year: 2024, round: 1, rank: 0 })).toBe("/politicos?party=PC+do+B");
@@ -138,7 +138,7 @@ describe("combobox de busca", () => {
     expect(input.getAttribute("aria-activedescendant")).toBe(options[1].id);
     expect(options[1].getAttribute("aria-selected")).toBe("true");
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(nav.push).toHaveBeenCalledWith("/eleicoes/2024/2/ce/fortaleza", expect.anything());
+    expect(nav.push).toHaveBeenCalledWith("/municipios/ce/fortaleza", expect.anything());
   });
 
   it("nunca mostra resultado antigo sob uma consulta nova", async () => {
