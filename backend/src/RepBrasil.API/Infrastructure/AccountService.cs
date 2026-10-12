@@ -24,10 +24,9 @@ public sealed record ApiKeyDto(Guid Id, string Name, string Prefix, string[] Sco
 public sealed record CreatedApiKey(ApiKeyDto Key, string Secret);
 public sealed record EntitlementDto(string Key, string Value, string Source, DateTimeOffset StartsAt, DateTimeOffset? ExpiresAt);
 
-public sealed class AccountService(ApplicationDbContext db, IConfiguration configuration)
+public sealed class AccountService(ApplicationDbContext db)
 {
     private const int SessionDays = 30;
-    private static readonly JsonDocument EmptyObject = JsonDocument.Parse("{}");
 
     public async Task<MagicLinkChallenge> CreateMagicLinkChallengeAsync(string email, string? returnTo, CancellationToken cancellationToken)
     {
@@ -530,14 +529,14 @@ public sealed class AccountService(ApplicationDbContext db, IConfiguration confi
     private static string NormalizeEmail(string value)
     {
         var email = (value ?? string.Empty).Trim().ToLowerInvariant();
-        if (email.Length is < 3 or > 254 || !email.Contains('@', StringComparison.Ordinal)) throw new ArgumentException("E-mail inválido.");
+        if (email.Length is < 3 or > 254 || !email.Contains('@')) throw new ArgumentException("E-mail inválido.");
         return email;
     }
 
     public static string NormalizeReturnTo(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return "/";
-        return value.StartsWith('/', StringComparison.Ordinal) && !value.StartsWith("//", StringComparison.Ordinal) && value.Length <= 512 ? value : "/";
+        return value.StartsWith('/') && !value.StartsWith("//", StringComparison.Ordinal) && value.Length <= 512 ? value : "/";
     }
 
     private static void ValidateCollection(string collection)
