@@ -22,7 +22,7 @@ public sealed class ParliamentRepository(ApplicationDbContext db) : IParliamentR
              ORDER BY coalesce(m.parliamentary_name, m.name), m.institution, m.external_id
             """, ct, uf ?? "", institution ?? "");
 
-    public Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, int limit, CancellationToken ct)
+    public Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, string? uf, int limit, CancellationToken ct)
     {
         object member = memberId.HasValue ? memberId.Value : DBNull.Value;
         return Query<ParliamentActivityDto>("""
@@ -32,12 +32,14 @@ public sealed class ParliamentRepository(ApplicationDbContext db) : IParliamentR
                    s.provider AS "Provider", s.dataset AS "Dataset", s.source_url AS "DatasetSourceUrl",
                    s.retrieved_at AS "RetrievedAt"
               FROM electoral.parliament_activity a
+              JOIN electoral.parliament_member m ON m.id = a.member_id
               JOIN electoral.parliament_source s ON s.id = a.source_id
              WHERE ({0}::bigint IS NULL OR a.member_id = {0})
                AND ({1} = '' OR a.institution = {1})
+               AND ({2} = '' OR m.state_code = {2})
              ORDER BY a.occurred_at DESC NULLS LAST, a.id DESC
-             LIMIT {2}
-            """, ct, member, institution ?? "", limit);
+             LIMIT {3}
+            """, ct, member, institution ?? "", uf ?? "", limit);
     }
 
     public Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct)
