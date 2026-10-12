@@ -222,7 +222,7 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
   }, [values.data]);
 
   const insights = useMemo(() => {
-    if (picked.length < 2) return [];
+    if (!values.isSuccess || picked.length < 2) return [];
     return metrics.flatMap((metric): DeterministicInsight[] => {
       const observed = picked
         .map((municipality) => ({ municipality, value: valueMap.get(`${metric.code}:${municipality.ibgeCode}`)?.value }))
@@ -232,13 +232,13 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
       const winners = observed.filter((item) => item.value === maximum).map((item) => item.municipality.name);
       return [{ code: `municipality-max-${metric.code}`, version: "v1", title: `Maior ${metric.name}`, text: `${winners.join(" e ")} registra(m) o maior valor observado entre os municípios selecionados: ${format(maximum)} ${metric.unit}. A regra descreve o valor; não classifica o município como melhor ou pior.` }];
     });
-  }, [metrics, picked, valueMap]);
+  }, [metrics, picked, valueMap, values.isSuccess]);
 
   const sources = useMemo(
     () => [...new Set((values.data ?? []).flatMap((group) => group.values.map((item) => `${item.provider} — ${item.dataset}`)))],
     [values.data],
   );
-  const report: ExportReport | null = picked.length >= 2 && metrics.length > 0 ? {
+  const report: ExportReport | null = values.isSuccess && picked.length >= 2 && metrics.length > 0 ? {
     filename: `repbrasil-municipios-${period}`,
     title: "REPBrasil — Comparação de municípios",
     subtitle: `${uf} · período ${period}`,
@@ -273,7 +273,9 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
       </section>
       {picked.length === 0 ? <EmptyHint>Escolha de 2 a {MAX_ITEMS} municípios. O vínculo com indicadores usa o código IBGE oficial, nunca semelhança de nome.</EmptyHint> : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[680px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Indicador</th>{picked.map((item) => <th key={item.tseCode} className="px-4 py-3 text-right">{item.name}</th>)}</tr></thead><tbody>{metrics.map((metric) => <tr key={metric.code} className="border-t border-line"><td className="px-4 py-3"><p className="font-medium text-fg">{metric.name}</p><p className="text-xs text-fg-muted">{metric.unit} · {period}</p></td>{picked.map((municipality) => <td key={municipality.tseCode} className="px-4 py-3 text-right text-fg-muted">{format(valueMap.get(`${metric.code}:${municipality.ibgeCode}`)?.value)}</td>)}</tr>)}</tbody></table></div>
+          {values.isLoading && <EmptyHint>Carregando os valores oficiais dos indicadores. Exports ficam desativados até a consulta terminar.</EmptyHint>}
+          {values.isError && <EmptyHint>Não foi possível carregar os valores dos indicadores. Nada será exportado como se a falha fosse ausência oficial.</EmptyHint>}
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[680px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Indicador</th>{picked.map((item) => <th key={item.tseCode} className="px-4 py-3 text-right">{item.name}</th>)}</tr></thead><tbody>{metrics.map((metric) => <tr key={metric.code} className="border-t border-line"><td className="px-4 py-3"><p className="font-medium text-fg">{metric.name}</p><p className="text-xs text-fg-muted">{metric.unit} · {period}</p></td>{picked.map((municipality) => <td key={municipality.tseCode} className="px-4 py-3 text-right text-fg-muted">{values.isSuccess ? format(valueMap.get(`${metric.code}:${municipality.ibgeCode}`)?.value) : "—"}</td>)}</tr>)}</tbody></table></div>
           {picked.length === 1 && <EmptyHint>Adicione mais um município para ativar insights e exports comparativos.</EmptyHint>}
           <Insights items={insights} />
           {report && <ExportActions report={report} />}
@@ -306,12 +308,15 @@ function ElectionComparator({ setParam }: Readonly<{ setParam: (updates: Record<
   const rows = useMemo(() => states.data ?? [], [states.data]);
   const insights = useMemo(() => {
     if (rows.length < 2) return [];
-    const coverage = leader(rows.filter((row): row is { election: ElectionItem; state: StateItem } => row.state !== null), (row) => row.state.resultsMunicipalities);
+    const coverage = leader(
+      rows.filter((row): row is { election: ElectionItem; state: StateItem } => row.state !== null && row.state.resultsAvailable),
+      (row) => row.state.resultsMunicipalities,
+    );
     if (!coverage) return [];
     return [{ code: "election-result-coverage", version: "v1", title: "Maior cobertura municipal de resultados", text: `${coverage.items.map((item) => `${item.election.year} ${item.election.round}º turno`).join(" e ")} possui(em) resultados para ${format(coverage.value, 0)} município(s) de ${uf}, a maior cobertura entre os pleitos selecionados.` }] satisfies DeterministicInsight[];
   }, [rows, uf]);
 
-  const report: ExportReport | null = rows.length >= 2 ? {
+  const report: ExportReport | null = states.isSuccess && rows.length >= 2 ? {
     filename: `repbrasil-eleicoes-${uf.toLowerCase()}`,
     title: "REPBrasil — Comparação de eleições",
     subtitle: uf,
@@ -319,11 +324,11 @@ function ElectionComparator({ setParam }: Readonly<{ setParam: (updates: Record<
     rows: rows.map(({ election, state }) => [
       `${election.year} · ${election.round}º turno`,
       election.electionDate,
-      election.cadasterAvailable ? "Disponível" : "Indisponível",
-      election.resultsAvailable ? "Disponível" : "Indisponível",
+      state?.cadasterAvailable ? "Disponível" : "Indisponível",
+      state?.resultsAvailable ? "Disponível" : "Indisponível",
       state?.municipalities ?? null,
-      state?.cadasterMunicipalities ?? null,
-      state?.resultsMunicipalities ?? null,
+      state?.cadasterAvailable ? state.cadasterMunicipalities : null,
+      state?.resultsAvailable ? state.resultsMunicipalities : null,
     ]),
     metadata: [{ label: "UF", value: uf }, { label: "Pleitos", value: String(rows.length) }],
     sources: ["Tribunal Superior Eleitoral (TSE) — cadastro eleitoral e Boletins de Urna oficiais"],
@@ -344,9 +349,9 @@ function ElectionComparator({ setParam }: Readonly<{ setParam: (updates: Record<
         </label>
         <div className="mt-3 flex flex-wrap gap-2">{selectedElections.map((item) => <button key={electionKey(item)} type="button" onClick={() => setParam({ itens: selected.filter((key) => key !== electionKey(item)).join(",") || null })} className="rounded-full border border-line px-2.5 py-1 text-xs text-fg-soft">{item.year} · {item.round}º turno ×</button>)}</div>
       </section>
-      {selectedElections.length === 0 ? <EmptyHint>Escolha de 2 a {MAX_ITEMS} eleições para comparar cobertura e disponibilidade de dados no mesmo território.</EmptyHint> : states.isLoading ? <EmptyHint>Carregando cobertura dos pleitos…</EmptyHint> : (
+      {selectedElections.length === 0 ? <EmptyHint>Escolha de 2 a {MAX_ITEMS} eleições para comparar cobertura e disponibilidade de dados no mesmo território.</EmptyHint> : states.isLoading ? <EmptyHint>Carregando cobertura dos pleitos…</EmptyHint> : states.isError ? <EmptyHint>Não foi possível carregar a cobertura dos pleitos para {uf}. Exports permanecem desativados.</EmptyHint> : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[760px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Eleição</th><th className="px-4 py-3">Data</th><th className="px-4 py-3 text-right">Municípios</th><th className="px-4 py-3 text-right">Cadastro</th><th className="px-4 py-3 text-right">Resultados</th></tr></thead><tbody>{rows.map(({ election, state }) => <tr key={electionKey(election)} className="border-t border-line"><td className="px-4 py-3 font-medium text-fg">{election.year} · {election.round}º turno</td><td className="px-4 py-3 text-fg-muted">{displayIsoDate(election.electionDate)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.municipalities, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.cadasterMunicipalities, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.resultsMunicipalities, 0)}</td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface"><table className="w-full min-w-[760px] text-sm"><thead className="border-b border-line text-left text-xs text-fg-muted"><tr><th className="px-4 py-3">Eleição</th><th className="px-4 py-3">Data</th><th className="px-4 py-3 text-right">Municípios</th><th className="px-4 py-3 text-right">Cadastro</th><th className="px-4 py-3 text-right">Resultados</th></tr></thead><tbody>{rows.map(({ election, state }) => <tr key={electionKey(election)} className="border-t border-line"><td className="px-4 py-3 font-medium text-fg">{election.year} · {election.round}º turno</td><td className="px-4 py-3 text-fg-muted">{displayIsoDate(election.electionDate)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.municipalities, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.cadasterAvailable ? state.cadasterMunicipalities : null, 0)}</td><td className="px-4 py-3 text-right text-fg-muted">{format(state?.resultsAvailable ? state.resultsMunicipalities : null, 0)}</td></tr>)}</tbody></table></div>
           {rows.length === 1 && <EmptyHint>Adicione mais uma eleição para ativar insights e exports comparativos.</EmptyHint>}
           <Insights items={insights} />
           {report && <ExportActions report={report} />}
