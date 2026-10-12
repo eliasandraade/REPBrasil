@@ -8,22 +8,48 @@ const PRECACHE = [
   "/brand/apple-touch-icon.png",
 ];
 
+async function installShell() {
+  const cache = await caches.open(CACHE_NAME);
+  await cache.addAll(PRECACHE);
+  await self.skipWaiting();
+}
+
+async function activateShell() {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+  await self.clients.claim();
+}
+
+async function networkFirstNavigation(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    const fallback = await caches.match("/offline");
+    return fallback ?? new Response("REPBrasil indisponível sem conexão.", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+}
+
+async function cacheFirstStatic(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response.ok && response.type === "basic") {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(installShell());
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
-  );
+  event.waitUntil(activateShell());
 });
 
 self.addEventListener("fetch", (event) => {
@@ -32,11 +58,10 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-
   if (url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match("/offline")));
+    event.respondWith(networkFirstNavigation(request));
     return;
   }
 
@@ -45,17 +70,5 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/brand/") ||
     url.pathname === "/favicon.ico";
 
-  if (!staticAsset) return;
-
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (!response.ok || response.type !== "basic") return response;
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        return response;
-      });
-    }),
-  );
+  if (staticAsset) event.respondWith(cacheFirstStatic(request));
 });
