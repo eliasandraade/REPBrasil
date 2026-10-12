@@ -59,7 +59,12 @@ def _parse_date(value: str, field: str, *, required: bool) -> date | None:
         if required:
             raise ValueError(f"missing required PesqEle date: {field}")
         return None
-    for pattern in ("%d/%m/%Y", "%Y-%m-%d"):
+    for pattern in (
+        "%d/%m/%Y",
+        "%Y-%m-%d",
+        "%d/%m/%Y %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+    ):
         try:
             return datetime.strptime(text, pattern).date()
         except ValueError:
