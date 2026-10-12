@@ -33,6 +33,8 @@ export function SaveCurrentPage() {
       const account = await getAccount().catch(() => null);
       if (!active) return;
       setMe(account);
+      setFavorite(false);
+      setWatching(false);
       if (!account || !target) return;
       const [favorites, watchlist] = await Promise.all([getSavedItems("favorite"), getSavedItems("watchlist")]);
       if (!active) return;
@@ -43,15 +45,11 @@ export function SaveCurrentPage() {
     return () => { active = false; };
   }, [target]);
 
-  if (!target) return null;
-  if (me === undefined) return <div className="h-9" aria-hidden="true" />;
+  if (me === undefined) return null;
   if (!me) {
     return (
-      <TransitionLink
-        href={`/entrar?returnTo=${encodeURIComponent(pathname)}`}
-        className="focus-ring block rounded-md border border-line px-3 py-2 text-center text-xs font-medium text-fg-muted hover:bg-fg/[0.04] hover:text-fg"
-      >
-        Entrar para salvar
+      <TransitionLink href={`/entrar?returnTo=${encodeURIComponent(pathname)}`} className="focus-ring rounded-full border border-line bg-surface/95 px-4 py-2 text-xs font-semibold text-fg shadow-lg backdrop-blur hover:bg-canvas">
+        Entrar
       </TransitionLink>
     );
   }
@@ -61,9 +59,8 @@ export function SaveCurrentPage() {
     setBusy(collection);
     const selected = collection === "favorite" ? favorite : watching;
     try {
-      if (selected) {
-        await removeSavedItem(me, collection, target.resourceType, target.resourceKey);
-      } else {
+      if (selected) await removeSavedItem(me, collection, target.resourceType, target.resourceKey);
+      else {
         await saveItem(me, {
           collection,
           resourceType: target.resourceType,
@@ -75,31 +72,22 @@ export function SaveCurrentPage() {
       }
       if (collection === "favorite") setFavorite(!selected);
       else setWatching(!selected);
-    } finally {
-      setBusy(null);
-    }
+    } finally { setBusy(null); }
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <button
-        type="button"
-        disabled={busy !== null}
-        aria-pressed={favorite}
-        onClick={() => void toggle("favorite")}
-        className="focus-ring rounded-md border border-line px-2 py-2 text-xs font-medium text-fg-muted hover:bg-fg/[0.04] hover:text-fg disabled:opacity-60"
-      >
-        {favorite ? "★ Favorito" : "☆ Favoritar"}
-      </button>
-      <button
-        type="button"
-        disabled={busy !== null}
-        aria-pressed={watching}
-        onClick={() => void toggle("watchlist")}
-        className="focus-ring rounded-md border border-line px-2 py-2 text-xs font-medium text-fg-muted hover:bg-fg/[0.04] hover:text-fg disabled:opacity-60"
-      >
-        {watching ? "✓ Watchlist" : "+ Watchlist"}
-      </button>
+    <div className="flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1.5 shadow-lg backdrop-blur">
+      {target && (
+        <>
+          <button type="button" disabled={busy !== null} aria-pressed={favorite} onClick={() => void toggle("favorite")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
+            {favorite ? "★" : "☆"} <span className="hidden sm:inline">Favorito</span>
+          </button>
+          <button type="button" disabled={busy !== null} aria-pressed={watching} onClick={() => void toggle("watchlist")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
+            {watching ? "✓" : "+"} <span className="hidden sm:inline">Watchlist</span>
+          </button>
+        </>
+      )}
+      <TransitionLink href="/conta" className="focus-ring rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white">Conta</TransitionLink>
     </div>
   );
 }
