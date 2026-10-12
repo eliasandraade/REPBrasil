@@ -1,0 +1,25 @@
+{
+  "source": "REPBrasil_Brand_Kit_Official/assets/brand-guidelines.png",
+  "sha256": "1884bd876b9bb1866e4f4a3ccdd4b71ed974269bfd781c1de1eee7761444d0c1",
+  "operation": "Pixel extraction only; no resampling, recoloring or redraw.",
+  "regions": {
+    "micro.png": {
+      "left": 1071,
+      "top": 428,
+      "width": 66,
+      "height": 64
+    },
+    "wordmark.png": {
+      "left": 480,
+      "top": 116,
+      "width": 636,
+      "height": 124
+    },
+    "favicon.png": {
+      "left": 1357,
+      "top": 437,
+      "width": 49,
+      "height": 50
+    }
+  }
+}

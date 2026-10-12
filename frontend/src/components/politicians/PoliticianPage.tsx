@@ -41,11 +41,11 @@ function LoadingState({ hintKey }: Readonly<{ hintKey: string }>) {
   const hint = identityHint(hintKey);
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6" aria-busy="true">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <div className="mb-8 h-4" />
         <div className="space-y-6">
           <div className="skeleton h-[46px] rounded-lg" aria-hidden="true" />
-          <div className="rounded-xl border border-white/8 bg-card p-6">
+          <div className="rounded-xl border border-white/[0.08] bg-card p-6">
             <div className="flex items-start gap-4">
               {hint ? <InitialAvatar name={hint.name} /> : <div className="skeleton h-16 w-16 flex-shrink-0 rounded-xl" aria-hidden="true" />}
               <div className="min-w-0 flex-1">
@@ -62,15 +62,15 @@ function LoadingState({ hintKey }: Readonly<{ hintKey: string }>) {
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4" aria-hidden="true">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="rounded-lg border border-white/8 bg-card p-4">
+                <div key={i} className="rounded-lg border border-white/[0.08] bg-card p-4">
                   <div className="skeleton mb-2 h-2.5 w-20" />
                   <div className="skeleton h-5 w-14" />
                 </div>
               ))}
             </div>
           </div>
-          <div className="rounded-xl border border-white/8 bg-card" aria-hidden="true">
-            <div className="flex gap-6 border-b border-white/8 px-4 py-4">
+          <div className="rounded-xl border border-white/[0.08] bg-card" aria-hidden="true">
+            <div className="flex gap-6 border-b border-white/[0.08] px-4 py-4">
               {[72, 56, 132, 72, 48, 44].map((w, i) => (
                 <div key={i} className="skeleton h-3.5" style={{ width: w }} />
               ))}
@@ -99,9 +99,9 @@ function Unavailable({ notFound, onRetry }: Readonly<{ notFound: boolean; onRetr
   const openSearch = useOpenSearch();
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <BackToSearch />
-        <div className="rounded-lg border border-white/8 bg-card px-6 py-14 text-center">
+        <div className="rounded-lg border border-white/[0.08] bg-card px-6 py-14 text-center">
           <h1 className="font-medium text-slate-200">{notFound ? "Perfil não encontrado." : "Não foi possível carregar o perfil agora."}</h1>
           <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
             {notFound
@@ -181,7 +181,7 @@ export function PoliticianPage({ idOrSlug, initial }: Readonly<{ idOrSlug: strin
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <BackToSearch />
         <PoliticianProfile
           politician={data}

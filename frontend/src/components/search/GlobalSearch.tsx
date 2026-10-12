@@ -471,7 +471,11 @@ export function SearchProvider({ children }: Readonly<{ children: ReactNode }>) 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal?.();
+    if (open && !dialog.open) {
+      dialog.showModal?.();
+      // Focus after showModal: focusing its hidden child earlier is ignored by the browser.
+      dialog.querySelector<HTMLInputElement>("input[role='combobox']")?.focus();
+    }
     if (!open && dialog.open) dialog.close?.();
   }, [open]);
 
@@ -530,7 +534,7 @@ export function SearchTrigger({ compact = false }: Readonly<{ compact?: boolean 
     >
       <SearchGlyph className="h-4 w-4 flex-shrink-0" />
       <span className="flex-1 truncate">Buscar…</span>
-      <kbd className="rounded border border-white/10 px-1.5 font-sans text-[10px] text-slate-500">/</kbd>
+      <kbd className="rounded border border-white/10 px-1.5 font-sans text-[10px] text-slate-500">Ctrl K</kbd>
     </button>
   );
 }

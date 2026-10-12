@@ -26,7 +26,7 @@ const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 
 function Notice({ title, children, action }: { title: string; children?: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/8 bg-card px-5 py-8 text-center" data-testid="explorer-notice">
+    <div className="rounded-xl border border-white/[0.08] bg-card px-5 py-8 text-center" data-testid="explorer-notice">
       <p className="font-medium text-slate-200">{title}</p>
       {children && <p className="mt-1 text-sm text-slate-500">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
@@ -72,7 +72,7 @@ function ElectionSwitcher({ route }: Readonly<{ route: ExplorerRoute }>) {
 /** Esqueleto do painel: título + linhas com a altura das linhas reais. */
 function Skeleton() {
   return (
-    <div aria-busy="true" aria-label="Carregando">
+    <div role="status" aria-busy="true" aria-label="Carregando">
       <div className="mb-4 space-y-1.5" aria-hidden="true">
         <div className="skeleton h-2.5 w-16" />
         <div className="skeleton h-5 w-40" />
@@ -419,7 +419,7 @@ export function ElectionsExplorer() {
   const cadasterDate = sourceDate(zoneQ.data?.provenance?.sourceGeneratedAt ?? mun?.provenance?.sourceGeneratedAt);
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 sm:px-6" data-level={level}>
+    <main className="explorer-workspace bg-background" data-level={level}>
       <div className="mx-auto max-w-7xl">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <nav aria-label="Navegação territorial" className="flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="breadcrumb">
@@ -444,10 +444,11 @@ export function ElectionsExplorer() {
         <ElectionSwitcher route={route} />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(320px,420px)_1fr]">
-          <aside className="rounded-xl border border-white/8 bg-card p-4" aria-label="Exploração territorial" data-testid="explorer-panel">
+        <div className="explorer-heading"><div><p className="eyebrow">Exploração territorial / {route.year} · {route.round}º turno</p><h1>{mun?.municipality.name ?? stateRow?.name ?? (uf ? "Carregando território…" : "Brasil")}</h1><p>Território, candidaturas e resultados oficiais no mesmo contexto.</p></div><Link className="text-link" href="/eleicoes/comparar">Comparar candidaturas ↗</Link></div>
+        <div className="explorer-grid">
+          <aside className="explorer-context" aria-label="Exploração territorial" data-testid="explorer-panel">
             {level !== "country" && !notFound && (
-              <div role="tablist" aria-label="Conteúdo do painel" className="mb-3 flex gap-1 rounded-lg border border-white/8 bg-background/40 p-0.5 text-xs">
+              <div role="tablist" aria-label="Conteúdo do painel" className="mb-3 flex gap-1 rounded-lg border border-white/[0.08] bg-background/40 p-0.5 text-xs">
                 {(
                   [
                     ["territory", "Território"],
@@ -471,9 +472,10 @@ export function ElectionsExplorer() {
               {panel}
             </PanelFrame>
           </aside>
-          <div className="relative min-h-[360px] lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]">
-            {showResults ? (
-              <div className="h-full overflow-y-auto rounded-xl border border-white/8 bg-card p-4">
+          {/* no celular, o resultado da seção escolhida vem antes da lista de locais (sem rolar até achar) */}
+          <div className="explorer-stage">
+            {showResults && (
+              <div className="absolute inset-0 z-20 h-full overflow-y-auto bg-card p-4">
                 <SectionResults
                   route={route}
                   municipalityName={mun ? `${mun.municipality.name}/${mun.municipality.uf}` : ""}
@@ -488,8 +490,8 @@ export function ElectionsExplorer() {
                   onRetry={() => resultsQ.refetch()}
                 />
               </div>
-            ) : (
-              <div className="flex h-full flex-col">
+            )}
+              <div className="flex h-full flex-col" aria-hidden={showResults} inert={showResults}>
                 {ufCode && level !== "country" && (
                   <MapLayerBar
                     state={layerState}
@@ -516,7 +518,6 @@ export function ElectionsExplorer() {
                   />
                 </div>
               </div>
-            )}
           </div>
         </div>
 

@@ -37,7 +37,7 @@ export default function ManifestoPage() {
   return (
     <main className="min-h-screen bg-background">
       {/* Header */}
-      <div className="hero-gradient border-b border-white/8 py-14">
+      <div className="hero-gradient border-b border-white/[0.08] py-14">
         <div className="mx-auto max-w-3xl px-6">
           <Link
             href="/"
@@ -125,7 +125,7 @@ export default function ManifestoPage() {
 
         {/* Duas colunas: usamos / não usamos */}
         <div className="grid gap-6 sm:grid-cols-2">
-          <div className="rounded-lg border border-white/8 bg-card p-5 space-y-4">
+          <div className="rounded-lg border border-white/[0.08] bg-card p-5 space-y-4">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-brand/80">
               O que usamos
             </h2>
@@ -141,7 +141,7 @@ export default function ManifestoPage() {
             ]} />
           </div>
 
-          <div className="rounded-lg border border-white/8 bg-card p-5 space-y-4">
+          <div className="rounded-lg border border-white/[0.08] bg-card p-5 space-y-4">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
               O que não usamos
             </h2>
@@ -182,7 +182,7 @@ export default function ManifestoPage() {
             ]} />
           </div>
 
-          <div className="rounded-lg border border-white/8 bg-card p-5 space-y-4">
+          <div className="rounded-lg border border-white/[0.08] bg-card p-5 space-y-4">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">
               O que o sistema nunca diz
             </h2>

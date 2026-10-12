@@ -12,7 +12,8 @@ import { compactCount, getOverview, listJoin, type CoverageElection } from "@/li
 function ElectionCard({ e, coverage }: Readonly<{ e: ElectionItem; coverage: CoverageElection[] }>) {
   const offices = [...new Map(coverage.flatMap((c) => c.offices).map((o) => [o.code, o.name])).values()];
   return (
-    <article className="rounded-xl border border-white/8 bg-card px-5 py-4" data-election={`${e.year}-${e.round}`}>
+    <article className="election-entry" data-election={`${e.year}-${e.round}`}>
+      <div className="election-year" aria-hidden="true">{e.year}<span>{e.round}º turno</span></div><div>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-lg font-bold text-slate-100">
           Eleições {e.year} · {e.round}º turno
@@ -51,7 +52,7 @@ function ElectionCard({ e, coverage }: Readonly<{ e: ElectionItem; coverage: Cov
           →
         </span>
       </Link>
-    </article>
+    </div></article>
   );
 }
 
@@ -63,23 +64,23 @@ export default function ElectionsPage() {
   const coverageOf = (e: ElectionItem) => (overview.data?.elections ?? []).filter((c) => c.year === e.year && c.round === e.round);
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-5xl">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Inteligência eleitoral</p>
-        <h1 className="text-2xl font-bold text-slate-100">Eleições</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-400">
-          Resultados oficiais por seção eleitoral, do Brasil à urna, a partir dos Boletins de Urna e do cadastro eleitoral publicados pelo
-          Tribunal Superior Eleitoral. Escolha a eleição e o estado; dentro do explorador dá para trocar de eleição sem perder o lugar.
+        <h1 className="mt-3 text-3xl font-semibold text-slate-100">Uma eleição. Muitos territórios.</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-400">
+          Escolha quando e onde investigar. Cada edição reúne o cadastro e os resultados que já foram importados do TSE.
+          No explorador, troque de eleição sem perder o território.
         </p>
 
         <div className="mt-6 space-y-3" data-testid="election-list">
           {isLoading && (
-            <div aria-busy="true" className="rounded-xl border border-white/8 bg-card px-5 py-4">
+            <div aria-busy="true" className="rounded-xl border border-white/[0.08] bg-card px-5 py-4">
               <div className="skeleton mb-1.5 h-6 w-56" aria-hidden="true" />
               <div className="skeleton h-3 w-72 max-w-full" aria-hidden="true" />
             </div>
           )}
           {isError && (
-            <div className="rounded-xl border border-white/8 bg-card px-5 py-6 text-sm text-slate-400">
+            <div className="rounded-xl border border-white/[0.08] bg-card px-5 py-6 text-sm text-slate-400">
               Não foi possível carregar as eleições.{" "}
               <button type="button" onClick={() => refetch()} className="focus-ring rounded text-brand hover:underline">
                 Tentar de novo
@@ -87,7 +88,7 @@ export default function ElectionsPage() {
             </div>
           )}
           {!isLoading && !isError && elections.length === 0 && (
-            <div className="rounded-xl border border-white/8 bg-card px-5 py-6 text-sm text-slate-400">Nenhuma eleição importada ainda.</div>
+            <div className="rounded-xl border border-white/[0.08] bg-card px-5 py-6 text-sm text-slate-400">Nenhuma eleição importada ainda.</div>
           )}
           {elections.map((e) => (
             <ElectionCard key={`${e.year}-${e.round}`} e={e} coverage={coverageOf(e)} />

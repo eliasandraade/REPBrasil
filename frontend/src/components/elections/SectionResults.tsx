@@ -31,7 +31,7 @@ const METRIC_HELP: Record<keyof Metrics, string> = {
 
 function Metric({ label, value, help, term }: Readonly<{ label: string; value: number | null; help: string; term?: GlossaryId }>) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card-elevated/50 p-3" title={term ? undefined : help}>
+    <div className="rounded-lg border border-white/[0.08] bg-card-elevated/50 p-3" title={term ? undefined : help}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{term ? <Term id={term}>{label}</Term> : label}</p>
       <p className="value-arrive text-lg font-bold text-slate-100" aria-label={value === null ? `${label}: não informado pela fonte` : undefined}>
         {formatCount(value)}
@@ -43,7 +43,7 @@ function Metric({ label, value, help, term }: Readonly<{ label: string; value: n
 function VoteRow({ v }: { v: VoteItem }) {
   const name = v.voteType === "branco" || v.voteType === "nulo" ? v.votable.name ?? v.voteType : displayName(v.votable.name);
   return (
-    <li className="rounded-lg border border-white/8 bg-card-elevated/40 px-3 py-2" data-vote={v.votable.number} data-vote-type={v.voteType}>
+    <li className="rounded-lg border border-white/[0.08] bg-card-elevated/40 px-3 py-2" data-vote={v.votable.number} data-vote-type={v.voteType}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm text-slate-200">
@@ -165,7 +165,7 @@ export function SectionResults({
         </div>
         <div className="mb-4 grid grid-cols-3 gap-2" aria-hidden="true">
           {["Aptos", "Comparecimento", "Abstenções", "Válidos", "Brancos", "Nulos"].map((label) => (
-            <div key={label} className="rounded-lg border border-white/8 bg-card-elevated/50 p-3">
+            <div key={label} className="rounded-lg border border-white/[0.08] bg-card-elevated/50 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
               <div className="skeleton mt-1.5 h-5 w-12" />
             </div>
@@ -173,7 +173,7 @@ export function SectionResults({
         </div>
         <ul className="space-y-1.5" aria-hidden="true">
           {[0, 1, 2, 3, 4].map((i) => (
-            <li key={i} className="rounded-lg border border-white/8 bg-card-elevated/40 px-3 py-2">
+            <li key={i} className="rounded-lg border border-white/[0.08] bg-card-elevated/40 px-3 py-2">
               <div className="skeleton mb-1.5 h-4 w-2/5" />
               <div className="skeleton h-3 w-1/4" />
             </li>

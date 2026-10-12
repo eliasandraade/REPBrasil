@@ -73,6 +73,24 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("explorador eleitoral", () => {
+  it("mantém o mesmo contêiner cartográfico ao abrir e fechar resultados de seção", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    nav.pathname = "/eleicoes/2026/1/ce/fortaleza/zona/94";
+    const content = () => <QueryClientProvider client={client}><ElectionsExplorer /></QueryClientProvider>;
+    const view = render(content());
+    const map = screen.getByTestId("territory-map");
+    nav.pathname = "/eleicoes/2026/1/ce/fortaleza/zona/94/secao/381";
+    view.rerender(content());
+    await screen.findByTestId("section-results");
+    expect(screen.getByTestId("territory-map")).toBe(map);
+    expect(map.closest("[inert]")).toBeTruthy();
+    nav.pathname = "/eleicoes/2026/1/ce/fortaleza/zona/94";
+    view.rerender(content());
+    expect(screen.getByTestId("territory-map")).toBe(map);
+    expect(map.closest("[inert]")).toBeNull();
+    expect(screen.queryByTestId("section-results")).toBeNull();
+  });
+
   it("Brasil: UFs com cadastro navegáveis; sem cadastro resumidas numa frase, sem link", async () => {
     renderAt("/eleicoes/2026/1");
     await screen.findByTestId("state-list");

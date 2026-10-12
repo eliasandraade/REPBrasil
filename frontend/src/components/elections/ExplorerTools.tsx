@@ -88,8 +88,14 @@ export function MapLayerBar({
     </select>
   );
   return (
-    <div className="mb-2 rounded-xl border border-white/8 bg-card p-2.5" data-testid="map-layer-bar">
-      <div className="flex flex-wrap items-center gap-1.5">
+    <div className="mb-2 rounded-xl border border-white/[0.08] bg-card p-2.5" data-testid="map-layer-bar">
+      <label className="map-layer-mobile">Camada do mapa
+        <select value={state.layer ?? ""} disabled={disabled} onChange={(e) => onChange({ layer: (e.target.value || null) as MapLayerKind | null })} className={select}>
+          <option value="">Território</option>
+          {LAYERS.map(layer => <option key={layer} value={layer}>{LAYER_LABEL[layer]}</option>)}
+        </select>
+      </label>
+      <div className="map-layer-desktop flex flex-wrap items-center gap-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Camada</span>
         <button
           type="button"

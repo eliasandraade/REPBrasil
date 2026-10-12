@@ -2,7 +2,7 @@
 
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
-import { bboxOf, boundsForLevel, loadTerritoryGeo, type GeoStatus, type TerritoryGeo } from "@/lib/elections/geo";
+import { bboxOf, boundsForLevel, loadTerritoryGeo, MUNICIPALITY_MESHES, type GeoStatus, type TerritoryGeo } from "@/lib/elections/geo";
 import { layerSignature, type MapLayerView } from "@/lib/elections/map-layers";
 import type { ExplorerLevel } from "@/lib/elections/route";
 import { duration, easingFn } from "@/motion/tokens";
@@ -50,13 +50,13 @@ type Props = {
 };
 
 const COLORS = {
-  base: "#0a0f16",
-  land: "#16212f",
-  highlight: "#123b33",
-  border: "#e2e8f0",
-  accent: "#0dd48e",
-  point: "#0d1520",
-  pointStroke: "#38e8b0",
+  base: "#071A2E",
+  land: "#18354E",
+  highlight: "#38566B",
+  border: "#A9BBCB",
+  accent: "#00BAA6",
+  point: "#0D2744",
+  pointStroke: "#23D6C2",
 } as const;
 
 const STYLE: StyleSpecification = {
@@ -71,13 +71,13 @@ const fillPaint = {
     "to-color",
     ["coalesce", ["feature-state", "color"], ["case", ["boolean", ["feature-state", "selected"], false], COLORS.highlight, COLORS.land]],
   ],
-  "fill-opacity": 1,
+  "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.75, 1],
 } as const;
-const linePaint = { "line-color": COLORS.border, "line-opacity": 0.14, "line-width": 1 } as const;
+const linePaint = { "line-color": COLORS.border, "line-opacity": 0.38, "line-width": 1 } as const;
 const focusPaint = {
   "line-color": COLORS.accent,
   "line-width": 1.5,
-  "line-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0],
+  "line-opacity": ["case", ["any", ["boolean", ["feature-state", "hover"], false], ["boolean", ["feature-state", "focused"], false]], 1, 0],
 } as const;
 
 function webglAvailable() {
@@ -91,7 +91,7 @@ function webglAvailable() {
 }
 
 const CONTROL =
-  "focus-ring flex h-8 w-8 items-center justify-center text-sm font-semibold text-slate-300 hover:bg-white/10 hover:text-slate-50 [&+button]:border-t [&+button]:border-white/10";
+  "focus-ring flex h-11 w-11 items-center justify-center text-sm font-semibold text-slate-300 hover:bg-white/10 hover:text-slate-50 [&+button]:border-t [&+button]:border-white/10";
 
 export function TerritoryMap(props: Props) {
   const container = useRef<HTMLDivElement>(null);
@@ -118,7 +118,7 @@ export function TerritoryMap(props: Props) {
         [w, s],
         [e, n],
       ],
-      { padding: 32, duration: animate && !p.reduced ? duration.survey : 0, easing: SURVEY_EASING, maxZoom: p.level === "country" ? 5 : 13 },
+      { padding: { top: 60, bottom: 36, left: 32, right: 60 }, duration: animate && !p.reduced ? duration.survey : 0, easing: SURVEY_EASING, maxZoom: p.level === "country" ? 5 : 13 },
     );
   };
 
@@ -155,6 +155,8 @@ export function TerritoryMap(props: Props) {
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
       mapRef.current = map;
+      map.on("error", () => { if (!cancelled) setStatus("error"); });
+      map.getCanvas().setAttribute("aria-label", "Mapa territorial. Use os botões ou a lista para selecionar um território.");
       for (const ev of ["dragstart", "zoomstart"] as const)
         map.on(ev, (e: { originalEvent?: unknown }) => {
           if (e.originalEvent) interacted.current = true;
@@ -188,6 +190,7 @@ export function TerritoryMap(props: Props) {
         map.addLayer({ id: "mun-fill", type: "fill", source: "mun", paint: fillPaint as never, layout: { visibility: "none" } });
         map.addLayer({ id: "mun-line", type: "line", source: "mun", paint: linePaint, layout: { visibility: "none" } });
         map.addLayer({ id: "mun-focus", type: "line", source: "mun", paint: focusPaint as never, layout: { visibility: "none" } });
+        map.moveLayer("uf-focus");
         map.addLayer({
           id: "place-clusters",
           type: "circle",
@@ -299,7 +302,7 @@ export function TerritoryMap(props: Props) {
         map.on("mouseleave", "layer-place-points", hideTooltip);
         setStatus("ready");
       });
-    })();
+    })().catch(() => { if (!cancelled) setStatus("error"); });
     return () => {
       cancelled = true;
       resizeObserver?.disconnect();
@@ -314,18 +317,22 @@ export function TerritoryMap(props: Props) {
     const map = mapRef.current;
     if (status !== "ready" || !map) return;
     const s = props.scope;
-    for (const sel of selected.current) map.setFeatureState(sel, { selected: false });
+    for (const sel of selected.current) map.setFeatureState(sel, { selected: false, focused: false });
     const states = new Set([...s.highlightStates, ...(s.state ? [s.state] : [])]);
     const muns = new Set([...s.highlightMunicipalities, ...(s.municipality ? [s.municipality] : [])]);
     selected.current = [
       ...[...states].map((c) => ({ source: "ufs", id: Number(c) })),
       ...[...muns].map((c) => ({ source: "mun", id: Number(c) })),
     ];
-    for (const sel of selected.current) map.setFeatureState(sel, { selected: true });
+    for (const sel of selected.current) map.setFeatureState(sel, {
+      selected: (sel.source === "ufs" ? s.highlightStates : s.highlightMunicipalities).includes(String(sel.id)),
+      focused: String(sel.id) === (sel.source === "ufs" ? s.state : s.municipality),
+    });
 
     const vis = (ids: string[], on: boolean) => ids.forEach((id) => map.setLayoutProperty(id, "visibility", on ? "visible" : "none"));
     const country = props.level === "country";
-    vis(["uf-fill", "uf-line", "uf-focus"], country);
+    // Parent geography remains visible as spatial context; missing municipal mesh never erases a state.
+    vis(["uf-fill", "uf-line", "uf-focus"], true);
     vis(["mun-fill", "mun-line", "mun-focus"], !country);
     const only = props.level === "state" || s.municipality == null ? null : (["==", ["id"], Number(s.municipality)] as never);
     ["mun-fill", "mun-line", "mun-focus"].forEach((id) => map.setFilter(id, only));
@@ -409,7 +416,7 @@ export function TerritoryMap(props: Props) {
   };
 
   return (
-    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-white/8 bg-background">
+    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-white/[0.08] bg-background">
       <div ref={container} className="absolute inset-0" data-testid="territory-map" role="region" aria-label="Mapa territorial" />
       <div
         ref={tooltip}
@@ -434,6 +441,9 @@ export function TerritoryMap(props: Props) {
           {status === "error" && "Malha territorial indisponível. A navegação pelas listas continua funcionando."}
           {status === "unsupported" && "Mapa indisponível neste navegador (WebGL). A navegação pelas listas continua funcionando."}
         </div>
+      )}
+      {status === "ready" && props.level !== "country" && props.scope.state && !MUNICIPALITY_MESHES[props.scope.state] && (
+        <p className="absolute bottom-10 left-4 right-16 rounded-md border border-white/10 bg-background/95 p-3 text-xs text-slate-400">Malha municipal ainda não disponível para esta UF. Consulte os territórios pela lista.</p>
       )}
       {props.layer && (props.layer.legend.length > 0 || props.layer.gradient) && (
         <div className="pointer-events-none absolute bottom-6 right-3 z-10 max-w-[240px] rounded-md border border-white/10 bg-slate-950/90 px-2.5 py-2 text-[10px] text-slate-300" data-testid="map-legend">

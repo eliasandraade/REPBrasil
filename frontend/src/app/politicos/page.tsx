@@ -23,7 +23,7 @@ function ResultSkeleton() {
   return (
     <div aria-hidden="true" className="space-y-2" data-testid="results-skeleton">
       {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="flex items-center gap-4 rounded-lg border border-white/8 bg-card p-4">
+        <div key={i} className="flex items-center gap-4 rounded-lg border border-white/[0.08] bg-card p-4">
           <div className="skeleton h-10 w-10 flex-shrink-0" />
           <div className="flex-1 space-y-1.5">
             <div className="skeleton h-4 w-44" />
@@ -81,7 +81,7 @@ function PoliticosContent() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-5xl">
         {/* Back */}
         <TransitionLink
           href="/"
@@ -92,12 +92,13 @@ function PoliticosContent() {
         </TransitionLink>
 
         <div className="mb-6">
-          <h1 className="mb-4 text-xl font-bold text-slate-100">Buscar políticos</h1>
+          <p className="eyebrow mb-3">Pessoas / Investigação</p><h1 className="mb-3 text-3xl font-semibold text-slate-100">Quem representa você?</h1><p className="mb-6 text-sm text-slate-400">Busque uma pessoa para conhecer sua trajetória eleitoral e consultar as fontes.</p>
           <SearchInput defaultValue={q} />
 
           {/* Filtros */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <select
+              aria-label="Estado"
               value={filters.state ?? ""}
               onChange={(e) => setFilter("state", e.target.value)}
               className={selectCls}
@@ -110,7 +111,8 @@ function PoliticosContent() {
 
             <input
               type="text"
-              placeholder="Partido (ex: PT)"
+              aria-label="Partido"
+              placeholder="Sigla do partido"
               value={filters.party ?? ""}
               onChange={(e) => setFilter("party", e.target.value)}
               className={`${selectCls} w-36 placeholder:text-slate-600`}
@@ -118,6 +120,7 @@ function PoliticosContent() {
 
             <input
               type="text"
+              aria-label="Cargo"
               placeholder="Cargo (ex: SENADOR)"
               value={filters.office ?? ""}
               onChange={(e) => setFilter("office", e.target.value)}
@@ -130,7 +133,7 @@ function PoliticosContent() {
                 onClick={() =>
                   navigate(`/politicos?${buildParams({ state: undefined, party: undefined, office: undefined })}`)
                 }
-                className="value-arrive mi-press focus-ring rounded-lg border border-white/8 px-3 py-2 text-xs text-slate-500 transition-colors hover:border-white/20 hover:text-slate-300"
+                className="value-arrive mi-press focus-ring rounded-lg border border-white/[0.08] px-3 py-2 text-xs text-slate-500 transition-colors hover:border-white/20 hover:text-slate-300"
               >
                 Limpar filtros
               </button>
@@ -139,9 +142,9 @@ function PoliticosContent() {
         </div>
 
         {/* Info banner */}
-        <div className="mb-5 flex items-center gap-2 rounded-md border border-white/8 bg-card/50 px-3 py-2 text-xs text-slate-500">
+        <div className="mb-5 flex items-center gap-2 rounded-md border border-white/[0.08] bg-card/50 px-3 py-2 text-xs text-slate-500">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-brand" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-          Base inicial: 1.000 políticos indexados — dados do TSE 2024. Em expansão.
+          A cobertura varia por pessoa e eleição. Cada perfil identifica as bases disponíveis.
         </div>
 
         {isLoading && (
@@ -170,7 +173,7 @@ function PoliticosContent() {
             </p>
 
             {data.items.length === 0 ? (
-              <div className="rounded-lg border border-white/8 bg-card py-16 text-center">
+              <div className="rounded-lg border border-white/[0.08] bg-card py-16 text-center">
                 <p className="text-slate-400 font-medium">
                   Nenhum político encontrado{q ? ` para "${q}"` : ""}
                   {hasFilters ? " com os filtros selecionados" : ""}.
@@ -224,7 +227,7 @@ export default function PoliticosPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-background px-4 py-8 sm:px-6" aria-busy="true">
-          <div className="mx-auto max-w-3xl pt-24">
+          <div className="mx-auto max-w-5xl pt-24">
             <ResultSkeleton />
           </div>
         </main>

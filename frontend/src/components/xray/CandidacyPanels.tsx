@@ -106,7 +106,7 @@ export function TerritoryPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
       {needsMunicipality && !municipality && (
         <p className="text-xs text-slate-500">Escolha um município na lista por município para ver seções e locais de votação.</p>
       )}
-      {q.isLoading && <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando território" />}
+      {q.isLoading && <div className="skeleton h-24 rounded-lg" role="status" aria-busy="true" aria-label="Carregando território" />}
       {q.isError && <p className="text-xs text-slate-400">Não foi possível carregar a distribuição territorial.</p>}
       {q.data && (
         <>
@@ -177,7 +177,7 @@ function diffLabel(status: AssetDiffItem["status"], year: number, compareToYear:
 
 export function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const q = useQuery({ queryKey: ["xray-assets", c.candidacyId], queryFn: () => xrayApi.assets(c.candidacyId), staleTime: 60_000 });
-  if (q.isLoading) return <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando bens" />;
+  if (q.isLoading) return <div className="skeleton h-24 rounded-lg" role="status" aria-busy="true" aria-label="Carregando bens" />;
   if (q.isError || !q.data) return <p className="text-xs text-slate-400">Não foi possível carregar os bens declarados.</p>;
   const a = q.data;
   return (
@@ -225,7 +225,7 @@ export function AssetsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
 
 export function FinancePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
   const q = useQuery({ queryKey: ["xray-finance", c.candidacyId], queryFn: () => xrayApi.finance(c.candidacyId), staleTime: 60_000 });
-  if (q.isLoading) return <div className="skeleton h-24 rounded-lg" aria-busy="true" aria-label="Carregando prestação de contas" />;
+  if (q.isLoading) return <div className="skeleton h-24 rounded-lg" role="status" aria-busy="true" aria-label="Carregando prestação de contas" />;
   if (q.isError || !q.data) return <p className="text-xs text-slate-400">Não foi possível carregar a prestação de contas.</p>;
   const f = q.data;
   const kinds: Record<string, string> = { revenue: "Receita", expense_contracted: "Despesa contratada", expense_paid: "Despesa paga" };
@@ -310,7 +310,7 @@ export function RecordsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
       ) : (
         <p className="text-xs text-slate-500">Informações complementares do TSE não importadas para esta candidatura.</p>
       )}
-      <div data-testid="xray-official-documents" className="rounded-md border border-white/8 p-2.5 text-xs text-slate-400">
+      <div data-testid="xray-official-documents" className="rounded-md border border-white/[0.08] p-2.5 text-xs text-slate-400">
         <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Propostas de governo e certidões</p>
         Publicadas pelo TSE na página da candidatura no{" "}
         <a href="https://divulgacandcontas.tse.jus.br/" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
@@ -329,7 +329,7 @@ export function RecordsPanel({ c }: Readonly<{ c: XrayCandidacy }>) {
 
 export function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card p-2.5">
+    <div className="rounded-lg border border-white/[0.08] bg-card p-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
       <p className="truncate text-sm font-bold text-slate-100">{value}</p>
     </div>

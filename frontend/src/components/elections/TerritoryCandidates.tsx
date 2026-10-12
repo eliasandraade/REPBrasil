@@ -167,7 +167,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
         {data?.items.map((c) => {
           const compared = props.selection.includes(c.candidacyId);
           return (
-            <li key={c.candidacyId} className="rounded-lg border border-white/8 bg-card-elevated/50 px-3 py-2" data-candidacy={c.candidacyId} data-state={c.state}>
+            <li key={c.candidacyId} className="rounded-lg border border-white/[0.08] bg-card-elevated/50 px-3 py-2" data-candidacy={c.candidacyId} data-state={c.state}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm text-slate-200">
@@ -196,7 +196,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
               </div>
               <div className="mt-1 flex items-center gap-3 text-[11px]">
                 <label className="flex cursor-pointer items-center gap-1 text-slate-400">
-                  <input type="checkbox" checked={compared} onChange={() => props.onToggleCompare(c.candidacyId)} className="accent-[#0dd48e]" />
+                  <input type="checkbox" checked={compared} onChange={() => props.onToggleCompare(c.candidacyId)} className="accent-[#00BAA6]" />
                   <span>comparar</span>
                 </label>
                 {c.votes !== null && (

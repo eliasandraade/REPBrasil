@@ -28,7 +28,7 @@ export default function NotFound() {
             <li key={l.href}>
               <TransitionLink
                 href={l.href}
-                className="mi-surface focus-ring flex items-center justify-between gap-3 rounded-lg border border-white/8 bg-card px-4 py-3 hover:border-brand/30"
+                className="mi-surface focus-ring flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-card px-4 py-3 hover:border-brand/30"
               >
                 <span>
                   <span className="block text-sm font-medium text-slate-200">{l.label}</span>

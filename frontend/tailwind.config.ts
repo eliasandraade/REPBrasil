@@ -9,19 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0a0f16",
-        sidebar: "#070b12",
-        card: "#0d1520",
-        "card-elevated": "#111d2e",
+        // Texto secundário com contraste WCAG AA (≥ 4,5:1) sobre o fundo e os cartões escuros:
+        // os tons padrão (#64748b, #475569) davam 4:1 e 2,6:1.
+        slate: { 400: "#A9BBCB", 500: "#A9BBCB", 600: "#9CAFC1", 700: "#8FA6BA" },
+        background: "#071A2E",
+        sidebar: "#071A2E",
+        card: "#0D2744",
+        "card-elevated": "#102F50",
         brand: {
-          DEFAULT: "#0dd48e",
-          dark: "#09a870",
-          light: "#38e8b0",
+          DEFAULT: "#00BAA6",
+          dark: "#0F9D58",
+          light: "#23D6C2",
         },
       },
       boxShadow: {
-        brand: "0 0 28px rgba(13, 212, 142, 0.3)",
-        "brand-sm": "0 0 14px rgba(13, 212, 142, 0.18)",
+        brand: "0 4px 20px rgba(7, 26, 46, 0.15)",
+        "brand-sm": "0 2px 8px rgba(7, 26, 46, 0.1)",
         card: "0 4px 28px rgba(0, 0, 0, 0.45)",
         "card-hover": "0 8px 36px rgba(0, 0, 0, 0.55)",
       },

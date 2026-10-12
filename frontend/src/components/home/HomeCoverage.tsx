@@ -60,7 +60,7 @@ function ElectionLine({ e }: Readonly<{ e: CoverageElection }>) {
 
 function Coverage({ data }: Readonly<{ data: OverviewResponse }>) {
   return (
-    <ol className="divide-y divide-white/8 rounded-lg border border-white/8 bg-card">
+    <ol className="divide-y divide-white/8 rounded-lg border border-white/[0.08] bg-card">
       {byYear(data.elections).map(({ year, rounds }) => (
         <li key={year} className="grid gap-2 p-4 sm:grid-cols-[5.5rem_1fr] sm:gap-4">
           <p className="text-2xl font-bold tabular-nums text-slate-100">{year}</p>
@@ -88,7 +88,7 @@ function Path({ e }: Readonly<{ e: CoverageElection }>) {
     <>
       <ol className="grid gap-3 sm:grid-cols-4">
         {steps.map((s, i) => (
-          <li key={s.level} className="relative rounded-lg border border-white/8 bg-card p-4">
+          <li key={s.level} className="relative rounded-lg border border-white/[0.08] bg-card p-4">
             <span aria-hidden="true" className="mb-3 flex h-[22px] w-[22px] items-center justify-center rounded-full border border-brand/40 bg-background text-[10px] font-semibold text-brand">
               {i + 1}
             </span>
@@ -112,7 +112,7 @@ function Path({ e }: Readonly<{ e: CoverageElection }>) {
 
 function Sources({ data }: Readonly<{ data: OverviewResponse }>) {
   return (
-    <ul className="divide-y divide-white/8 rounded-lg border border-white/8 bg-card text-sm">
+    <ul className="divide-y divide-white/8 rounded-lg border border-white/[0.08] bg-card text-sm">
       {data.sources.map((s) => {
         const day = formatDay(s.latestDownload);
         return (
@@ -150,7 +150,7 @@ export function HomeCoverage() {
 
   return (
     <>
-      <section aria-labelledby="coverage-title" aria-busy={isPending} className="border-b border-white/8 py-12">
+      <section aria-labelledby="coverage-title" aria-busy={isPending} className="border-b border-white/[0.08] py-12">
         <div className="mx-auto max-w-5xl px-6">
           <SectionTitle id="coverage-title" title="Eleições com resultado por seção">
             Boletins de Urna oficiais já importados. Cada eleição abre no explorador, do estado até a urna.
@@ -165,7 +165,7 @@ export function HomeCoverage() {
       </section>
 
       {latest && (
-        <section aria-labelledby="path-title" className="border-b border-white/8 py-12">
+        <section aria-labelledby="path-title" className="border-b border-white/[0.08] py-12">
           <div className="mx-auto max-w-5xl px-6">
             <SectionTitle id="path-title" title="Do estado à urna">
               O território eleitoral tem quatro níveis. Em qualquer um deles você vê quem teve votos ali — e pode descer ou subir sem
@@ -176,7 +176,7 @@ export function HomeCoverage() {
         </section>
       )}
 
-      <section aria-labelledby="sources-title" className="border-b border-white/8 py-12">
+      <section aria-labelledby="sources-title" className="border-b border-white/[0.08] py-12">
         <div className="mx-auto max-w-5xl px-6">
           <SectionTitle id="sources-title" title="De onde vêm os dados">
             Só bases públicas oficiais. Cada arquivo baixado guarda a data e a impressão digital (SHA-256), e cada tela diz qual base usou.

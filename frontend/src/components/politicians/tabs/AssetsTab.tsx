@@ -12,7 +12,7 @@ function AssetItemList({ items }: { items: AssetDeclarationItem["items"] }) {
   const hidden = items.length - ITEMS_DEFAULT_LIMIT;
 
   return (
-    <div className="overflow-hidden rounded-md border border-white/8">
+    <div className="overflow-hidden rounded-md border border-white/[0.08]">
       {visible.map((item) => (
         <div
           key={item.order}
@@ -51,7 +51,7 @@ interface AssetsTabProps {
 export function AssetsTab({ assets }: AssetsTabProps) {
   if (assets.length === 0) {
     return (
-      <div className="rounded-lg border border-white/8 bg-card-elevated px-5 py-10 text-center">
+      <div className="rounded-lg border border-white/[0.08] bg-card-elevated px-5 py-10 text-center">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 text-slate-700" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
         <p className="font-medium text-slate-400">Nenhuma declaração de bens registrada</p>
         <p className="mt-1 text-xs text-slate-600">Não encontrada na base atual do TSE.</p>
@@ -81,7 +81,7 @@ export function AssetsTab({ assets }: AssetsTabProps) {
               : null;
           const barPct = Math.round((decl.totalValue / maxTotal) * 100);
           return (
-            <div key={decl.year} className="rounded-lg border border-white/8 bg-card-elevated p-4 space-y-3">
+            <div key={decl.year} className="rounded-lg border border-white/[0.08] bg-card-elevated p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-200">{decl.year}</span>
                 <div className="text-right">
@@ -97,7 +97,7 @@ export function AssetsTab({ assets }: AssetsTabProps) {
               </div>
 
               {/* Progress bar */}
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
                 <div
                   className="h-full rounded-full bg-brand/70"
                   style={{ width: `${barPct}%`, minWidth: "3px" }}
@@ -110,7 +110,7 @@ export function AssetsTab({ assets }: AssetsTabProps) {
                   <span className="text-slate-500">
                     {yoyPct >= 0 ? "+" : ""}{yoyPct.toFixed(1)}%
                   </span>
-                  <span className="ml-1 text-slate-700">(dados públicos TSE, sem inferência)</span>
+                  <span className="ml-1 text-slate-500">(dados públicos TSE, sem inferência)</span>
                 </p>
               )}
 

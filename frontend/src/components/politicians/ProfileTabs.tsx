@@ -91,8 +91,8 @@ export function ProfileTabs<T extends string>({
   };
 
   return (
-    <div className="rounded-xl border border-white/8 bg-card">
-      <div className="border-b border-white/8">
+    <div className="profile-tabs">
+      <div className="border-b border-white/[0.08]">
         <div ref={listRef} role="tablist" aria-label="Seções do perfil" className="relative flex overflow-x-auto">
           {tabs.map((tab) => {
             const selected = tab.id === active;

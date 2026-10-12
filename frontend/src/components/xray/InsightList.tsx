@@ -15,8 +15,8 @@ export function InsightList({ insights, max, prominent = false }: Readonly<{ ins
           data-insight={insight.code}
           className={
             prominent
-              ? "rounded-md border border-white/8 border-l-2 border-l-brand/60 bg-card px-4 py-3 text-sm leading-relaxed text-slate-200"
-              : "rounded-md border border-white/8 bg-card px-3 py-2 text-xs leading-relaxed text-slate-300"
+              ? "rounded-md border border-white/[0.08] border-l-2 border-l-brand/60 bg-card px-4 py-3 text-sm leading-relaxed text-slate-200"
+              : "rounded-md border border-white/[0.08] bg-card px-3 py-2 text-xs leading-relaxed text-slate-300"
           }
         >
           {insight.text}

@@ -185,7 +185,7 @@ export function PoliticianProfile({
         </button>
       </p>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-white/8 bg-card/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-white/[0.08] bg-card/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-medium text-slate-300">Dados incorretos?</p>
           <p className="text-xs text-slate-500">Políticos, assessorias ou cidadãos podem pedir revisão, com a fonte oficial.</p>

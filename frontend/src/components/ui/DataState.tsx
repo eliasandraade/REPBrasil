@@ -28,14 +28,14 @@ export const DATA_STATE_LABEL: Record<DataStateKind, string> = {
 };
 
 const TONE: Record<DataStateKind, string> = {
-  loading: "border-white/8",
-  empty: "border-white/8",
-  unavailable: "border-white/8",
-  no_coverage: "border-white/8",
-  not_comparable: "border-white/8",
+  loading: "border-white/[0.08]",
+  empty: "border-white/[0.08]",
+  unavailable: "border-white/[0.08]",
+  no_coverage: "border-white/[0.08]",
+  not_comparable: "border-white/[0.08]",
   error: "border-amber-400/25",
   partial: "border-amber-400/25",
-  updated: "border-white/8",
+  updated: "border-white/[0.08]",
   processing: "border-amber-400/25",
 };
 
@@ -51,7 +51,7 @@ export function DataState({
   height = "h-24",
 }: Readonly<{ kind: DataStateKind; title?: string; children?: ReactNode; action?: ReactNode; height?: string }>) {
   if (kind === "loading") {
-    return <div className={`skeleton rounded-lg ${height}`} aria-busy="true" aria-label={title ?? DATA_STATE_LABEL.loading} data-state-kind="loading" />;
+    return <div className={`skeleton rounded-lg ${height}`} role="status" aria-busy="true" aria-label={title ?? DATA_STATE_LABEL.loading} data-state-kind="loading" />;
   }
   return (
     <div

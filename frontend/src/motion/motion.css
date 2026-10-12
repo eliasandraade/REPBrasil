@@ -7,11 +7,11 @@
  */
 
 :root {
-  --brand: #0dd48e;
+  --brand: #00BAA6;
   --motion-acknowledge: 90ms;
   --motion-settle: 180ms;
   --motion-traverse: 280ms;
-  --motion-survey: 560ms;
+  --motion-survey: 360ms;
   --motion-reveal: 420ms;
   --motion-stagger: 28ms;
 

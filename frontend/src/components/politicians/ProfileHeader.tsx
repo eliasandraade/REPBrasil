@@ -55,15 +55,16 @@ function FactValue({ state, value, sub, absent }: Readonly<{ state: LoadState; v
     );
   return (
     <>
-      <p className="value-arrive truncate text-lg font-bold text-slate-100">{value}</p>
-      {sub && <p className="mt-0.5 truncate text-xs text-slate-600">{sub}</p>}
+      {/* número nunca cortado: quebra e encolhe no celular */}
+      <p className="value-arrive break-words text-base font-bold leading-tight text-slate-100 sm:text-lg">{value}</p>
+      {sub && <p className="mt-0.5 text-xs leading-snug text-slate-600">{sub}</p>}
     </>
   );
 }
 
 export function Fact({ label, ...rest }: Readonly<{ label: string; state: LoadState; value: string | null; sub?: string; absent: string }>) {
   return (
-    <div className="min-w-0 rounded-lg border border-white/8 bg-card p-4" aria-busy={rest.state === "pending"}>
+    <div className="profile-fact min-w-0" aria-busy={rest.state === "pending"}>
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">{label}</p>
       <FactValue {...rest} />
     </div>
@@ -105,7 +106,7 @@ export function ProfileHeader({
   const civil = displayName(politician.name);
 
   return (
-    <div className="rounded-xl border border-white/8 bg-card p-5 sm:p-6">
+    <div className="profile-document">
       <div className="flex items-start gap-4">
         <InitialAvatar name={politician.ballotName || politician.name} />
         <div className="min-w-0 flex-1">
@@ -121,7 +122,7 @@ export function ProfileHeader({
                 {electionLabel(latest.contest.year, latest.contest.round)}
               </span>
               {latest.party?.acronym && <Badge>{latest.party.acronym}</Badge>}
-              {latest.roundOutcome && <Badge tone={latest.elected ? "brand" : "muted"}>{outcomeLabel(latest.roundOutcome)}</Badge>}
+              {latest.roundOutcome && <Badge tone="muted">{outcomeLabel(latest.roundOutcome)}</Badge>}
             </div>
           )}
           {!latest && xrayState === "pending" && politician.latestCandidacy && (
@@ -133,7 +134,7 @@ export function ProfileHeader({
               </span>
               {politician.latestCandidacy.party && <Badge>{politician.latestCandidacy.party}</Badge>}
               {politician.latestCandidacy.outcome && (
-                <Badge tone={politician.latestCandidacy.elected ? "brand" : "muted"}>{outcomeLabel(politician.latestCandidacy.outcome)}</Badge>
+                <Badge tone="muted">{outcomeLabel(politician.latestCandidacy.outcome)}</Badge>
               )}
             </div>
           )}

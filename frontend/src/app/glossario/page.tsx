@@ -19,7 +19,14 @@ export default function GlossaryPage() {
           Os termos que aparecem nos resultados, em linguagem simples. Uma regra vale para todos: quando a fonte não informa, a tela mostra
           &ldquo;—&rdquo; — ausência de dado não é zero.
         </p>
-        <dl className="mt-6 divide-y divide-white/8 rounded-xl border border-white/8 bg-card">
+        <nav aria-label="Termos" className="mt-5 flex flex-wrap gap-x-3 gap-y-1.5 text-xs">
+          {entries.map(([id, e]) => (
+            <a key={id} href={`#${id}`} className="focus-ring rounded text-brand underline-offset-2 hover:underline">
+              {e.term}
+            </a>
+          ))}
+        </nav>
+        <dl className="mt-6 divide-y divide-white/8 rounded-xl border border-white/[0.08] bg-card">
           {entries.map(([id, e]) => (
             <div key={id} id={id} className="scroll-mt-20 px-5 py-4">
               <dt className="text-sm font-semibold text-slate-100">{e.term}</dt>

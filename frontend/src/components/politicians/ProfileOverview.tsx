@@ -48,7 +48,7 @@ function TopPlaces({ c, onMore }: Readonly<{ c: XrayCandidacy; onMore: () => voi
               </span>
             </div>
             <div className="mt-1 h-1 rounded bg-white/5" aria-hidden="true">
-              <div className="h-1 rounded bg-brand/60" style={{ width: `${Math.max(2, ((t.votes ?? 0) / max) * 100)}%` }} />
+              <div className="h-1 rounded bg-slate-400/60" style={{ width: `${((t.votes ?? 0) / max) * 100}%` }} />
             </div>
           </li>
         ))}
@@ -70,7 +70,7 @@ export function ProfileOverview({
 }: Readonly<{ data: XrayResponse; onOpenTerritory: (candidacyId: string) => void }>) {
   const latest = latestCandidacy(data);
   return (
-    <div className="space-y-6" data-testid="profile-overview">
+    <div className="profile-overview-layout" data-testid="profile-overview">
       {data.insights.length > 0 && (
         <section aria-labelledby="ov-insights">
           <SectionHeading id="ov-insights">O que os dados mostram</SectionHeading>

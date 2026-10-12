@@ -18,7 +18,7 @@ export const LAYER_LABEL: Record<MapLayerKind, string> = {
 
 export const NEUTRAL = "#16212f";
 const LOW = "#1b3a3a";
-const HIGH = "#0dd48e";
+const HIGH = "#C4D7E6";
 const NEGATIVE = "#f59e0b";
 const A_COLOR = "#38bdf8";
 const B_COLOR = "#a78bfa";

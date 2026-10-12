@@ -19,7 +19,7 @@ export function CamaraTab({ politicianId, camaraId }: Props) {
   if (isLoading) {
     return (
       <div aria-busy="true" className="space-y-3">
-        <div className="rounded-lg border border-white/8 bg-card-elevated/40 p-4" aria-hidden="true">
+        <div className="rounded-lg border border-white/[0.08] bg-card-elevated/40 p-4" aria-hidden="true">
           <div className="skeleton mb-2 h-5 w-40" />
           <div className="skeleton mb-4 h-3 w-56" />
           <div className="grid grid-cols-2 gap-3">

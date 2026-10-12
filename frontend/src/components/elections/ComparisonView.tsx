@@ -48,7 +48,7 @@ const definitionLabel = (key: string) => DEFINITION_LABEL[key] ?? key.replaceAll
 function EmptyComparison({ onAdd }: Readonly<{ onAdd: (candidacyId: string, uf: string | null) => void }>) {
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2" data-testid="compare-empty">
-      <div className="rounded-xl border border-white/8 bg-card p-5 text-sm text-slate-400">
+      <div className="rounded-xl border border-white/[0.08] bg-card p-5 text-sm text-slate-400">
         <p className="font-medium text-slate-200">Escolha até {MAX_COMPARE} candidaturas</p>
         <p className="mt-2">
           Da mesma eleição (quem teve mais votos em cada lugar) ou de eleições diferentes (como a votação de alguém mudou). Município, zona,
@@ -56,7 +56,7 @@ function EmptyComparison({ onAdd }: Readonly<{ onAdd: (candidacyId: string, uf: 
         </p>
         <p className="mt-2">
           Também dá para marcar &ldquo;comparar&rdquo; na lista de candidaturas do{" "}
-          <Link href="/eleicoes" className="text-brand hover:underline">
+          <Link href="/eleicoes" className="text-brand underline underline-offset-2">
             explorador de eleições
           </Link>{" "}
           ou no histórico eleitoral de um perfil.
@@ -132,11 +132,11 @@ export function ComparisonView() {
           </Link>{" "}
           / <span className="text-slate-300">Comparar candidaturas</span>
         </nav>
-        <h1 className="text-2xl font-bold text-slate-100">Comparar candidaturas</h1>
+        <div className="comparison-heading"><p className="eyebrow mb-3">Comparação / Candidaturas e territórios</p><h1 className="text-3xl font-semibold text-slate-100">Comparar candidaturas</h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           Até {MAX_COMPARE} candidaturas, da mesma eleição ou de eleições diferentes. Evolução só entre disputas comparáveis (mesmo cargo e mesma
           unidade) e territórios comparáveis (seção com a mesma composição). Ausência de dado nunca vira zero.
-        </p>
+        </p></div>
 
         {rawIds.length > MAX_COMPARE && (
           <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200" role="alert">
@@ -144,7 +144,7 @@ export function ComparisonView() {
           </p>
         )}
 
-        <fieldset className="mt-4 flex flex-wrap items-center gap-1.5">
+        <fieldset className={`mt-4 flex-wrap items-center gap-1.5 ${ids.length === 0 ? "hidden" : "flex"}`}>
           <legend className="sr-only">Nível territorial</legend>
           {LEVELS.map((l) => (
             <button
@@ -247,7 +247,7 @@ function ComparisonBody({
       {data.freshness.stale && <p className="text-[11px] text-amber-300/80">{data.freshness.note}</p>}
       <div className="flex flex-wrap gap-2" data-testid="compare-candidacies">
         {columns.map((c) => (
-          <div key={c.candidacyId} className="rounded-lg border border-white/8 bg-card px-3 py-2 text-xs">
+          <div key={c.candidacyId} className="rounded-lg border border-white/[0.08] bg-card px-3 py-2 text-xs">
             <p className="flex items-center gap-1.5 font-semibold text-slate-200">
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: SUBJECT_COLORS[c.subject % SUBJECT_COLORS.length] }} />
               {displayName(c.ballotName)}
@@ -289,9 +289,9 @@ function ComparisonBody({
 
       <InsightList insights={data.insights} />
 
-      <div className="overflow-x-auto rounded-xl border border-white/8 bg-card" data-testid="compare-matrix">
+      <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-card" data-testid="compare-matrix">
         <table className="w-full min-w-[640px] text-left text-xs">
-          <thead className="border-b border-white/8 text-[10px] uppercase tracking-wider text-slate-500">
+          <thead className="border-b border-white/[0.08] text-[10px] uppercase tracking-wider text-slate-500">
             <tr>
               <th className="sticky left-0 z-10 bg-card px-3 py-2">{LEVEL_LABEL[level]}</th>
               {columns.map((c) => (
@@ -360,7 +360,7 @@ function ComparisonBody({
       {(data.overtakes.length > 0 || data.extremes.length > 0) && (
         <div className="grid gap-3 md:grid-cols-2">
           {data.overtakes.length > 0 && (
-            <div className="rounded-lg border border-white/8 bg-card p-3" data-testid="compare-overtakes">
+            <div className="rounded-lg border border-white/[0.08] bg-card p-3" data-testid="compare-overtakes">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Superações</p>
               <ul className="space-y-1 text-xs text-slate-300">
                 {data.overtakes.map((o) => (
@@ -374,7 +374,7 @@ function ComparisonBody({
             </div>
           )}
           {data.extremes.length > 0 && (
-            <div className="rounded-lg border border-white/8 bg-card p-3" data-testid="compare-extremes">
+            <div className="rounded-lg border border-white/[0.08] bg-card p-3" data-testid="compare-extremes">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Maiores variações</p>
               <ul className="space-y-1 text-xs text-slate-300">
                 {data.extremes.map((x) => (
@@ -388,7 +388,7 @@ function ComparisonBody({
         </div>
       )}
 
-      <details className="rounded-lg border border-white/8 bg-card p-3 text-xs text-slate-400">
+      <details className="rounded-lg border border-white/[0.08] bg-card p-3 text-xs text-slate-400">
         <summary className="cursor-pointer text-slate-300">Como ler esta comparação</summary>
         <dl className="mt-2 space-y-1">
           {Object.entries(data.definitions).map(([k, v]) => (

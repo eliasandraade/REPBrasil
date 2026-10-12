@@ -51,7 +51,7 @@ function SearchBox({ value, onChange, placeholder, label }: { value: string; onC
 }
 
 const rowClass =
-  "flex items-center justify-between gap-3 rounded-lg border border-white/8 bg-card-elevated/60 px-3 py-2.5 text-sm";
+  "flex min-h-11 items-center justify-between gap-3 border-b border-white/10 px-1 py-3 text-sm";
 /** Linha navegável: marca o canto e eleva o fundo; nada se desloca. */
 const linkRow = `${rowClass} mi-surface focus-ring hover:border-brand/30 hover:bg-card-elevated`;
 
@@ -233,7 +233,7 @@ export function ZonePanel({
       {shown.length === 0 && <p className="py-6 text-center text-sm text-slate-500">Nenhuma seção ou local encontrado.</p>}
       <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1" data-testid="place-list">
         {shown.map((p) => (
-          <li key={p.code} className="rounded-lg border border-white/8 bg-card-elevated/50 p-3" data-place={p.code}>
+          <li key={p.code} className="rounded-lg border border-white/[0.08] bg-card-elevated/50 p-3" data-place={p.code}>
             <p className="text-sm font-medium text-slate-200">{p.name}</p>
             <p className="mb-2 text-[11px] text-slate-500">
               {[p.address, p.neighborhood].filter(Boolean).join(" · ") || "Endereço não informado"}

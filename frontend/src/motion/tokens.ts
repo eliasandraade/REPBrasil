@@ -14,7 +14,7 @@ export const duration = {
   acknowledge: 90,
   settle: 180,
   traverse: 280,
-  survey: 560,
+  survey: 360,
   reveal: 420,
 } as const;
 

@@ -321,7 +321,7 @@ describe("camadas do mapa", () => {
 
   it("intensidade é sequencial; crescimento e queda divergem; sem valor fica sem cor", () => {
     const intensity = buildLayerView({ ...base, layer: "intensity", features: [feature(1, 100), feature(2, 50), feature(3, null)], legend: [] });
-    expect(intensity.municipalities["1"].color).toBe("#0dd48e");
+    expect(intensity.municipalities["1"].color).toBe("#c4d7e6");
     expect(intensity.municipalities["3"].color).toBeNull();
     expect(intensity.municipalities["3"].text).toBe("sem Boletim de Urna");
     expect(intensity.gradient).not.toBeNull();
@@ -368,8 +368,8 @@ describe("camadas do mapa", () => {
       features: [feature(1, 80, ID(1), "PREFEITO 1"), feature(2, 40, ID(9), "PREFEITO 9")],
     });
     expect(view.legend).toEqual([]);
-    expect(view.gradient).toEqual({ from: "#1b3a3a", to: "#0dd48e", min: "40,00%", max: "80,00%" });
-    expect(view.municipalities["1"].color).toBe("#0dd48e");
+    expect(view.gradient).toEqual({ from: "#1b3a3a", to: "#C4D7E6", min: "40,00%", max: "80,00%" });
+    expect(view.municipalities["1"].color).toBe("#c4d7e6");
     expect(view.municipalities["2"].text).toBe("PREFEITO 9 · 40,00%");
     expect(view.note).toContain("9 vencedores diferentes");
     expect(view.note).not.toContain("ordem da legenda"); // sem legenda neste modo

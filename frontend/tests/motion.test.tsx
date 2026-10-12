@@ -113,7 +113,8 @@ describe("tokens de movimento", () => {
 
   it("o canvas tem a cor do produto (sem véu claro no meio de uma View Transition)", () => {
     const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf-8");
-    expect(globals).toMatch(/html \{[^}]*background-color: #0a0f16;/);
+    expect(globals).toMatch(/--canvas: #071A2E/i);
+    expect(globals).toMatch(/html \{[^}]*background: var\(--canvas\)/);
   });
 
   it("nenhuma curva quica (dados oficiais não oscilam)", () => {
@@ -287,7 +288,14 @@ describe("home", () => {
   };
 
   function renderHome(response: () => Promise<Response>) {
-    vi.stubGlobal("fetch", vi.fn(response));
+    vi.stubGlobal("fetch", vi.fn((input: string) => {
+      if (input.endsWith("/overview")) return response();
+      if (input.endsWith("/elections")) return Promise.resolve(new Response(JSON.stringify({ elections: [
+        { year: 2026, round: 1, default: true }, { year: 2024, round: 2, default: false },
+      ] })));
+      if (input.endsWith("/states")) return Promise.resolve(new Response(JSON.stringify({ states: [] })));
+      return Promise.resolve(new Response(JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", id: 23, properties: {code: "23", name: "Ceará", uf: "CE"}, geometry: {type: "Polygon", coordinates: [[[-40,-5],[-39,-5],[-39,-4],[-40,-5]]]}}] })));
+    }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
       <QueryClientProvider client={client}>
@@ -298,27 +306,29 @@ describe("home", () => {
 
   it("o título nasce completo (sem texto digitando) e a busca é o instrumento central", () => {
     renderHome(() => new Promise<Response>(() => {}));
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Eleições brasileiras, da urna ao candidato.");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("O Brasil, em contexto.");
     expect(screen.getByRole("combobox", { name: "Buscar políticos, lugares, partidos e eleições" })).toBeTruthy();
     // enquanto a cobertura carrega: esqueleto, nunca números provisórios
-    expect(document.querySelector("[aria-labelledby='coverage-title']")?.getAttribute("aria-busy")).toBe("true");
+    expect(document.querySelector("[aria-labelledby='coverage-heading']")?.getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByText(/eleitores aptos/)).toBeNull();
   });
 
   it("os números de cobertura chegam prontos (sem contagem) e vêm do que está importado", async () => {
     renderHome(() => Promise.resolve(new Response(JSON.stringify(OVERVIEW), { status: 200 })));
-    expect(await screen.findByText(/Governador e Senador · 184 municípios · 23\.765 seções · 7,0 milhões de eleitores aptos/)).toBeTruthy();
-    expect(screen.getByText(/Prefeito · 2 municípios/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Explorar Ceará 2026/ }).getAttribute("href")).toBe("/eleicoes/2026/1/ce");
-    expect(screen.getByText("23.765")).toBeTruthy(); // nível "Seções" do caminho estado → urna
-    expect(screen.getByText(/5 arquivos · baixado em 10\/10\/2026/)).toBeTruthy();
+    expect(await screen.findByText("23.765")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Ceará.*Governador/ }).getAttribute("href")).toBe("/eleicoes/2026/1/ce");
+    expect(screen.queryByText("6.034")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "2024 2º turno" }));
+    expect(await screen.findByText("6.034")).toBeTruthy();
+    expect(screen.queryByText("23.765")).toBeNull();
+    expect(screen.getByText(/5 arquivos · download em 10\/10\/2026/)).toBeTruthy();
   });
 
   it("sem a cobertura, diz o que houve e oferece tentar de novo (o resto da página continua)", async () => {
     renderHome(() => Promise.resolve(new Response("{}", { status: 500 })));
-    expect(await screen.findByText(/Não foi possível carregar a cobertura agora/)).toBeTruthy();
+    expect(await screen.findByText(/Não foi possível consultar a cobertura/, {}, { timeout: 3000 })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "O raio X de uma candidatura" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Da pessoa à trajetória." })).toBeTruthy();
   });
 });
 
@@ -519,8 +529,8 @@ describe("aba Câmara", () => {
 
 // ─── Drawer móvel ───────────────────────────────────────────────────────────
 
-describe("drawer de navegação móvel", () => {
-  it("fechado é inerte; abre com foco no item da página atual; Esc fecha e devolve o foco ao botão", () => {
+describe("navegação móvel direta", () => {
+  it("oferece quatro destinos, marca a página atual e mantém o link de pular conteúdo", () => {
     nav.pathname = "/eleicoes";
     render(
       <NavigationProvider>
@@ -529,15 +539,10 @@ describe("drawer de navegação móvel", () => {
         </AppShell>
       </NavigationProvider>,
     );
-    const drawer = document.getElementById("mobile-nav")!;
-    expect(drawer.hasAttribute("inert")).toBe(true);
-    const toggle = screen.getByRole("button", { name: "Abrir menu" });
-    fireEvent.click(toggle);
-    expect(drawer.hasAttribute("inert")).toBe(false);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(document.activeElement).toBe(within(drawer).getByRole("link", { name: "Eleições" }));
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(drawer.hasAttribute("inert")).toBe(true);
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = screen.getByRole("navigation", { name: "Navegação principal no celular" });
+    expect(within(mobile).getAllByRole("link")).toHaveLength(4);
+    expect(within(mobile).getByRole("link", { name: "Eleições" }).getAttribute("aria-current")).toBe("page");
+    expect(within(mobile).getByRole("link", { name: "Comparar" }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("link", { name: "Pular para o conteúdo" }).getAttribute("href")).toBe("#conteudo");
   });
 });

@@ -28,7 +28,7 @@ function PersonCandidacies({
   onAdd,
 }: Readonly<{ person: SearchPolitician; selected: string[]; full: boolean; onAdd: (candidacyId: string, uf: string | null) => void }>) {
   const q = useQuery({ queryKey: ["xray", person.id], queryFn: () => xrayApi.xray(person.id), staleTime: 60_000 });
-  if (q.isLoading) return <div className="skeleton mt-2 h-10 rounded-md" aria-busy="true" aria-label="Carregando candidaturas" />;
+  if (q.isLoading) return <div className="skeleton mt-2 h-10 rounded-md" role="status" aria-busy="true" aria-label="Carregando candidaturas" />;
   if (q.isError || !q.data) return <p className="mt-2 text-xs text-slate-400">Não foi possível carregar as candidaturas.</p>;
   const own = byRecency(q.data.candidacies).filter((c) => !c.ticket && c.totals.votes !== null);
   if (own.length === 0) return <p className="mt-2 text-xs text-slate-500">Sem candidatura com votos apurados na base.</p>;
@@ -75,7 +75,7 @@ export function AddCandidacy({
   });
   const people = results.data?.politicians ?? [];
   return (
-    <div className="rounded-xl border border-white/8 bg-card p-4" data-testid="compare-add">
+    <div className="rounded-xl border border-white/[0.08] bg-card p-4" data-testid="compare-add">
       <label htmlFor={inputId} className="text-sm font-medium text-slate-200">
         Adicionar candidatura{" "}
         <span className="font-normal text-slate-500">

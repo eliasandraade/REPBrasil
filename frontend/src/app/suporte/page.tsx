@@ -17,7 +17,7 @@ function ChannelCard({
   badge: string;
 }) {
   return (
-    <div className="flex flex-col rounded-lg border border-white/8 bg-card p-5 transition-colors hover:border-brand/30">
+    <div className="flex flex-col rounded-lg border border-white/[0.08] bg-card p-5 transition-colors hover:border-brand/30">
       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-brand/10 text-brand">
         {icon}
       </div>
@@ -35,7 +35,7 @@ function ChannelCard({
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-white/8">
+    <div className="border-b border-white/[0.08]">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -171,7 +171,7 @@ export default function SuportePage() {
   return (
     <main className="min-h-screen bg-background">
       {/* Hero */}
-      <div className="hero-gradient border-b border-white/8 py-14">
+      <div className="hero-gradient border-b border-white/[0.08] py-14">
         <div className="mx-auto max-w-4xl px-6">
           <Link
             href="/"
@@ -202,7 +202,7 @@ export default function SuportePage() {
               { value: "TSE", label: "Fonte dos dados" },
               { value: "AGPL", label: "Licença do código" },
             ].map(({ value, label }) => (
-              <div key={label} className="rounded-lg border border-white/8 bg-card/50 p-3 text-center">
+              <div key={label} className="rounded-lg border border-white/[0.08] bg-card/50 p-3 text-center">
                 <p className="text-lg font-bold text-brand">{value}</p>
                 <p className="mt-0.5 text-xs text-slate-500">{label}</p>
               </div>
@@ -242,7 +242,7 @@ export default function SuportePage() {
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Form */}
-          <div className="rounded-lg border border-white/8 bg-card p-6">
+          <div className="rounded-lg border border-white/[0.08] bg-card p-6">
             <h2 className="mb-1 text-lg font-bold text-slate-100">
               Enviar solicitação
             </h2>
@@ -426,7 +426,7 @@ export default function SuportePage() {
         </div>
 
         {/* Footer note */}
-        <div className="mt-10 rounded-lg border border-white/8 bg-card/50 p-4 text-center">
+        <div className="mt-10 rounded-lg border border-white/[0.08] bg-card/50 p-4 text-center">
           <p className="text-xs text-slate-500">
             O REPBrasil é um produto da{" "}
             <span className="font-medium text-slate-400">Andrade Systems</span>. Não

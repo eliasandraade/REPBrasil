@@ -13,7 +13,7 @@ function formatBytes(bytes: number): string {
 
 function SourceCard({ source }: { source: DataSourceItem }) {
   return (
-    <div className="rounded-lg border border-white/8 bg-card-elevated p-4 space-y-3">
+    <div className="rounded-lg border border-white/[0.08] bg-card-elevated p-4 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -52,7 +52,7 @@ function SourceCard({ source }: { source: DataSourceItem }) {
 
       {/* SHA-256 */}
       {source.hash && (
-        <div className="rounded-md border border-white/8 bg-background px-3 py-2">
+        <div className="rounded-md border border-white/[0.08] bg-background px-3 py-2">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
             Integridade SHA-256
           </p>
@@ -102,7 +102,7 @@ export function MetadataTab({ politician, sources }: MetadataTabProps) {
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
           IDs externos
         </p>
-        <div className="overflow-hidden rounded-lg border border-white/8">
+        <div className="overflow-hidden rounded-lg border border-white/[0.08]">
           <Row label="TSE" value={politician.tseId} />
           <Row label="Câmara dos Deputados" value={politician.camaraId} />
           <Row label="Senado Federal" value={politician.senateId} />
@@ -114,7 +114,7 @@ export function MetadataTab({ politician, sources }: MetadataTabProps) {
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
           Coleta e metodologia
         </p>
-        <div className="overflow-hidden rounded-lg border border-white/8">
+        <div className="overflow-hidden rounded-lg border border-white/[0.08]">
           <Row label="Registro criado em" value={formatDate(politician.createdAt)} />
           <Row label="Última atualização" value={formatDate(politician.sourceUpdatedAt)} />
           <Row label="Versão da metodologia" value="v0 — em desenvolvimento" />
@@ -131,7 +131,7 @@ export function MetadataTab({ politician, sources }: MetadataTabProps) {
         </div>
 
         {sources.length === 0 ? (
-          <div className="rounded-lg border border-white/8 bg-card-elevated px-4 py-5 text-center">
+          <div className="rounded-lg border border-white/[0.08] bg-card-elevated px-4 py-5 text-center">
             <p className="text-xs text-slate-500">
               Dados atualmente baseados em datasets eleitorais públicos do TSE.
               Fontes detalhadas serão vinculadas na próxima importação.

@@ -58,7 +58,7 @@ export function ScoreTab({ score }: ScoreTabProps) {
   return (
     <div className="space-y-6">
       {/* Status header */}
-      <div className="flex items-start gap-3 rounded-lg border border-white/8 bg-card-elevated p-4">
+      <div className="flex items-start gap-3 rounded-lg border border-white/[0.08] bg-card-elevated p-4">
         {/* Score circle placeholder */}
         <div className="flex-shrink-0 flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-white/15">
           <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-600 leading-tight">
@@ -104,7 +104,7 @@ export function ScoreTab({ score }: ScoreTabProps) {
           {FACTOR_CATEGORIES.map((cat) => (
             <div
               key={cat.key}
-              className="flex items-start gap-3 rounded-lg border border-white/8 bg-card-elevated px-4 py-3"
+              className="flex items-start gap-3 rounded-lg border border-white/[0.08] bg-card-elevated px-4 py-3"
             >
               <div className="mt-0.5 flex-shrink-0 text-slate-600">{cat.icon}</div>
               <div className="min-w-0">
@@ -122,7 +122,7 @@ export function ScoreTab({ score }: ScoreTabProps) {
       </div>
 
       {/* Disclaimer */}
-      <div className="rounded-md border border-white/8 bg-card-elevated px-4 py-3 space-y-1.5">
+      <div className="rounded-md border border-white/[0.08] bg-card-elevated px-4 py-3 space-y-1.5">
         <p className="text-xs text-slate-500">
           {score?.disclaimer ??
             "Score em desenvolvimento. Não representa recomendação de voto, julgamento moral ou inferência automática."}

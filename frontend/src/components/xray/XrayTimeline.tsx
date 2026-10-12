@@ -94,7 +94,7 @@ export function CandidacyCard({
 }>) {
   return (
     <article
-      className="rounded-lg border border-white/8 bg-card-elevated/40 p-4"
+      className="candidacy-record"
       data-candidacy={c.candidacyId}
       data-testid="xray-candidacy"
     >
@@ -113,7 +113,7 @@ export function CandidacyCard({
         </div>
         <div className="flex flex-wrap gap-1">
           {c.roundOutcome && (
-            <Badge tone={c.elected ? "brand" : "muted"}>
+            <Badge tone="muted">
               {outcomeTerm(c.roundOutcome) ? <Term id={outcomeTerm(c.roundOutcome)!}>{outcomeLabel(c.roundOutcome)}</Term> : outcomeLabel(c.roundOutcome)}
             </Badge>
           )}
@@ -133,7 +133,7 @@ export function CandidacyCard({
         )}
         {!c.ticket && compared !== undefined && onCompare && (
           <label className="flex cursor-pointer items-center gap-1">
-            <input type="checkbox" checked={compared} onChange={onCompare} className="accent-[#0dd48e]" />
+            <input type="checkbox" checked={compared} onChange={onCompare} className="accent-[#00BAA6]" />
             <span>comparar</span>
           </label>
         )}
@@ -160,7 +160,7 @@ export function EvolutionList({ data }: Readonly<{ data: XrayResponse }>) {
   return (
     <div className="grid gap-3 md:grid-cols-2" data-testid="xray-evolution">
       {data.evolution.length > 0 && (
-        <div className="rounded-lg border border-white/8 bg-card p-3">
+        <div className="rounded-lg border border-white/[0.08] bg-card p-3">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Evolução de votos</p>
           <ul className="space-y-1.5">
             {data.evolution.map((s) => {
@@ -185,7 +185,7 @@ export function EvolutionList({ data }: Readonly<{ data: XrayResponse }>) {
         </div>
       )}
       {data.assetsEvolution.length > 0 && (
-        <div className="rounded-lg border border-white/8 bg-card p-3">
+        <div className="rounded-lg border border-white/[0.08] bg-card p-3">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Bens declarados por eleição</p>
           <ul className="space-y-1.5">
             {data.assetsEvolution.map((s) => {
@@ -224,7 +224,7 @@ export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; on
   return (
     <div className="space-y-4" data-testid="xray">
       <p className="text-xs text-slate-500">
-        Candidaturas oficiais do TSE ligadas por identificadores oficiais (CPF só como HMAC; histórico oficial de candidaturas) — nunca por nome.
+        Candidaturas ligadas por registros oficiais do TSE. A coincidência de nomes não confirma identidade.
       </p>
       {data.freshness.stale && <DataState kind="processing">{data.freshness.note}</DataState>}
       <div className="space-y-2" data-testid="xray-timeline">
@@ -241,7 +241,7 @@ export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; on
             }}
           />
         ))}
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-card px-3 py-2 text-xs">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/[0.08] bg-card px-3 py-2 text-xs">
           <span className="text-slate-400">
             {selection.length} de {MAX_COMPARE} candidaturas para comparar
           </span>
@@ -257,7 +257,7 @@ export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; on
         </div>
       </div>
       {data.officialHistory.length > 0 && (
-        <div className="rounded-lg border border-white/8 bg-card p-3" data-testid="xray-history">
+        <div className="rounded-lg border border-white/[0.08] bg-card p-3" data-testid="xray-history">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">Histórico oficial de candidaturas (TSE)</p>
           <ul className="space-y-1">
             {data.officialHistory.map((h) => (

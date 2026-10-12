@@ -24,7 +24,7 @@ export function SourceBadge({
   const [open, setOpen] = useState(false);
   const panelId = useId();
   return (
-    <div className="rounded-lg border border-white/8 bg-card/60 px-3 py-2 text-[11px] text-slate-500" data-testid={testId}>
+    <div className="rounded-lg border border-white/[0.08] bg-card/60 px-3 py-2 text-[11px] text-slate-500" data-testid={testId}>
       <div className="flex items-center justify-between gap-2">
         <span>
           Fonte: <span className="text-slate-300">{publisher}</span> · {dataset}

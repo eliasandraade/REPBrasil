@@ -22,7 +22,7 @@ export function PoliticianCard({ politician }: PoliticianCardProps) {
       href={politicianPath(politician)}
       shareIdentity
       onClick={() => rememberIdentity(politician.slug ?? politician.id, politician.ballotName)}
-      className="group mi-surface focus-ring flex items-center gap-4 rounded-lg border border-white/8 bg-card p-4 hover:border-brand/30 hover:bg-card-elevated/60"
+      className="person-record group mi-surface focus-ring flex items-center gap-4 rounded-lg border border-white/[0.08] bg-card p-4 hover:border-brand/30 hover:bg-card-elevated/60"
     >
       {/* Avatar */}
       <div
