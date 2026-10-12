@@ -83,12 +83,12 @@ public sealed record PollRow(
     string? Methodology,
     string SourceUrl,
     DateTimeOffset RetrievedAt,
-    Guid ScenarioId,
-    string ScenarioName,
-    int ScenarioOrder,
-    int OptionOrder,
-    string OptionLabel,
-    string OptionKind,
+    Guid? ScenarioId,
+    string? ScenarioName,
+    int? ScenarioOrder,
+    int? OptionOrder,
+    string? OptionLabel,
+    string? OptionKind,
     Guid? CandidacyId,
     string? PartyAcronym,
     decimal? Percentage);
@@ -178,16 +178,18 @@ public sealed class ElectoralLiveService(IElectoralLiveRepository repository)
                 group.Key.Methodology,
                 group.Key.SourceUrl,
                 group.Key.RetrievedAt,
-                group.GroupBy(r => new { r.ScenarioId, r.ScenarioName, r.ScenarioOrder })
+                group.Where(r => r.ScenarioId is not null && r.ScenarioName is not null && r.ScenarioOrder is not null)
+                    .GroupBy(r => new { r.ScenarioId, r.ScenarioName, r.ScenarioOrder })
                     .OrderBy(s => s.Key.ScenarioOrder)
                     .Select(s => new PollScenarioDto(
-                        s.Key.ScenarioName,
-                        s.Key.ScenarioOrder,
-                        s.OrderBy(o => o.OptionOrder)
+                        s.Key.ScenarioName!,
+                        s.Key.ScenarioOrder!.Value,
+                        s.Where(o => o.OptionOrder is not null && o.OptionLabel is not null && o.OptionKind is not null)
+                            .OrderBy(o => o.OptionOrder)
                             .Select(o => new PollOptionDto(
-                                o.OptionOrder,
-                                o.OptionLabel,
-                                o.OptionKind,
+                                o.OptionOrder!.Value,
+                                o.OptionLabel!,
+                                o.OptionKind!,
                                 o.CandidacyId,
                                 o.PartyAcronym,
                                 o.Percentage))
