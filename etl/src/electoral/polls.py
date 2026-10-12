@@ -120,7 +120,7 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
     `candidacy_id` is accepted only when an upstream audited mapping already exists. This
     loader never resolves candidates by name, ballot label, institute text, or fuzzy match.
     Empty result scenarios are valid: PesqEle registration metadata can be loaded before a
-    published result report is available.
+    published result report is available. A single registration may contain multiple offices.
     """
     state, municipality = _validate(record)
     digest = hashlib.sha256(source.content).hexdigest()
@@ -162,6 +162,13 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
         raise ValueError("poll requires exactly one matching electoral.election")
     election_id = str(election_rows[0][0])
 
+    cursor.execute(
+        "SELECT 1 FROM electoral.office WHERE code = %s",
+        (record.office_code,),
+    )
+    if cursor.fetchone() is None:
+        raise ValueError("poll office is not present in the audited electoral catalog")
+
     municipality_id: str | None = None
     if municipality is not None:
         cursor.execute(
@@ -195,7 +202,9 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
              sample_size, margin_error_pp, confidence_level, methodology, source_id)
         VALUES (%s::uuid, %s, %s, %s::uuid, %s, %s::uuid, %s, %s, %s,
                 %s, %s, %s, %s, %s::uuid)
-        ON CONFLICT (registration_number, source_id) DO UPDATE SET
+        ON CONFLICT (
+            registration_number, office_code, state_code, municipality_id, source_id
+        ) DO UPDATE SET
             institute_id = EXCLUDED.institute_id,
             field_start = EXCLUDED.field_start,
             field_end = EXCLUDED.field_end,
@@ -239,11 +248,19 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
         for option in scenario.options:
             if option.candidacy_id is not None:
                 cursor.execute(
-                    "SELECT 1 FROM electoral.candidacy WHERE id = %s::uuid",
-                    (option.candidacy_id,),
+                    """
+                    SELECT 1
+                      FROM electoral.candidacy c
+                      JOIN electoral.contest k ON k.id = c.contest_id
+                     WHERE c.id = %s::uuid AND k.election_id = %s::uuid
+                       AND k.office_code = %s
+                    """,
+                    (option.candidacy_id, election_id, record.office_code),
                 )
                 if cursor.fetchone() is None:
-                    raise ValueError("audited poll candidacy_id does not exist")
+                    raise ValueError(
+                        "audited poll candidacy_id does not match the requested election and office"
+                    )
             cursor.execute(
                 """
                 INSERT INTO electoral.poll_result
