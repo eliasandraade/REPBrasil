@@ -116,7 +116,13 @@ def _validate(record: PollRecord) -> tuple[str | None, str | None]:
     return state, municipality
 
 
-def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
+def load_poll(
+    conn: Any,
+    *,
+    source: PollSource,
+    record: PollRecord,
+    commit: bool = True,
+) -> str:
     """Persist one audited poll snapshot.
 
     The PesqEle registration belongs to an election cycle, while a published report may
@@ -273,5 +279,6 @@ def load_poll(conn: Any, *, source: PollSource, record: PollRecord) -> str:
                     option.percentage,
                 ),
             )
-    conn.commit()
+    if commit:
+        conn.commit()
     return poll_id
