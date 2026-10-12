@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Suspense, type ReactNode } from "react";
 import "./globals.css";
+import "./mobile-hardening.css";
 import "@/motion/motion.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
