@@ -38,7 +38,7 @@ jobs:
           ln -s /tmp/repbrasil-smoke/node_modules "$GITHUB_WORKSPACE/node_modules"
           ./node_modules/.bin/playwright install --with-deps chromium
 
-      - name: Smoke public production and capture evidence
+      - name: Smoke the exact deployed revision and capture evidence
         run: node .github/scripts/production-smoke.mjs
 
       - name: Upload production evidence
