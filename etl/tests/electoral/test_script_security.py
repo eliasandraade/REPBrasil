@@ -18,19 +18,21 @@ def _load_script(name: str):
     return module
 
 
-def test_import_output_stays_inside_configured_root(tmp_path: Path) -> None:
+def test_import_output_is_fixed_inside_configured_root(tmp_path: Path) -> None:
     module = _load_script("import_electoral_state")
     root = tmp_path / "state"
     root.mkdir()
 
-    module._write(Path("nested/progress.json"), {"status": "ok"}, output_root=root)
-    assert (root / "nested" / "progress.json").is_file()
+    enabled = module._output_requested(root / "progress.json", output_root=root, filename="progress.json")
+    assert enabled is True
+    module._write_progress(enabled, {"status": "ok"}, output_root=root)
+    assert (root / "progress.json").is_file()
 
-    with pytest.raises(SystemExit, match="escapes REPBRASIL_IMPORT_OUTPUT_ROOT"):
-        module._write(Path("../escape.json"), {"status": "blocked"}, output_root=root)
+    with pytest.raises(SystemExit, match="must resolve exactly"):
+        module._output_requested(Path("nested/progress.json"), output_root=root, filename="progress.json")
 
-    with pytest.raises(SystemExit, match="escapes REPBRASIL_IMPORT_OUTPUT_ROOT"):
-        module._write(tmp_path / "outside.json", {"status": "blocked"}, output_root=root)
+    with pytest.raises(SystemExit, match="must resolve exactly"):
+        module._output_requested(tmp_path / "outside.json", output_root=root, filename="progress.json")
 
 
 def test_lake_worker_requires_token_and_private_transport(monkeypatch: pytest.MonkeyPatch) -> None:
