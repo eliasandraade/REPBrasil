@@ -9,9 +9,11 @@ Adicionar identidade e recursos pessoais ao REPBrasil sem transformar dados púb
 - Google OAuth/OIDC direto com o Google.
 - Magic link por SMTP configurável.
 - Nenhuma senha local.
-- Sessão aleatória em cookie `HttpOnly`, `SameSite=Lax`; somente SHA-256 do token fica no Postgres.
+- Sessão aleatória em cookie `HttpOnly`; somente SHA-256 do token fica no Postgres.
+- `SameSite=Lax` é o padrão para frontend/API no mesmo site; deployments cross-site usam `Auth__CookieSameSite=None`, sempre com `Secure`.
 - Mutações autenticadas exigem `X-RepBrasil-CSRF`, cujo valor é vinculado à sessão.
 - Magic links e `state` do Google são one-shot, expiram e são persistidos somente por hash.
+- O `state` OAuth também é vinculado ao navegador que iniciou o login por um cookie de correlação `HttpOnly`; o callback exige correspondência e apaga o cookie antes de prosseguir.
 - `returnTo` aceita apenas caminho local iniciado por `/`; `//` e URLs externas voltam para `/`.
 
 ## Variáveis do backend
@@ -21,6 +23,7 @@ AllowedOrigins=https://SEU_FRONTEND
 Auth__FrontendBaseUrl=https://SEU_FRONTEND
 Auth__PublicBaseUrl=https://SEU_BACKEND
 Auth__CookieDomain=.seudominio.com.br            # opcional
+Auth__CookieSameSite=Lax                         # use None quando frontend/API forem cross-site
 Auth__Google__ClientId=...
 Auth__Google__ClientSecret=...
 Auth__Google__RedirectUri=https://SEU_BACKEND/api/v1/auth/google/callback
@@ -34,7 +37,7 @@ Auth__MagicLink__Smtp__Password=...               # opcional, conforme relay
 Alerts__PublishToken=...
 ```
 
-O frontend continua usando `NEXT_PUBLIC_API_URL` e envia `credentials: include` apenas nos endpoints de conta.
+O frontend continua usando `NEXT_PUBLIC_API_URL` e envia `credentials: include` apenas nos endpoints de conta. Se frontend e API forem cross-site, `AllowedOrigins` precisa conter a origem exata do frontend e `Auth__CookieSameSite=None` deve ser configurado no backend.
 
 ## Dados pessoais
 
@@ -51,7 +54,7 @@ Schema `account`:
 - `api_key`: chave comercial por hash, prefixo visível, scopes, quota e revogação;
 - `api_usage_daily`: contador diário por chave.
 
-Favoritos/watchlist usam `resource_type + resource_key` para não acoplar a conta à modelagem interna do TSE/IBGE. As entidades oficiais continuam sendo a fonte de verdade.
+Favoritos/watchlist usam `resource_type + resource_key` para não acoplar a conta à modelagem interna do TSE/IBGE. Rotas filtradas e drill-downs eleitorais preservam o caminho/query reproduzível na identidade salva. As entidades oficiais continuam sendo a fonte de verdade.
 
 ## Alertas
 
@@ -105,8 +108,9 @@ O conteúdo público existente continua navegável sem autenticação.
 - e-mail é normalizado em lowercase;
 - nenhum token de sessão, magic link ou API key é armazenado em claro;
 - API key é exibida apenas na criação;
-- cookie é `Secure` fora do ambiente de desenvolvimento;
+- cookie de sessão é `Secure` fora do ambiente de desenvolvimento; `SameSite=None` também força `Secure`;
 - Google só entra se `email_verified=true`;
+- OAuth state é validado no banco e contra cookie de correlação do navegador;
 - CORS de conta aceita credenciais somente para `AllowedOrigins` explícitos;
 - endpoint de publicação de alertas responde 404 quando o segredo interno não confere;
 - `returnTo` não permite open redirect.
@@ -115,13 +119,16 @@ O conteúdo público existente continua navegável sem autenticação.
 
 1. aplicar migration `AddAccountsAndCommercialApi`;
 2. entrar por Google e confirmar retorno ao caminho original;
-3. entrar por magic link e confirmar expiração/one-shot;
-4. `/account/me` sem cookie → 401;
-5. mutação sem CSRF → 401; com CSRF → sucesso;
-6. favoritar e adicionar à watchlist uma página; recarregar e validar persistência;
-7. criar chave de API, copiar segredo e validar `/api/v1/commercial/ping`;
-8. repetir até a quota configurada em ambiente de teste e confirmar bloqueio sem contador negativo;
-9. revogar a chave e confirmar recusa;
-10. publicar duas vezes o mesmo `eventKey` e confirmar uma única notificação por usuário;
-11. desktop/mobile e light/dark em `/entrar`, `/conta` e dock global;
-12. Console/Network sem 500 inesperado e sem token em URL depois do callback.
+3. copiar um callback OAuth iniciado em outro navegador e confirmar rejeição por correlação inválida;
+4. entrar por magic link e confirmar expiração/one-shot;
+5. `/account/me` sem cookie → 401;
+6. mutação sem CSRF → 401; com CSRF → sucesso;
+7. em deployment cross-site, confirmar `SameSite=None; Secure` e chamadas `credentials: include` funcionando;
+8. favoritar e adicionar à watchlist uma página; recarregar e validar persistência;
+9. salvar duas variantes filtradas de `/rankings`, `/dados` ou drill-down eleitoral e confirmar itens distintos;
+10. criar chave de API, copiar segredo e validar `/api/v1/commercial/ping`;
+11. repetir até a quota configurada em ambiente de teste e confirmar bloqueio sem contador negativo;
+12. revogar a chave e confirmar recusa;
+13. publicar duas vezes o mesmo `eventKey` e confirmar uma única notificação por usuário;
+14. desktop/mobile e light/dark em `/entrar`, `/conta` e dock global;
+15. Console/Network sem 500 inesperado e sem token em URL depois do callback.
