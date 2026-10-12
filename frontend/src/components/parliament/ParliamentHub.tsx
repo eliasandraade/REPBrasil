@@ -46,7 +46,11 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
 
     for (const row of rows) {
       const committed = row.committedAmount;
-      const color = committed === null ? null : mix(palette.low, palette.high, span === 0 ? 0.55 : (committed - min) / span);
+      let color: string | null = null;
+      if (committed !== null) {
+        const intensity = span === 0 ? 0.55 : (committed - min) / span;
+        color = mix(palette.low, palette.high, intensity);
+      }
       const parts = [`${count.format(row.amendmentCount)} emenda${row.amendmentCount === 1 ? "" : "s"}`];
       parts.push(committed === null ? "empenhado não publicado" : `${money.format(committed)} empenhado`);
       if (row.paidAmount !== null) parts.push(`${money.format(row.paidAmount)} pago`);
