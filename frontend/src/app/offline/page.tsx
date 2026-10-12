@@ -16,12 +16,12 @@ export default function OfflinePage() {
           Para proteger a integridade das informações, resultados eleitorais, pesquisas, atividade parlamentar e outros dados factuais não são servidos de um cache antigo. Reconecte-se para consultar a versão atual.
         </p>
         <div className="mt-6 flex flex-wrap gap-2">
-          <a
+          <TransitionLink
             href="/"
             className="focus-ring rounded-lg bg-action px-4 py-2 text-sm font-semibold text-action-fg hover:bg-action/90"
           >
             Tentar novamente
-          </a>
+          </TransitionLink>
           <TransitionLink
             href="/manifesto"
             className="focus-ring rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-fg-soft hover:bg-fg/5"
