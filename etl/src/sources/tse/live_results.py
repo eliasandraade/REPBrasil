@@ -145,16 +145,17 @@ class TseLiveResultsClient:
         etag: str | None = None,
         last_modified: str | None = None,
     ) -> ResultArtifact:
-        _validate_base(url)
+        request_url = _validate_base(url)
         headers: dict[str, str] = {}
         if etag:
             headers["If-None-Match"] = etag
         if last_modified:
             headers["If-Modified-Since"] = last_modified
-        response = self._client.get(url, headers=headers)
+        response = self._client.get(request_url, headers=headers)
+        final_url = _validate_base(str(response.url))
         if response.status_code == 304:
             return ResultArtifact(
-                url=str(response.url),
+                url=final_url,
                 status_code=304,
                 content=None,
                 etag=response.headers.get("etag") or etag,
@@ -162,7 +163,7 @@ class TseLiveResultsClient:
             )
         response.raise_for_status()
         return ResultArtifact(
-            url=str(response.url),
+            url=final_url,
             status_code=response.status_code,
             content=response.content,
             etag=response.headers.get("etag"),
