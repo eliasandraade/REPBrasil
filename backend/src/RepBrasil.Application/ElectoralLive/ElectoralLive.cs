@@ -265,7 +265,7 @@ public sealed class ElectoralLiveService(IElectoralLiveRepository repository)
             municipality,
             snapshot,
             "O endpoint serve somente o snapshot oficial auditado mais recente para o recorte exato. Não sintetiza apuração a partir de BUs históricos e não preenche campos ausentes com zero.",
-            "Enquanto o status for parcial, os números podem mudar a cada atualização oficial. Somente um snapshot marcado como final pela fonte deve ser tratado como encerrado.");
+            "Antes do início ou enquanto o status for parcial, valores podem estar ausentes e os números podem mudar a cada atualização oficial. Somente um snapshot marcado como final pela fonte deve ser tratado como encerrado.");
     }
 
     private static void ValidateElection(int year, int round, int office)
