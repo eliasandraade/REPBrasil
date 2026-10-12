@@ -107,11 +107,9 @@ def _money(raw: str | None) -> Decimal | None:
 
 
 def _municipality_code(raw: str | None) -> str | None:
-    if raw is None:
+    if raw is None or not raw.strip():
         return None
     digits = re.sub(r"\D", "", raw)
-    if not digits:
-        return None
     if len(digits) != 7:
         raise ValueError(f"invalid official municipality IBGE code: {raw!r}")
     return digits
