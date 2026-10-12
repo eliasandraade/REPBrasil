@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import "./globals.css";
 import "@/motion/motion.css";
 import { Providers } from "./providers";
@@ -56,7 +56,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Providers>
           <AppShell>{children}</AppShell>
           <div className="fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
-            <SaveCurrentPage />
+            <Suspense fallback={null}>
+              <SaveCurrentPage />
+            </Suspense>
           </div>
         </Providers>
       </body>
