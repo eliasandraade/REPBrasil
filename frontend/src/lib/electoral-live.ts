@@ -56,7 +56,7 @@ export interface LiveCountItem {
 export interface LiveCountSnapshot {
   snapshotId: string;
   scope: "national" | "state" | "municipal";
-  status: "partial" | "final";
+  status: "not_started" | "partial" | "final";
   countedSections: number | null;
   totalSections: number | null;
   countedPercent: number | null;
