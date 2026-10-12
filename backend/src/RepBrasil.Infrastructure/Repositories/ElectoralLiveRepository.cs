@@ -15,15 +15,29 @@ public sealed class ElectoralLiveRepository(ApplicationDbContext db) : IElectora
         int office,
         string? uf,
         string? municipalityTseCode,
-        CancellationToken ct) =>
-        Query<PollRow>("""
-            WITH scoped AS (
+        CancellationToken ct)
+    {
+        var registryScope = uf ?? "BR";
+        var registryDataset = $"pesquisa_eleitoral_{year}_{registryScope}";
+        return Query<PollRow>("""
+            WITH latest_registry_source AS (
+              SELECT src.id
+                FROM electoral.poll_source src
+               WHERE src.provider = 'TSE/PesqEle' AND src.dataset = {5}
+               ORDER BY src.retrieved_at DESC, src.id DESC
+               LIMIT 1
+            ), scoped AS (
               SELECT p.id, p.registration_number, p.institute_id, p.field_start, p.field_end,
                      p.published_at, p.sample_size, p.margin_error_pp, p.confidence_level,
                      p.methodology, p.source_id
                 FROM electoral.poll p
+                JOIN electoral.poll_source source ON source.id = p.source_id
                 LEFT JOIN electoral.municipality m ON m.id = p.municipality_id
                WHERE p.year = {0} AND p.office_code = {2}
+                 AND (
+                   source.provider <> 'TSE/PesqEle'
+                   OR p.source_id = (SELECT id FROM latest_registry_source)
+                 )
                  AND (
                    ({4} <> '' AND p.state_code = {3} AND m.tse_code = {4})
                    OR ({4} = '' AND {3} <> '' AND p.municipality_id IS NULL AND p.state_code = {3})
@@ -62,7 +76,8 @@ public sealed class ElectoralLiveRepository(ApplicationDbContext db) : IElectora
                 ON sc.poll_id = p.id AND (sc.round IS NULL OR sc.round = {1})
               LEFT JOIN electoral.poll_result r ON r.scenario_id = sc.id
              ORDER BY p.field_end DESC, p.registration_number, sc.scenario_order NULLS LAST, r.option_order NULLS LAST
-            """, ct, year, round, office, uf ?? "", municipalityTseCode ?? "");
+            """, ct, year, round, office, uf ?? "", municipalityTseCode ?? "", registryDataset);
+    }
 
     public Task<IReadOnlyList<LiveCountRow>> LatestLiveCountAsync(
         int year,
