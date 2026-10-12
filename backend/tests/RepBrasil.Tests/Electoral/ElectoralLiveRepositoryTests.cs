@@ -90,4 +90,44 @@ public sealed class ElectoralLiveRepositoryTests
             await tx.RollbackAsync(Ct);
         }
     }
+
+    [ElectoralSchemaFact]
+    public async Task Latest_complete_PesqEle_snapshot_does_not_resurrect_withdrawn_registration()
+    {
+        await using var db = ElectoralXraySchemaTests.Db();
+        await using var tx = await db.Database.BeginTransactionAsync(Ct);
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO electoral.state(code, name) VALUES ('ZZ', 'Estado Teste')
+                ON CONFLICT (code) DO NOTHING;
+
+                INSERT INTO electoral.poll_institute(id, name, slug) VALUES
+                    ('99200000-0000-0000-0000-000000000010', 'Instituto Snapshot', 'instituto-snapshot-teste');
+
+                INSERT INTO electoral.poll_source
+                    (id, provider, dataset, source_url, retrieved_at, content_sha256, parser_version)
+                VALUES
+                    ('99200000-0000-0000-0000-000000000020', 'TSE/PesqEle', 'pesquisa_eleitoral_2097_ZZ', 'https://example.invalid/old', now() - interval '2 days', repeat('d', 64), 'test'),
+                    ('99200000-0000-0000-0000-000000000021', 'TSE/PesqEle', 'pesquisa_eleitoral_2097_ZZ', 'https://example.invalid/new', now() - interval '1 day', repeat('e', 64), 'test');
+
+                INSERT INTO electoral.poll
+                    (id, year, office_code, state_code, registration_number, institute_id,
+                     field_start, field_end, source_id)
+                VALUES
+                    ('99200000-0000-0000-0000-000000000030', 2097, 3, 'ZZ', 'WITHDRAWN-2097', '99200000-0000-0000-0000-000000000010', '2097-09-01', '2097-09-03', '99200000-0000-0000-0000-000000000020'),
+                    ('99200000-0000-0000-0000-000000000031', 2097, 3, 'ZZ', 'CURRENT-2097', '99200000-0000-0000-0000-000000000010', '2097-09-02', '2097-09-04', '99200000-0000-0000-0000-000000000021');
+                """, Ct);
+
+            var rows = await new ElectoralLiveRepository(db)
+                .PollsAsync(2097, 1, 3, "ZZ", null, Ct);
+
+            var row = Assert.Single(rows);
+            Assert.Equal("CURRENT-2097", row.RegistrationNumber);
+        }
+        finally
+        {
+            await tx.RollbackAsync(Ct);
+        }
+    }
 }
