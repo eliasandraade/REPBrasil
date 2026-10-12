@@ -26,6 +26,10 @@ function maybePercent(value: number | null) {
   return value === null ? "—" : `${percent.format(value)}%`;
 }
 
+function maybeMargin(value: number | null) {
+  return value === null ? "—" : `± ${percent.format(value)} p.p.`;
+}
+
 function maybeNumber(value: number | null) {
   return value === null ? "—" : number.format(value);
 }
@@ -43,7 +47,7 @@ function PollCard({ poll }: Readonly<{ poll: ElectoralPoll }>) {
         </div>
         <div className="text-right text-xs leading-5 text-fg-muted">
           <div>Amostra: <strong className="text-fg-soft">{maybeNumber(poll.sampleSize)}</strong></div>
-          <div>Margem: <strong className="text-fg-soft">{maybePercent(poll.marginErrorPp)}</strong></div>
+          <div>Margem: <strong className="text-fg-soft">{maybeMargin(poll.marginErrorPp)}</strong></div>
           <div>Confiança: <strong className="text-fg-soft">{maybePercent(poll.confidenceLevel)}</strong></div>
         </div>
       </div>
@@ -91,14 +95,27 @@ function LivePanel({ data }: Readonly<{ data: LiveCountResponse | null }>) {
 
   const snapshot = data.snapshot;
   const final = snapshot.status === "final";
+  const notStarted = snapshot.status === "not_started";
+  const frameClass = final
+    ? "border-emerald-500/30 bg-emerald-500/5"
+    : notStarted
+      ? "border-line bg-surface"
+      : "border-amber-500/30 bg-amber-500/5";
+  const badgeClass = final
+    ? "bg-emerald-500/15 text-emerald-500"
+    : notStarted
+      ? "bg-fg/[0.06] text-fg-muted"
+      : "bg-amber-500/15 text-amber-500";
+  const badge = final ? "FINAL" : notStarted ? "NÃO INICIADA" : "PARCIAL";
+
   return (
     <div className="space-y-4" data-testid="live-snapshot">
-      <section className={`rounded-xl border p-5 ${final ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+      <section className={`rounded-xl border p-5 ${frameClass}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${final ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"}`}>
-                {final ? "FINAL" : "PARCIAL"}
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badgeClass}`}>
+                {badge}
               </span>
               <span className="text-xs uppercase tracking-wide text-fg-muted">Fonte oficial TSE</span>
             </div>
@@ -179,7 +196,7 @@ export function ElectoralLiveHub() {
       <header className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent-text">Eleições 2026</p>
         <h1 className="text-3xl font-semibold tracking-tight text-fg">Pesquisas & apuração</h1>
-        <p className="max-w-3xl text-sm leading-6 text-fg-muted">Pesquisas registradas e snapshots oficiais de totalização, com fonte, horário e estado parcial/final explícitos. Sem projeções disfarçadas de resultado.</p>
+        <p className="max-w-3xl text-sm leading-6 text-fg-muted">Pesquisas registradas e snapshots oficiais de totalização, com fonte, horário e estado não iniciado/parcial/final explícitos. Sem projeções disfarçadas de resultado.</p>
       </header>
 
       <section className="rounded-xl border border-line bg-surface p-4" aria-label="Recorte eleitoral">
