@@ -28,7 +28,6 @@ CONTEST_STATS_LEVELS = ("section", "place")
 
 
 def _level(value: object) -> str:
-    """Nível da estatística da disputa no lake: só seção ou local de votação."""
     for level in CONTEST_STATS_LEVELS:
         if value == level:
             return level
@@ -39,8 +38,32 @@ def _json_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
 
 
+def _required_token() -> str:
+    token = os.environ.get("REPBRASIL_LAKE_TOKEN", "").strip()
+    if not token:
+        raise SystemExit("REPBRASIL_LAKE_TOKEN is required")
+    return token
+
+
+def _private_bind_host() -> str:
+    private_domain = os.environ.get("RAILWAY_PRIVATE_DOMAIN", "").strip().lower()
+    public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    if private_domain.endswith(".railway.internal") and not public_domain:
+        return "0.0.0.0"
+    if os.environ.get("REPBRASIL_LAKE_LOCAL_ONLY") == "1":
+        return "127.0.0.1"
+    raise SystemExit(
+        "electoral lake worker requires Railway private networking with no public domain"
+    )
+
+
+class PrivateNetworkHTTPServer(ThreadingHTTPServer):
+    pass
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "REPBrasilElectoralLake/2"
+    server_version = "REPBrasilElectoralLake/3"
+    auth_token = ""
 
     def log_message(self, format: str, *args: Any) -> None:
         print(f"lake-http {self.address_string()} {format % args}", flush=True)
@@ -55,11 +78,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _authorized(self) -> bool:
-        token = os.environ.get("REPBRASIL_LAKE_TOKEN")
-        if not token:
-            return True
         supplied = self.headers.get("Authorization", "")
-        expected = f"Bearer {token}"
+        expected = f"Bearer {self.auth_token}"
         return hmac.compare_digest(supplied, expected)
 
     def _read_json(self) -> dict[str, Any]:
@@ -76,7 +96,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            self._reply(HTTPStatus.OK, {"status": "ok", "storage": "parquet", "schema": 2})
+            self._reply(HTTPStatus.OK, {"status": "ok", "storage": "parquet", "schema": 3})
             return
         self._reply(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
@@ -148,15 +168,17 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(HTTPStatus.OK, result)
         except (KeyError, TypeError, ValueError, LakeError) as exc:
             self._reply(HTTPStatus.BAD_REQUEST, {"error": "invalid_request", "message": str(exc)})
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"lake-http error: {type(exc).__name__}: {exc}", flush=True)
             self._reply(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal_error"})
 
 
 def main() -> int:
     port = int(os.environ.get("PORT", "8080"))
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"electoral lake worker listening on :{port}", flush=True)
+    Handler.auth_token = _required_token()
+    host = _private_bind_host()
+    server = PrivateNetworkHTTPServer((host, port), Handler)
+    print(f"electoral lake worker listening on private transport :{port}", flush=True)
     server.serve_forever()
     return 0
 

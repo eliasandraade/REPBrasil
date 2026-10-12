@@ -62,13 +62,31 @@ def _database_url(value: str | None) -> str:
     return url
 
 
-def _write(path: Path | None, payload: dict[str, Any]) -> None:
+def _output_root() -> Path:
+    configured = os.environ.get("REPBRASIL_IMPORT_OUTPUT_ROOT")
+    return Path(configured).expanduser().resolve() if configured else Path.cwd().resolve()
+
+
+def _confined_output(path: Path, output_root: Path) -> Path:
+    root = output_root.resolve()
+    candidate = path.resolve() if path.is_absolute() else (root / path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise SystemExit(
+            f"output path {path!s} escapes REPBRASIL_IMPORT_OUTPUT_ROOT {root!s}"
+        ) from exc
+    return candidate
+
+
+def _write(path: Path | None, payload: dict[str, Any], *, output_root: Path) -> None:
     if path is None:
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    destination = _confined_output(path, output_root)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    tmp = destination.with_suffix(destination.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    tmp.replace(destination)
 
 
 def _state_stats(conn, *, year: int, turn: int, uf: str) -> dict[str, int]:
@@ -141,9 +159,8 @@ def main(argv: list[str] | None = None) -> int:
         help="skip recalculating the derived zone aggregates at the end (the API then flags them as stale)",
     )
     args = parser.parse_args(argv)
+    output_root = _output_root()
 
-    # Tudo — inclusive validar UF, manifesto, checksum oficial, hash do CSV e índice — fica dentro do bloco que
-    # registra a falha: um arquivo de progresso nunca continua dizendo "em andamento" ou "ok" depois de um erro.
     summary: dict[str, Any] = {
         "uf": args.uf,
         "year": args.year,
@@ -163,7 +180,6 @@ def main(argv: list[str] | None = None) -> int:
         _validate_manifest(manifest, year=args.year, turn=args.turn, uf=uf)
         verify_file_sha256(csv_path, manifest["csv"]["sha256"])
         summary["csv_sha256_verified"] = True
-        # Uma passada indexa o CSV estadual; cada município × zona lê só o seu trecho.
         scope_index = load_or_build_scope_index(
             csv_path,
             detect_layout(csv_path),
@@ -171,13 +187,17 @@ def main(argv: list[str] | None = None) -> int:
             csv_size=int(manifest["csv"]["size"]),
         )
         return _run(
-            args, uf=uf, protect_uf=protect_uf, scope_index=scope_index, summary=summary
+            args,
+            uf=uf,
+            protect_uf=protect_uf,
+            scope_index=scope_index,
+            summary=summary,
+            output_root=output_root,
         )
     except BaseException as exc:
-        # O progresso registra a falha (retomável: os escopos concluídos ficam no banco).
         summary["status"] = "failed"
         summary["error"] = _safe_error(exc)
-        _write(args.progress, summary)
+        _write(args.progress, summary, output_root=output_root)
         raise
 
 
@@ -188,6 +208,7 @@ def _run(
     protect_uf: str | None,
     scope_index: Any,
     summary: dict[str, Any],
+    output_root: Path,
 ) -> int:
     with electoral_db.connect(_database_url(args.database_url), autocommit=True) as conn:
         protected_before = _state_stats(conn, year=args.year, turn=args.turn, uf=protect_uf) if protect_uf else None
@@ -228,11 +249,10 @@ def _run(
                 summary["vote_records_imported"] += int(report["vote_records"])
                 summary["votes_imported"] += sum(int(item["votes_total"]) for item in report["offices"].values())
             summary["progress"] = {"done": index, "total": len(pairs)}
-            _write(args.progress, summary)
+            _write(args.progress, summary, output_root=output_root)
 
         if args.link_votables:
             summary["link"] = link_votables(conn, year=args.year, turn=args.turn, uf=uf)
-        # Agregados derivados por zona × cargo: recalculados quando algum lote novo entrou.
         if summary["imported"] > 0 and not args.no_refresh:
             summary["derived"] = refresh_derived(conn)
 
@@ -246,13 +266,13 @@ def _run(
                 "unchanged": protected_before == protected_after,
             }
             if protected_before != protected_after:
-                _write(args.report, summary)
+                _write(args.report, summary, output_root=output_root)
                 print(json.dumps(summary, ensure_ascii=False))
                 return 1
 
     summary["status"] = "succeeded"
-    _write(args.progress, summary)
-    _write(args.report, summary)
+    _write(args.progress, summary, output_root=output_root)
+    _write(args.report, summary, output_root=output_root)
     print(json.dumps(summary, ensure_ascii=False))
     return 0
 

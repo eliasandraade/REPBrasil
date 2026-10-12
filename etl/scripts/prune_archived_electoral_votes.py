@@ -70,7 +70,7 @@ def _derived_snapshot(cur, scope: LakeScope) -> dict[str, dict[str, int]]:
     }
     if actual != expected:
         raise SystemExit(f"refusing prune: derived snapshot marker/data differ: marker={expected} actual={actual}")
-    if actual["votable"]["rows"] == 0 or actual["zone"]["rows"] == 0:
+    if min(actual["votable"]["rows"], actual["zone"]["rows"]) <= 0:
         raise SystemExit("refusing prune: derived snapshot is empty")
     if actual["votable"]["votes"] != actual["zone"]["votes"]:
         raise SystemExit(f"refusing prune: derived snapshot vote totals differ: {actual}")
