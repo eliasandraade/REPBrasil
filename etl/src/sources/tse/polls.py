@@ -33,6 +33,13 @@ def poll_archive_url(year: int) -> str:
     )
 
 
+def _validate_archive_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname != _POLL_ARCHIVE_HOST:
+        raise ValueError(f"unexpected TSE poll archive URL: {url}")
+    return url
+
+
 class TsePollArchiveClient:
     """Fetches the official TSE PesqEle archive without interpreting missing values.
 
@@ -61,19 +68,17 @@ class TsePollArchiveClient:
         etag: str | None = None,
         last_modified: str | None = None,
     ) -> PollArchive:
-        url = poll_archive_url(year)
-        parsed = urlparse(url)
-        if parsed.scheme != "https" or parsed.hostname != _POLL_ARCHIVE_HOST:
-            raise ValueError("unexpected TSE poll archive URL")
+        url = _validate_archive_url(poll_archive_url(year))
         headers: dict[str, str] = {}
         if etag:
             headers["If-None-Match"] = etag
         if last_modified:
             headers["If-Modified-Since"] = last_modified
         response = self._client.get(url, headers=headers)
+        final_url = _validate_archive_url(str(response.url))
         if response.status_code == 304:
             return PollArchive(
-                url=str(response.url),
+                url=final_url,
                 status_code=304,
                 content=None,
                 etag=response.headers.get("etag") or etag,
@@ -81,7 +86,7 @@ class TsePollArchiveClient:
             )
         response.raise_for_status()
         return PollArchive(
-            url=str(response.url),
+            url=final_url,
             status_code=response.status_code,
             content=response.content,
             etag=response.headers.get("etag"),
