@@ -27,8 +27,7 @@ public sealed class ElectoralLiveRepository(ApplicationDbContext db) : IElectora
                WHERE e.year = {0} AND e.round = {1} AND p.office_code = {2}
                  AND (
                    ({4} <> '' AND p.state_code = {3} AND m.tse_code = {4})
-                   OR ({4} = '' AND {3} <> '' AND p.municipality_id IS NULL
-                       AND (p.state_code = {3} OR p.state_code IS NULL))
+                   OR ({4} = '' AND {3} <> '' AND p.municipality_id IS NULL AND p.state_code = {3})
                    OR ({4} = '' AND {3} = '' AND p.municipality_id IS NULL AND p.state_code IS NULL)
                  )
             ), latest AS (
