@@ -20,7 +20,7 @@ public static class CommercialApiQuotaGate
         if (!secret.StartsWith("rep_live_", StringComparison.Ordinal) || secret.Length < 30) return false;
 
         await db.Database.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         try
         {
             await using var keyCommand = Command(db, """
