@@ -12,7 +12,9 @@ A aquisição base usa o arquivo oficial anual do **Sistema PesqEle/TSE** public
 
 O arquivo é preservado em bytes, com SHA-256, URL e versão do parser. ETag e `Last-Modified` podem ser usados em GET condicional; `304 Not Modified` não produz uma nova versão.
 
-O registro no PesqEle comprova a existência e os metadados oficiais da pesquisa. Ele **não autoriza inventar percentuais de intenção de voto** quando o resultado publicado não está disponível em fonte auditada. Por isso uma pesquisa pode existir no REPBrasil com instituto, número de registro, datas de campo, amostra, margem, confiança e metodologia, mas sem cenários/resultados.
+O parser abre somente o membro esperado `pesquisa_eleitoral_<ANO>_BRASIL.csv`, exige as colunas estruturais que utiliza e falha fechado se o layout necessário mudar. O registro é modelado por **ano/ciclo + cargo + escopo**, e não por turno: uma mesma pesquisa pode testar cenários de 1º e 2º turno. O turno só é associado a `poll_scenario` quando essa classificação vier de uma publicação auditável do resultado.
+
+O registro no PesqEle comprova a existência e os metadados oficiais da pesquisa. Ele **não autoriza inventar percentuais de intenção de voto** quando o resultado publicado não está disponível em fonte auditada. Por isso uma pesquisa pode existir no REPBrasil com instituto, número de registro, datas de campo, amostra e metodologia, mas sem cenários/resultados. Margem de erro e nível de confiança permanecem ausentes quando não vierem de campo estruturado ou publicação auditável; não são extraídos heuristicamente de texto livre.
 
 ### Apuração
 
@@ -57,14 +59,15 @@ A migration `018_polling_and_live_count.sql` adiciona sete tabelas:
 
 1. **Ausência nunca vira zero.** `NULL` continua `NULL` na API e aparece como `—` na interface. Zero só é exibido quando a fonte publicou zero.
 2. **Pesquisa não é previsão nem resultado eleitoral.** A UI mantém a ressalva visível.
-3. **Margem de erro é ponto percentual.** Só é exibida quando publicada pela fonte; nível de confiança idem.
-4. **Cenários não são misturados.** Cada cenário preserva sua própria lista e ordem.
-5. **Registro sem resultado é válido.** O REPBrasil não fabrica percentuais para preencher uma pesquisa registrada.
-6. **Escopo é exato.** Brasil, UF e município são consultas diferentes; uma pesquisa nacional não é tratada como pesquisa estadual.
-7. **Totalização parcial não é final.** O status `not_started`, `partial` ou `final` é explícito.
-8. **Snapshots são imutáveis por conteúdo.** O SHA-256 é calculado sobre os bytes oficiais adquiridos; conteúdo idêntico é idempotente e nova edição oficial preserva o histórico.
-9. **Vínculo de candidatura é documental.** Resultado do TSE usa `SQ_CANDIDATO` dentro da eleição/cargo/código de eleição; nunca nome ou fuzzy match.
-10. **Sem serviço pago novo.** O módulo usa a infraestrutura existente.
+3. **Margem de erro é ponto percentual.** Só é exibida quando publicada por campo/fonte auditável; nível de confiança idem.
+4. **Registro e turno são conceitos diferentes.** O registro pertence ao ciclo; o turno pertence ao cenário quando auditável.
+5. **Cenários não são misturados.** Cada cenário preserva sua própria lista, ordem e turno opcional.
+6. **Registro sem resultado é válido.** O REPBrasil não fabrica percentuais para preencher uma pesquisa registrada.
+7. **Escopo é exato.** Brasil, UF e município são consultas diferentes; uma pesquisa nacional não é tratada como pesquisa estadual.
+8. **Totalização parcial não é final.** O status `not_started`, `partial` ou `final` é explícito.
+9. **Snapshots são imutáveis por conteúdo.** O SHA-256 é calculado sobre os bytes oficiais adquiridos; conteúdo idêntico é idempotente e nova edição oficial preserva o histórico.
+10. **Vínculo de candidatura é documental.** Resultado do TSE usa `SQ_CANDIDATO` dentro da eleição/cargo/código de eleição; pesquisa só aceita `candidacy_id` previamente auditado e compatível com ano/turno/cargo. Nunca nome ou fuzzy match.
+11. **Sem serviço pago novo.** O módulo usa a infraestrutura existente.
 
 ## APIs públicas
 
@@ -79,6 +82,8 @@ Parâmetros:
 - `office`
 - `uf` opcional
 - `municipalityTseCode` opcional e permitido somente com `uf`
+
+O `round` filtra cenários classificados naquele turno. Um registro sem resultados/cenários continua visível porque o PesqEle registra a pesquisa do ciclo, não um resultado por turno. Se uma pesquisa tiver cenários explicitamente classificados apenas para o outro turno, ela não é mostrada como se tivesse cenário compatível.
 
 A resposta inclui fonte, data de coleta, metadados metodológicos e cenários auditados. A edição mais recente de uma mesma pesquisa, dentro do recorte exato, vence por `retrieved_at` sem apagar versões anteriores.
 
@@ -104,9 +109,29 @@ A rota `/pesquisas` reúne:
 
 ## Ingestão real
 
-A migration não semeia observações sintéticas em produção. O adquirente do PesqEle preserva o ZIP oficial e o loader aceita registros normalizados e auditados; qualquer normalizador específico do layout anual deve falhar fechado se o schema da fonte mudar. Percentuais de pesquisa só podem ser carregados a partir de publicação auditável do resultado.
+A migration não semeia observações sintéticas em produção.
 
-A apuração possui um comando operacional em `etl/scripts/ingest_live_results.py`. Ele usa `DATABASE_URL`, adquire o JSON oficial, valida o contrato EA20, calcula SHA-256 dos bytes recebidos e persiste um snapshot idempotente.
+### Registro PesqEle
+
+O comando `etl/scripts/ingest_poll_registry.py` adquire o ZIP oficial, valida o CSV, normaliza os registros e grava a edição inteira em uma transação. Se qualquer linha necessária falhar, a edição não fica parcialmente publicada no banco.
+
+Ceará em 2026:
+
+```bash
+python scripts/ingest_poll_registry.py --year 2026 --uf CE
+```
+
+Pesquisas nacionais:
+
+```bash
+python scripts/ingest_poll_registry.py --year 2026 --uf BR
+```
+
+`--uf ALL` processa todos os escopos. O importador não cria cenários nem percentuais a partir do arquivo de registro porque o conjunto aberto do PesqEle é metadado de registro/desenho da pesquisa, não uma tabela de intenção de voto por candidata ou candidato. Resultados só entram depois por fonte de publicação auditável.
+
+### Apuração TSE
+
+O comando `etl/scripts/ingest_live_results.py` usa `DATABASE_URL`, adquire o JSON oficial, valida o contrato EA20, calcula SHA-256 dos bytes recebidos e persiste um snapshot idempotente.
 
 Uma captura única do 1º turno de governador no Ceará em 2026:
 
@@ -128,7 +153,7 @@ python scripts/ingest_live_results.py --year 2026 --round 1 --office 3 --uf CE -
 
 Para 2026, o comando resolve automaticamente o `CD_ELEICAO` a partir de turno/cargo e ainda o reconfirma contra o `contest` auditado no banco. Fora desse mapeamento, `--election-code` é obrigatório. Intervalos de acompanhamento menores que 15 segundos são recusados; respostas HTTP `304` não criam snapshots duplicados.
 
-Até haver observações reais carregadas, `/pesquisas` deve mostrar os estados vazios previstos. A existência do comando não autoriza fabricar uma totalização nem executar contra ambiente de simulação.
+Até haver observações reais carregadas, `/pesquisas` deve mostrar os estados vazios previstos. A existência dos comandos não autoriza fabricar uma pesquisa, um resultado ou uma totalização nem executar contra ambiente de simulação.
 
 ## Smoke manual
 
@@ -139,7 +164,7 @@ Após deploy:
 3. confirmar que município só é usado com código TSE de cinco dígitos;
 4. confirmar que ausência de pesquisa auditada é explicada, sem afirmar que “não existem pesquisas”;
 5. confirmar que registro sem percentual continua visível;
-6. confirmar margem em `p.p.` e confiança em `%`;
+6. confirmar margem em `p.p.` e confiança em `%` quando existirem;
 7. confirmar `NÃO INICIADA`, `PARCIAL` e `FINAL` conforme o snapshot oficial;
 8. confirmar que valores ausentes aparecem `—`, nunca `0`;
 9. abrir os links de proveniência;
