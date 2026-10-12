@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SocioeconomicMap } from "@/components/data/SocioeconomicMap";
 import {
   getClusters,
   getCorrelation,
@@ -139,7 +141,10 @@ export function DataExplorer() {
     <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 lg:px-8">
       <header className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent-text">Inteligência de dados</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-fg">Dados</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight text-fg">Dados</h1>
+          <Link href="/parlamento" className="focus-ring rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-fg-soft hover:bg-fg/5">Atividade parlamentar →</Link>
+        </div>
         <p className="max-w-3xl text-sm leading-6 text-fg-muted">Indicadores socioeconômicos oficiais por município, com proveniência auditável, correlação exploratória e agrupamentos determinísticos.</p>
       </header>
 
@@ -162,6 +167,8 @@ export function DataExplorer() {
       )}
 
       <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4" data-testid="causality-caveat"><p className="text-sm font-medium text-fg">Correlação não implica causalidade.</p><p className="mt-1 text-sm text-fg-muted">Os coeficientes descrevem associação nos municípios observados. Não demonstram que um indicador cause o outro.</p></section>
+
+      {period !== null && selectedX && <SocioeconomicMap values={values} period={period} label={selectedX.name} unit={selectedX.unit} />}
 
       {period !== null && correlation && (
         <>

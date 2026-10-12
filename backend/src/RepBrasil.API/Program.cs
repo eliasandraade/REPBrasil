@@ -8,6 +8,7 @@ using RepBrasil.Application.ElectoralLive;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
 using RepBrasil.Application.Overview;
+using RepBrasil.Application.Parliament;
 using RepBrasil.Application.Politicians.Queries;
 using RepBrasil.Application.Parties;
 using RepBrasil.Application.Rankings;
@@ -68,6 +69,8 @@ builder.Services.AddScoped<IPartyRepository, PartyRepository>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<IDataIntelligenceRepository, DataIntelligenceRepository>();
 builder.Services.AddScoped<DataIntelligenceService>();
+builder.Services.AddScoped<IParliamentRepository, ParliamentRepository>();
+builder.Services.AddScoped<ParliamentService>();
 builder.Services.AddScoped<IElectoralLiveRepository, ElectoralLiveRepository>();
 builder.Services.AddScoped<ElectoralLiveService>();
 

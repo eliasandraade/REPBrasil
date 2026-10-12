@@ -2,10 +2,12 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Suspense, type ReactNode } from "react";
 import "./globals.css";
+import "./mobile-hardening.css";
 import "@/motion/motion.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/AppShell";
 import { SaveCurrentPage } from "@/components/account/SaveCurrentPage";
+import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
 import { THEME_INIT_SRC } from "@/components/theme/theme-script";
 import { INDEXING, SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -54,6 +56,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <Providers>
+          <ServiceWorkerRegistration />
           <AppShell>{children}</AppShell>
           <div className="fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
             <Suspense fallback={null}>
