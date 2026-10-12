@@ -4,6 +4,7 @@ using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.DataIntelligence;
 using RepBrasil.Application.Electoral;
+using RepBrasil.Application.ElectoralLive;
 using RepBrasil.Application.ElectionResults.Queries;
 using RepBrasil.Application.Interfaces;
 using RepBrasil.Application.Overview;
@@ -69,6 +70,8 @@ builder.Services.AddScoped<IPartyRepository, PartyRepository>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<IDataIntelligenceRepository, DataIntelligenceRepository>();
 builder.Services.AddScoped<DataIntelligenceService>();
+builder.Services.AddScoped<IElectoralLiveRepository, ElectoralLiveRepository>();
+builder.Services.AddScoped<ElectoralLiveService>();
 
 // Busca global (políticos, territórios, partidos, pleitos); o catálogo pequeno fica na memória do processo
 builder.Services.AddMemoryCache();
@@ -90,6 +93,8 @@ builder.Services.AddOutputCache(o =>
     // Dados eleitorais oficiais mudam só em cargas do ETL: 5 min de defasagem são aceitáveis. Varia pela consulta
     // inteira e pela origem (o CORS responde por origem) — nada de uma origem é servido a outra.
     o.AddPolicy(CachePolicies.PublicData, b => b.Expire(TimeSpan.FromMinutes(5)).SetVaryByQuery("*").SetVaryByHeader("Origin"));
+    // Durante a totalização, o snapshot oficial pode mudar rapidamente; o cache curto reduz carga sem congelar a apuração.
+    o.AddPolicy(CachePolicies.LiveData, b => b.Expire(TimeSpan.FromSeconds(15)).SetVaryByQuery("*").SetVaryByHeader("Origin"));
 });
 
 // Atrás do proxy do Railway: só o último salto de X-Forwarded-For/Proto é confiável (o que o proxy acrescenta).

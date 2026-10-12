@@ -49,6 +49,20 @@ function ResultsIcon({ className }: { className?: string }) {
   );
 }
 
+/** Pesquisas: série temporal neutra com observações publicadas. */
+function PollIcon({ className }: Readonly<{ className?: string }>) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 19h18" />
+      <path d="M5 16 9 11l4 2 6-7" />
+      <circle cx="5" cy="16" r="1" />
+      <circle cx="9" cy="11" r="1" />
+      <circle cx="13" cy="13" r="1" />
+      <circle cx="19" cy="6" r="1" />
+    </svg>
+  );
+}
+
 /** Partidos: grupo de pessoas (iconografia neutra — sem bandeira, estrela ou símbolo partidário). */
 function GroupIcon({ className }: { className?: string }) {
   return (
@@ -138,6 +152,7 @@ const NAV_SECTIONS = [
       { href: "/", label: "Início", Icon: HomeIcon, exact: true },
       { href: "/politicos", label: "Políticos", Icon: UserIcon, exact: false },
       { href: "/eleicoes", label: "Eleições", Icon: ResultsIcon, exact: false },
+      { href: "/pesquisas", label: "Pesquisas", Icon: PollIcon, exact: false },
       { href: "/partidos", label: "Partidos", Icon: GroupIcon, exact: false },
       { href: "/rankings", label: "Rankings", Icon: RankIcon, exact: false },
       { href: "/comparar", label: "Comparar", Icon: CompareIcon, exact: false },
