@@ -5,4 +5,7 @@ public static class CachePolicies
 {
     /// <summary>Leitura pública e cara (mapa, comparação, território, seções): 5 min, por consulta e origem.</summary>
     public const string PublicData = "public-data";
+
+    /// <summary>Snapshot oficial de apuração: janela curta para não mascarar novas atualizações da fonte.</summary>
+    public const string LiveData = "live-data";
 }
