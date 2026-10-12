@@ -45,6 +45,23 @@ def test_normalizes_official_registry_metadata_without_inventing_results() -> No
     assert record.scenarios == ()
 
 
+def test_accepts_timestamp_dates_from_current_official_pesqele_export() -> None:
+    content = _archive(
+        "NR_PROTOCOLO_REGISTRO;NM_EMPRESA;DS_CARGO;DT_INICIO_PESQUISA;"
+        "DT_FIM_PESQUISA;DT_DIVULGACAO;SG_UF;NM_UE\n"
+        "CE000042026;EMPRESA CE;Governador;2026-05-28 00:00:00;"
+        "2026-05-30 00:00:00;2026-05-31 00:00:00;CE;CE\n"
+    )
+
+    parsed = parse_poll_registry_archive(content, year=2026, uf_filter="CE")
+
+    record = parsed.rows[0]
+    assert record.field_start.isoformat() == "2026-05-28"
+    assert record.field_end.isoformat() == "2026-05-30"
+    assert record.published_at is not None
+    assert record.published_at.isoformat() == "2026-05-31T00:00:00-03:00"
+
+
 def test_can_filter_national_registry_rows() -> None:
     content = _archive(
         "NR_PROTOCOLO_REGISTRO;NM_EMPRESA;DS_CARGO;DT_INICIO_PESQUISA;"
