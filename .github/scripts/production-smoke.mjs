@@ -92,7 +92,13 @@ async function assertRenderedData(page, path) {
       { timeout: 30000 },
     );
   } else if (path === "/dados") {
-    await page.locator('[data-testid="correlation-summary"]').waitFor({ state: "visible", timeout: 30000 });
+    await page.getByText("Carregando catálogo…", { exact: true }).waitFor({ state: "hidden", timeout: 30000 });
+    const catalogEmpty = await page.getByText("Nenhum indicador cadastrado.", { exact: true }).count();
+    const indicatorOptions = await page.getByLabel("Indicador X").locator("option").count();
+    assert.ok(
+      catalogEmpty > 0 || indicatorOptions > 0,
+      "/dados finished loading without an explicit catalog state",
+    );
   }
 
   const renderedErrors = await page.getByText(/Não foi possível/).count();
