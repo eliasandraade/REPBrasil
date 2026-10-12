@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
@@ -17,6 +18,7 @@ class AmendmentRecord:
     beneficiary_document: str | None
     beneficiary_name: str | None
     locality: str | None
+    municipality_ibge_code: str | None
     committed_amount: Decimal | None
     paid_amount: Decimal | None
     raw: dict[str, str]
@@ -51,6 +53,14 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "Beneficiario",
     ),
     "locality": ("Localidade do Gasto", "Município", "Municipio", "Localidade"),
+    "municipality_ibge_code": (
+        "Código IBGE do Município",
+        "Codigo IBGE do Municipio",
+        "Código IBGE Município",
+        "Codigo IBGE Municipio",
+        "Código IBGE",
+        "Codigo IBGE",
+    ),
     "committed_amount": ("Valor Empenhado", "Valor Empenhado (R$)"),
     "paid_amount": ("Valor Pago", "Valor Pago (R$)"),
 }
@@ -96,6 +106,17 @@ def _money(raw: str | None) -> Decimal | None:
         raise ValueError(f"invalid amendments monetary value: {raw!r}") from exc
 
 
+def _municipality_code(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    digits = re.sub(r"\D", "", raw)
+    if not digits:
+        return None
+    if len(digits) != 7:
+        raise ValueError(f"invalid official municipality IBGE code: {raw!r}")
+    return digits
+
+
 def parse_amendments_csv(content: bytes, *, encoding: str = "utf-8-sig") -> list[AmendmentRecord]:
     try:
         text = content.decode(encoding)
@@ -133,6 +154,7 @@ def parse_amendments_csv(content: bytes, *, encoding: str = "utf-8-sig") -> list
                 beneficiary_document=_text(row, mapping, "beneficiary_document"),
                 beneficiary_name=_text(row, mapping, "beneficiary_name"),
                 locality=_text(row, mapping, "locality"),
+                municipality_ibge_code=_municipality_code(_text(row, mapping, "municipality_ibge_code")),
                 committed_amount=_money(_text(row, mapping, "committed_amount")),
                 paid_amount=_money(_text(row, mapping, "paid_amount")),
                 raw={str(k): str(v or "") for k, v in row.items() if k is not None},
