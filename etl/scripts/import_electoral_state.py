@@ -25,15 +25,15 @@ from src.electoral.open_data.store import import_prepared
 
 _UF_RE = re.compile(r"^[A-Z]{2}$")
 _URL_CREDENTIALS = re.compile(r"://[^/@\s]+@")
+_PROGRESS_FILE = "progress.json"
+_REPORT_FILE = "report.json"
 
 
 def _safe_error(exc: BaseException) -> str:
-    """Mensagem de falha para o arquivo de progresso, sem credenciais de URLs de conexão."""
     return _URL_CREDENTIALS.sub("://***@", f"{type(exc).__name__}: {exc}")[:2000]
 
 
 def _normalize_uf(value: str) -> str:
-    """UF de duas letras ASCII (nenhum valor livre chega a consultas, relatórios ou caminhos)."""
     uf = value.strip().upper()
     if not _UF_RE.fullmatch(uf):
         raise SystemExit(f"invalid UF {value!r}; expected two ASCII letters")
@@ -41,7 +41,6 @@ def _normalize_uf(value: str) -> str:
 
 
 def _validate_manifest(manifest: dict[str, Any], *, year: int, turn: int, uf: str) -> None:
-    """O manifesto precisa ser do recorte pedido e registrar o checksum oficial do TSE conferido."""
     scope = manifest.get("scope", {})
     expected = (year, turn, uf)
     actual = (
@@ -67,26 +66,32 @@ def _output_root() -> Path:
     return Path(configured).expanduser().resolve() if configured else Path.cwd().resolve()
 
 
-def _confined_output(path: Path, output_root: Path) -> Path:
+def _output_requested(requested: Path | None, *, output_root: Path, filename: str) -> bool:
+    if requested is None:
+        return False
     root = output_root.resolve()
-    candidate = path.resolve() if path.is_absolute() else (root / path).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise SystemExit(
-            f"output path {path!s} escapes REPBRASIL_IMPORT_OUTPUT_ROOT {root!s}"
-        ) from exc
-    return candidate
+    expected = (root / filename).resolve()
+    provided = requested.resolve() if requested.is_absolute() else (root / requested).resolve()
+    if provided != expected:
+        raise SystemExit(f"--{filename.removesuffix('.json')} must resolve exactly to {expected}")
+    return True
 
 
-def _write(path: Path | None, payload: dict[str, Any], *, output_root: Path) -> None:
-    if path is None:
-        return
-    destination = _confined_output(path, output_root)
+def _write_fixed(destination: Path, payload: dict[str, Any]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     tmp = destination.with_suffix(destination.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     tmp.replace(destination)
+
+
+def _write_progress(enabled: bool, payload: dict[str, Any], *, output_root: Path) -> None:
+    if enabled:
+        _write_fixed(output_root / _PROGRESS_FILE, payload)
+
+
+def _write_report(enabled: bool, payload: dict[str, Any], *, output_root: Path) -> None:
+    if enabled:
+        _write_fixed(output_root / _REPORT_FILE, payload)
 
 
 def _state_stats(conn, *, year: int, turn: int, uf: str) -> dict[str, int]:
@@ -160,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     output_root = _output_root()
+    progress_enabled = _output_requested(args.progress, output_root=output_root, filename=_PROGRESS_FILE)
+    report_enabled = _output_requested(args.report, output_root=output_root, filename=_REPORT_FILE)
 
     summary: dict[str, Any] = {
         "uf": args.uf,
@@ -193,11 +200,13 @@ def main(argv: list[str] | None = None) -> int:
             scope_index=scope_index,
             summary=summary,
             output_root=output_root,
+            progress_enabled=progress_enabled,
+            report_enabled=report_enabled,
         )
     except BaseException as exc:
         summary["status"] = "failed"
         summary["error"] = _safe_error(exc)
-        _write(args.progress, summary, output_root=output_root)
+        _write_progress(progress_enabled, summary, output_root=output_root)
         raise
 
 
@@ -209,6 +218,8 @@ def _run(
     scope_index: Any,
     summary: dict[str, Any],
     output_root: Path,
+    progress_enabled: bool,
+    report_enabled: bool,
 ) -> int:
     with electoral_db.connect(_database_url(args.database_url), autocommit=True) as conn:
         protected_before = _state_stats(conn, year=args.year, turn=args.turn, uf=protect_uf) if protect_uf else None
@@ -249,7 +260,7 @@ def _run(
                 summary["vote_records_imported"] += int(report["vote_records"])
                 summary["votes_imported"] += sum(int(item["votes_total"]) for item in report["offices"].values())
             summary["progress"] = {"done": index, "total": len(pairs)}
-            _write(args.progress, summary, output_root=output_root)
+            _write_progress(progress_enabled, summary, output_root=output_root)
 
         if args.link_votables:
             summary["link"] = link_votables(conn, year=args.year, turn=args.turn, uf=uf)
@@ -266,13 +277,13 @@ def _run(
                 "unchanged": protected_before == protected_after,
             }
             if protected_before != protected_after:
-                _write(args.report, summary, output_root=output_root)
+                _write_report(report_enabled, summary, output_root=output_root)
                 print(json.dumps(summary, ensure_ascii=False))
                 return 1
 
     summary["status"] = "succeeded"
-    _write(args.progress, summary, output_root=output_root)
-    _write(args.report, summary, output_root=output_root)
+    _write_progress(progress_enabled, summary, output_root=output_root)
+    _write_report(report_enabled, summary, output_root=output_root)
     print(json.dumps(summary, ensure_ascii=False))
     return 0
 
