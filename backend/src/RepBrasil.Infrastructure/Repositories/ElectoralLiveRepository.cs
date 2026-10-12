@@ -22,13 +22,21 @@ public sealed class ElectoralLiveRepository(ApplicationDbContext db) : IElectora
                      p.published_at, p.sample_size, p.margin_error_pp, p.confidence_level,
                      p.methodology, p.source_id
                 FROM electoral.poll p
-                JOIN electoral.election e ON e.id = p.election_id
                 LEFT JOIN electoral.municipality m ON m.id = p.municipality_id
-               WHERE e.year = {0} AND e.round = {1} AND p.office_code = {2}
+               WHERE p.year = {0} AND p.office_code = {2}
                  AND (
                    ({4} <> '' AND p.state_code = {3} AND m.tse_code = {4})
                    OR ({4} = '' AND {3} <> '' AND p.municipality_id IS NULL AND p.state_code = {3})
                    OR ({4} = '' AND {3} = '' AND p.municipality_id IS NULL AND p.state_code IS NULL)
+                 )
+                 AND (
+                   NOT EXISTS (
+                     SELECT 1 FROM electoral.poll_scenario sx WHERE sx.poll_id = p.id
+                   )
+                   OR EXISTS (
+                     SELECT 1 FROM electoral.poll_scenario sx
+                      WHERE sx.poll_id = p.id AND (sx.round IS NULL OR sx.round = {1})
+                   )
                  )
             ), latest AS (
               SELECT DISTINCT ON (s.registration_number) s.id
@@ -50,7 +58,8 @@ public sealed class ElectoralLiveRepository(ApplicationDbContext db) : IElectora
               JOIN electoral.poll p ON p.id = l.id
               JOIN electoral.poll_source src ON src.id = p.source_id
               JOIN electoral.poll_institute i ON i.id = p.institute_id
-              LEFT JOIN electoral.poll_scenario sc ON sc.poll_id = p.id
+              LEFT JOIN electoral.poll_scenario sc
+                ON sc.poll_id = p.id AND (sc.round IS NULL OR sc.round = {1})
               LEFT JOIN electoral.poll_result r ON r.scenario_id = sc.id
              ORDER BY p.field_end DESC, p.registration_number, sc.scenario_order NULLS LAST, r.option_order NULLS LAST
             """, ct, year, round, office, uf ?? "", municipalityTseCode ?? "");
