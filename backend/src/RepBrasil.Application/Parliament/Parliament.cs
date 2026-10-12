@@ -60,7 +60,7 @@ public sealed record AmendmentMunicipalityDto(
 public interface IParliamentRepository
 {
     Task<IReadOnlyList<ParliamentMemberDto>> MembersAsync(string? uf, string? institution, CancellationToken ct);
-    Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, int limit, CancellationToken ct);
+    Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, string? uf, int limit, CancellationToken ct);
     Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct);
     Task<IReadOnlyList<AmendmentMunicipalityDto>> AmendmentMapAsync(int? year, string uf, CancellationToken ct);
 }
@@ -72,10 +72,10 @@ public sealed class ParliamentService(IParliamentRepository repository)
     public Task<IReadOnlyList<ParliamentMemberDto>> MembersAsync(string? uf, string? institution, CancellationToken ct) =>
         repository.MembersAsync(NormalizeUf(uf), NormalizeInstitution(institution), ct);
 
-    public Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, int limit, CancellationToken ct)
+    public Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, string? uf, int limit, CancellationToken ct)
     {
         if (memberId is <= 0) throw new ArgumentOutOfRangeException(nameof(memberId));
-        return repository.ActivitiesAsync(memberId, NormalizeInstitution(institution), NormalizeLimit(limit), ct);
+        return repository.ActivitiesAsync(memberId, NormalizeInstitution(institution), NormalizeUf(uf), NormalizeLimit(limit), ct);
     }
 
     public Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct)
