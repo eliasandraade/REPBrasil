@@ -9,6 +9,7 @@ namespace RepBrasil.API.Controllers;
 public sealed class AccountController(AccountService accounts, AuthExternalService external, IConfiguration configuration) : ControllerBase
 {
     private const string SessionCookie = "repbrasil_session";
+    private const string GoogleCorrelationCookie = "repbrasil_google_state";
 
     [HttpPost("auth/magic-link")]
     public async Task<IActionResult> RequestMagicLink([FromBody] MagicLinkRequest request, CancellationToken cancellationToken)
@@ -44,6 +45,9 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         try
         {
             var state = await accounts.CreateGoogleStateAsync(returnTo, cancellationToken);
+            var options = CorrelationCookieOptions();
+            options.Expires = DateTimeOffset.UtcNow.AddMinutes(10);
+            Response.Cookies.Append(GoogleCorrelationCookie, state, options);
             return Redirect(external.BuildGoogleAuthorizeUrl(state));
         }
         catch (InvalidOperationException)
@@ -57,6 +61,12 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
     {
         if (!string.IsNullOrWhiteSpace(error) || string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
             return Redirect(external.FrontendRedirect("/entrar?erro=google-cancelado").AbsoluteUri);
+
+        var correlation = Request.Cookies.TryGetValue(GoogleCorrelationCookie, out var storedState) ? storedState : null;
+        Response.Cookies.Delete(GoogleCorrelationCookie, CorrelationCookieOptions());
+        if (!AccountService.SecureEquals(correlation, state))
+            return Redirect(external.FrontendRedirect("/entrar?erro=estado-invalido").AbsoluteUri);
+
         var returnTo = await accounts.ConsumeGoogleStateAsync(state, cancellationToken);
         if (returnTo is null) return Redirect(external.FrontendRedirect("/entrar?erro=estado-invalido").AbsoluteUri);
         try
@@ -95,7 +105,7 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         var session = await RequireMutationSession(cancellationToken);
         if (session is null) return Unauthorized();
         if (Request.Cookies.TryGetValue(SessionCookie, out var token)) await accounts.RevokeSessionAsync(token, cancellationToken);
-        Response.Cookies.Delete(SessionCookie, CookieOptions());
+        Response.Cookies.Delete(SessionCookie, SessionCookieOptions());
         return NoContent();
     }
 
@@ -230,20 +240,38 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
 
     private void SetSessionCookie(string token, DateTimeOffset expiresAt)
     {
-        var options = CookieOptions();
+        var options = SessionCookieOptions();
         options.Expires = expiresAt;
         Response.Cookies.Append(SessionCookie, token, options);
     }
 
-    private CookieOptions CookieOptions() => new()
+    private CookieOptions SessionCookieOptions()
+    {
+        var sameSite = ParseSameSite(configuration["Auth:CookieSameSite"]);
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = sameSite == SameSiteMode.None || !HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment(),
+            SameSite = sameSite,
+            Path = "/",
+            Domain = string.IsNullOrWhiteSpace(configuration["Auth:CookieDomain"]) ? null : configuration["Auth:CookieDomain"],
+            IsEssential = true
+        };
+    }
+
+    private CookieOptions CorrelationCookieOptions() => new()
     {
         HttpOnly = true,
         Secure = !HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment(),
         SameSite = SameSiteMode.Lax,
-        Path = "/",
-        Domain = string.IsNullOrWhiteSpace(configuration["Auth:CookieDomain"]) ? null : configuration["Auth:CookieDomain"],
+        Path = "/api/v1/auth/google",
         IsEssential = true
     };
+
+    private static SameSiteMode ParseSameSite(string? configured) =>
+        string.Equals(configured, "None", StringComparison.OrdinalIgnoreCase) ? SameSiteMode.None :
+        string.Equals(configured, "Strict", StringComparison.OrdinalIgnoreCase) ? SameSiteMode.Strict :
+        SameSiteMode.Lax;
 
     public sealed record MagicLinkRequest(string Email, string? ReturnTo);
     public sealed record SaveItemRequest(string Collection, string ResourceType, string ResourceKey, string? Label, string? Href, JsonElement? Metadata);
