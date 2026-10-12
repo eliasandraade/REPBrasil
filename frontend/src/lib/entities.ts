@@ -3,12 +3,12 @@ import type { MunicipalityDetailResponse, StateItem } from "./elections/types";
 import type { OfficeRef } from "./overview";
 
 export const PREFERRED_INDICATOR_CODES = [
-  "population",
-  "illiteracy_rate_15_plus",
-  "literacy_rate_15_plus",
-  "gdp_per_capita",
-  "gdp",
-  "idhm",
+  "ibge.population",
+  "derived.illiteracy_rate_15_plus",
+  "ibge.literacy_rate_15_plus",
+  "derived.gdp_per_capita",
+  "ibge.gdp_total",
+  "atlas.idhm",
 ] as const;
 
 export interface StateElectionSnapshot {
