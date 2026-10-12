@@ -206,8 +206,8 @@ def load_amendments(
             INSERT INTO electoral.parliament_amendment
                 (external_id, author_member_id, author_name, year, amendment_type,
                  functional_programming, beneficiary_document, beneficiary_name,
-                 locality, committed_amount, paid_amount, source_id, raw)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                 locality, municipality_ibge_code, committed_amount, paid_amount, source_id, raw)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
             ON CONFLICT (external_id, source_id) DO UPDATE SET
                 author_member_id = EXCLUDED.author_member_id,
                 author_name = EXCLUDED.author_name,
@@ -217,6 +217,7 @@ def load_amendments(
                 beneficiary_document = EXCLUDED.beneficiary_document,
                 beneficiary_name = EXCLUDED.beneficiary_name,
                 locality = EXCLUDED.locality,
+                municipality_ibge_code = EXCLUDED.municipality_ibge_code,
                 committed_amount = EXCLUDED.committed_amount,
                 paid_amount = EXCLUDED.paid_amount,
                 raw = EXCLUDED.raw
@@ -231,6 +232,7 @@ def load_amendments(
                 row.beneficiary_document,
                 row.beneficiary_name,
                 row.locality,
+                row.municipality_ibge_code,
                 row.committed_amount,
                 row.paid_amount,
                 source_id,
