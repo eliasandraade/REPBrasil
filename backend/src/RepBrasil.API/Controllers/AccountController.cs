@@ -10,6 +10,7 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
 {
     private const string SessionCookie = "repbrasil_session";
     private const string GoogleCorrelationCookie = "repbrasil_google_state";
+    private const string MagicLinkCorrelationCookie = "repbrasil_magic_link";
 
     [HttpPost("auth/magic-link")]
     public async Task<IActionResult> RequestMagicLink([FromBody] MagicLinkRequest request, CancellationToken cancellationToken)
@@ -17,6 +18,9 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         try
         {
             var challenge = await accounts.CreateMagicLinkChallengeAsync(request.Email, request.ReturnTo, cancellationToken);
+            var options = MagicLinkCorrelationCookieOptions();
+            options.Expires = challenge.ExpiresAt;
+            Response.Cookies.Append(MagicLinkCorrelationCookie, challenge.Token, options);
             await external.SendMagicLinkAsync(challenge, cancellationToken);
             return Accepted(new { status = "accepted" });
         }
@@ -26,6 +30,7 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         }
         catch (InvalidOperationException)
         {
+            Response.Cookies.Delete(MagicLinkCorrelationCookie, MagicLinkCorrelationCookieOptions());
             return Problem("O login por e-mail está temporariamente indisponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
     }
@@ -33,6 +38,11 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
     [HttpGet("auth/magic-link/consume")]
     public async Task<IActionResult> ConsumeMagicLink([FromQuery] string token, CancellationToken cancellationToken)
     {
+        var correlation = Request.Cookies.TryGetValue(MagicLinkCorrelationCookie, out var storedToken) ? storedToken : null;
+        Response.Cookies.Delete(MagicLinkCorrelationCookie, MagicLinkCorrelationCookieOptions());
+        if (!AccountService.SecureEquals(correlation, token))
+            return Redirect(external.FrontendRedirect("/entrar?erro=link-invalido").AbsoluteUri);
+
         var result = await accounts.ConsumeMagicLinkAsync(token, Request.Headers.UserAgent.ToString(), HttpContext.Connection.RemoteIpAddress?.ToString(), cancellationToken);
         if (result is null) return Redirect(external.FrontendRedirect("/entrar?erro=link-invalido").AbsoluteUri);
         SetSessionCookie(result.Value.SessionToken, result.Value.Session.ExpiresAt);
@@ -45,7 +55,7 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         try
         {
             var state = await accounts.CreateGoogleStateAsync(returnTo, cancellationToken);
-            var options = CorrelationCookieOptions();
+            var options = GoogleCorrelationCookieOptions();
             options.Expires = DateTimeOffset.UtcNow.AddMinutes(10);
             Response.Cookies.Append(GoogleCorrelationCookie, state, options);
             return Redirect(external.BuildGoogleAuthorizeUrl(state));
@@ -63,7 +73,7 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
             return Redirect(external.FrontendRedirect("/entrar?erro=google-cancelado").AbsoluteUri);
 
         var correlation = Request.Cookies.TryGetValue(GoogleCorrelationCookie, out var storedState) ? storedState : null;
-        Response.Cookies.Delete(GoogleCorrelationCookie, CorrelationCookieOptions());
+        Response.Cookies.Delete(GoogleCorrelationCookie, GoogleCorrelationCookieOptions());
         if (!AccountService.SecureEquals(correlation, state))
             return Redirect(external.FrontendRedirect("/entrar?erro=estado-invalido").AbsoluteUri);
 
@@ -259,12 +269,21 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         };
     }
 
-    private CookieOptions CorrelationCookieOptions() => new()
+    private CookieOptions GoogleCorrelationCookieOptions() => new()
     {
         HttpOnly = true,
         Secure = !HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment(),
         SameSite = SameSiteMode.Lax,
         Path = "/api/v1/auth/google",
+        IsEssential = true
+    };
+
+    private CookieOptions MagicLinkCorrelationCookieOptions() => new()
+    {
+        HttpOnly = true,
+        Secure = !HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment(),
+        SameSite = SameSiteMode.Lax,
+        Path = "/api/v1/auth/magic-link",
         IsEssential = true
     };
 
