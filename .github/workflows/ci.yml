@@ -160,6 +160,7 @@ jobs:
           src/sources/tse/polls.py src/sources/tse/live_results.py
           tests/sources/ibge/test_sidra.py tests/sources/test_atlas.py tests/pipeline/test_socioeconomic.py
           tests/sources/camara/test_activity.py tests/sources/transparencia/test_amendments.py
-          scripts/ingest_live_results.py scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
+          scripts/ingest_poll_registry.py scripts/ingest_live_results.py
+          scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
       - name: Test (DB tests skip without database)
         run: uv run --frozen --no-sync --no-build pytest -q
