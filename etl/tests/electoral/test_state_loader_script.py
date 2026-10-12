@@ -83,10 +83,13 @@ def test_failure_message_never_carries_connection_credentials() -> None:
     assert "s3cret" not in message and "postgresql://***@db.internal" in message
 
 
-def test_preprocessing_failures_are_recorded_in_the_progress_file(tmp_path: Path) -> None:
+def test_preprocessing_failures_are_recorded_in_the_progress_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Regressão (review do PR #16): UF/manifesto inválidos falham ANTES da carga e mesmo assim ficam no progresso."""
     import json
 
+    monkeypatch.setenv("REPBRASIL_IMPORT_OUTPUT_ROOT", str(tmp_path))
     loader = _loader()
     progress = tmp_path / "progress.json"
     progress.write_text(json.dumps({"status": "succeeded", "progress": {"done": 9, "total": 9}}), encoding="utf-8")
