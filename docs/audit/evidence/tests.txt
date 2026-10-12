@@ -1,0 +1,32 @@
+
+> repbrasil-frontend@0.1.0 test
+> vitest run
+
+
+ RUN  v3.2.4 C:/Users/Elias/Documents/REPBrasil-astra-audit/frontend
+
+ ✓ tests/elections-lib.test.ts (7 tests) 29ms
+ ✓ tests/seo.test.ts (9 tests) 203ms
+ ✓ tests/ui.test.tsx (5 tests) 156ms
+ ✓ tests/section-results.test.tsx (8 tests) 228ms
+ ✓ tests/search.test.tsx (9 tests) 345ms
+stderr | tests/motion.test.tsx > home > os números de cobertura chegam prontos (sem contagem) e vêm do que está importado
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\Elias\Documents\REPBrasil-astra-audit\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\Elias\Documents\REPBrasil-astra-audit\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\Elias\Documents\REPBrasil-astra-audit\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\Elias\Documents\REPBrasil-astra-audit\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:588:17)
+    at processTimers (node:internal/timers:523:7) undefined
+
+ ✓ tests/electoral-tab.test.tsx (25 tests) 966ms
+ ✓ tests/explorer.test.tsx (13 tests) 1779ms
+   ✓ explorador eleitoral > falha da API não vira lista vazia nem zero  1054ms
+ ✓ tests/motion.test.tsx (30 tests) 1619ms
+   ✓ home > sem a cobertura, diz o que houve e oferece tentar de novo (o resto da página continua)  1066ms
+
+ Test Files  8 passed (8)
+      Tests  106 passed (106)
+   Start at  14:35:56
+   Duration  22.32s (transform 1.71s, setup 24.05s, collect 6.24s, tests 5.33s, environment 69.65s, prepare 59.02s)
+

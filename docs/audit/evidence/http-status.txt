@@ -1,0 +1,7 @@
+/ 200
+/eleicoes 200
+/eleicoes/2026/1/ce 200
+/politicos/ciro-gomes 200
+/eleicoes/comparar 200
+/eleicoes/1900/1 404
+/login 404

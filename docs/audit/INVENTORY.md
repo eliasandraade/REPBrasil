@@ -1,0 +1,107 @@
+# Inventário completo do delta agregado
+
+A = adicionado; M = modificado; D = removido. Baseline 3e97d8d → snapshot c56dabf. Consulte o limite de atribuição no relatório principal.
+
+## Design system e estados
+
+- **M** `frontend/src/app/globals.css`
+- **M** `frontend/src/components/ui/DataState.tsx`
+- **M** `frontend/src/components/ui/SourceBadge.tsx`
+- **D** `frontend/src/components/ui/button.tsx`
+- **M** `frontend/tailwind.config.ts`
+
+## Documentação e evidência anterior
+
+- **A** `DESIGN.md`
+- **A** `PRODUCT.md`
+- **A** `docs/audits/EXPERIENCE_REIMAGINED.md`
+- **A** `docs/audits/screenshots/repbrasil-camadas-mobile.jpg`
+- **A** `docs/audits/screenshots/repbrasil-desktop-com-dados.jpg`
+- **A** `docs/audits/screenshots/repbrasil-desktop.jpg`
+- **A** `docs/audits/screenshots/repbrasil-mobile.jpg`
+
+## Home
+
+- **M** `frontend/src/app/page.tsx`
+- **A** `frontend/src/components/home/BrazilWorkspace.tsx`
+- **M** `frontend/src/components/home/HomeCoverage.tsx`
+
+## Layout, navegação e busca
+
+- **M** `frontend/src/components/layout/AppShell.tsx`
+- **M** `frontend/src/components/search/GlobalSearch.tsx`
+
+## Mapa, explorador e comparação
+
+- **M** `frontend/src/app/eleicoes/[year]/[round]/[[...path]]/page.tsx`
+- **A** `frontend/src/app/eleicoes/[year]/[round]/layout.tsx`
+- **M** `frontend/src/app/eleicoes/page.tsx`
+- **M** `frontend/src/components/elections/CompareTools.tsx`
+- **M** `frontend/src/components/elections/ComparisonView.tsx`
+- **M** `frontend/src/components/elections/ElectionsExplorer.tsx`
+- **M** `frontend/src/components/elections/ExplorerPanels.tsx`
+- **M** `frontend/src/components/elections/ExplorerTools.tsx`
+- **M** `frontend/src/components/elections/SectionResults.tsx`
+- **M** `frontend/src/components/elections/TerritoryCandidates.tsx`
+- **M** `frontend/src/components/elections/TerritoryMap.tsx`
+- **M** `frontend/src/lib/elections/map-layers.ts`
+
+## Marca, ativos e fonte
+
+- **A** `docs/brand/REPBrasil_Brand_Kit_Official/REPBrasil_Brand_Kit.md`
+- **A** `docs/brand/REPBrasil_Brand_Kit_Official/assets/brand-applications.png`
+- **A** `docs/brand/REPBrasil_Brand_Kit_Official/assets/brand-content-media.png`
+- **A** `docs/brand/REPBrasil_Brand_Kit_Official/assets/brand-guidelines.png`
+- **A** `docs/brand/REPBrasil_Brand_Kit_Official/assets/brand-product-digital.png`
+- **A** `docs/brand/REPBrasil_Brand_Kit_Official/repbrasil-design-tokens.json`
+- **A** `docs/brand/REPBrasil_Brand_Kit_Official/repbrasil-tokens.css`
+- **A** `frontend/public/brand/favicon.png`
+- **A** `frontend/public/brand/micro.png`
+- **A** `frontend/public/brand/official-guidelines.png`
+- **A** `frontend/public/brand/provenance.json`
+- **A** `frontend/public/brand/wordmark.png`
+- **A** `frontend/public/fonts/Inter-LICENSE.txt`
+- **A** `frontend/public/fonts/InterVariable.woff2`
+- **A** `frontend/scripts/extract-official-brand.mjs`
+- **A** `frontend/src/app/icon.png`
+- **D** `frontend/src/app/icon.svg`
+- **M** `frontend/src/components/brand/BrandMark.tsx`
+
+## Motion
+
+- **M** `frontend/src/motion/motion.css`
+- **M** `frontend/src/motion/tokens.ts`
+
+## Páginas auxiliares
+
+- **M** `frontend/src/app/glossario/page.tsx`
+- **M** `frontend/src/app/manifesto/page.tsx`
+- **M** `frontend/src/app/not-found.tsx`
+- **M** `frontend/src/app/suporte/page.tsx`
+
+## Perfis e visualização de dados
+
+- **M** `frontend/src/app/politicos/page.tsx`
+- **M** `frontend/src/components/politicians/PoliticianCard.tsx`
+- **M** `frontend/src/components/politicians/PoliticianPage.tsx`
+- **M** `frontend/src/components/politicians/PoliticianProfile.tsx`
+- **M** `frontend/src/components/politicians/ProfileHeader.tsx`
+- **M** `frontend/src/components/politicians/ProfileOverview.tsx`
+- **M** `frontend/src/components/politicians/ProfileTabs.tsx`
+- **M** `frontend/src/components/politicians/tabs/AssetsTab.tsx`
+- **M** `frontend/src/components/politicians/tabs/CamaraTab.tsx`
+- **M** `frontend/src/components/politicians/tabs/ElectionTab.tsx`
+- **M** `frontend/src/components/politicians/tabs/MetadataTab.tsx`
+- **M** `frontend/src/components/politicians/tabs/OverviewTab.tsx`
+- **M** `frontend/src/components/politicians/tabs/ScoreTab.tsx`
+- **M** `frontend/src/components/xray/CandidacyPanels.tsx`
+- **M** `frontend/src/components/xray/InsightList.tsx`
+- **M** `frontend/src/components/xray/XrayTimeline.tsx`
+
+## Testes
+
+- **M** `frontend/tests/electoral-tab.test.tsx`
+- **M** `frontend/tests/explorer.test.tsx`
+- **M** `frontend/tests/motion.test.tsx`
+
+Responsividade é transversal a globals.css, AppShell, ExplorerTools, ElectionsExplorer, ProfileHeader e páginas de perfil. Auth: nenhuma alteração ou nova implementação.

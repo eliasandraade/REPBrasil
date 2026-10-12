@@ -1,0 +1,73 @@
+ DESIGN.md                                          |   29 +
+ PRODUCT.md                                         |   33 +
+ docs/audits/EXPERIENCE_REIMAGINED.md               |   82 ++
+ .../screenshots/repbrasil-camadas-mobile.jpg       |  Bin 0 -> 34476 bytes
+ .../screenshots/repbrasil-desktop-com-dados.jpg    |  Bin 0 -> 62850 bytes
+ docs/audits/screenshots/repbrasil-desktop.jpg      |  Bin 0 -> 64989 bytes
+ docs/audits/screenshots/repbrasil-mobile.jpg       |  Bin 0 -> 28686 bytes
+ .../REPBrasil_Brand_Kit.md                         |  495 +++++++++
+ .../assets/brand-applications.png                  |  Bin 0 -> 2144056 bytes
+ .../assets/brand-content-media.png                 |  Bin 0 -> 1815678 bytes
+ .../assets/brand-guidelines.png                    |  Bin 0 -> 1461068 bytes
+ .../assets/brand-product-digital.png               |  Bin 0 -> 1926164 bytes
+ .../repbrasil-design-tokens.json                   |   62 ++
+ .../repbrasil-tokens.css                           |   48 +
+ frontend/public/brand/favicon.png                  |  Bin 0 -> 6018 bytes
+ frontend/public/brand/micro.png                    |  Bin 0 -> 10444 bytes
+ frontend/public/brand/official-guidelines.png      |  Bin 0 -> 1461068 bytes
+ frontend/public/brand/provenance.json              |   25 +
+ frontend/public/brand/wordmark.png                 |  Bin 0 -> 94238 bytes
+ frontend/public/fonts/Inter-LICENSE.txt            |   92 ++
+ frontend/public/fonts/InterVariable.woff2          |  Bin 0 -> 352240 bytes
+ frontend/scripts/extract-official-brand.mjs        |   31 +
+ .../eleicoes/[year]/[round]/[[...path]]/page.tsx   |   17 +-
+ .../src/app/eleicoes/[year]/[round]/layout.tsx     |   39 +
+ frontend/src/app/eleicoes/page.tsx                 |   21 +-
+ frontend/src/app/globals.css                       | 1046 +++++++++++++++++++-
+ frontend/src/app/glossario/page.tsx                |    9 +-
+ frontend/src/app/icon.png                          |  Bin 0 -> 6018 bytes
+ frontend/src/app/icon.svg                          |    7 -
+ frontend/src/app/manifesto/page.tsx                |    8 +-
+ frontend/src/app/not-found.tsx                     |    2 +-
+ frontend/src/app/page.tsx                          |  137 +--
+ frontend/src/app/politicos/page.tsx                |   21 +-
+ frontend/src/app/suporte/page.tsx                  |   12 +-
+ frontend/src/components/brand/BrandMark.tsx        |   45 +-
+ frontend/src/components/elections/CompareTools.tsx |    4 +-
+ .../src/components/elections/ComparisonView.tsx    |   22 +-
+ .../src/components/elections/ElectionsExplorer.tsx |   25 +-
+ .../src/components/elections/ExplorerPanels.tsx    |    4 +-
+ .../src/components/elections/ExplorerTools.tsx     |   10 +-
+ .../src/components/elections/SectionResults.tsx    |    8 +-
+ .../components/elections/TerritoryCandidates.tsx   |    4 +-
+ frontend/src/components/elections/TerritoryMap.tsx |   46 +-
+ frontend/src/components/home/BrazilWorkspace.tsx   |  368 +++++++
+ frontend/src/components/home/HomeCoverage.tsx      |   12 +-
+ frontend/src/components/layout/AppShell.tsx        |  288 ++----
+ .../src/components/politicians/PoliticianCard.tsx  |    2 +-
+ .../src/components/politicians/PoliticianPage.tsx  |   16 +-
+ .../components/politicians/PoliticianProfile.tsx   |    2 +-
+ .../src/components/politicians/ProfileHeader.tsx   |   13 +-
+ .../src/components/politicians/ProfileOverview.tsx |    4 +-
+ .../src/components/politicians/ProfileTabs.tsx     |    4 +-
+ .../src/components/politicians/tabs/AssetsTab.tsx  |   10 +-
+ .../src/components/politicians/tabs/CamaraTab.tsx  |    2 +-
+ .../components/politicians/tabs/ElectionTab.tsx    |    4 +-
+ .../components/politicians/tabs/MetadataTab.tsx    |   10 +-
+ .../components/politicians/tabs/OverviewTab.tsx    |    6 +-
+ .../src/components/politicians/tabs/ScoreTab.tsx   |    6 +-
+ frontend/src/components/search/GlobalSearch.tsx    |    8 +-
+ frontend/src/components/ui/DataState.tsx           |   14 +-
+ frontend/src/components/ui/SourceBadge.tsx         |    2 +-
+ frontend/src/components/ui/button.tsx              |   35 -
+ frontend/src/components/xray/CandidacyPanels.tsx   |   10 +-
+ frontend/src/components/xray/InsightList.tsx       |    4 +-
+ frontend/src/components/xray/XrayTimeline.tsx      |   16 +-
+ frontend/src/lib/elections/map-layers.ts           |    2 +-
+ frontend/src/motion/motion.css                     |    4 +-
+ frontend/src/motion/tokens.ts                      |    2 +-
+ frontend/tailwind.config.ts                        |   21 +-
+ frontend/tests/electoral-tab.test.tsx              |    6 +-
+ frontend/tests/explorer.test.tsx                   |   18 +
+ frontend/tests/motion.test.tsx                     |   51 +-
+ 72 files changed, 2638 insertions(+), 686 deletions(-)

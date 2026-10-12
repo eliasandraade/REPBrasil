@@ -1,0 +1,20 @@
+c56dabf (HEAD -> audit/astra-redesign-v1, codex/repbrasil-experience) chore: preserve Astra redesign state for audit
+3e97d8d (origin/feat/product-readiness-review, feat/product-readiness-review) feat(web): glossary terms, one source badge and one vocabulary of data states
+c1cd57a feat(web): comparison — build it on the page, share it, export it
+23e6de8 feat(web): elections — switch election in place, real 404, cleaner UF list
+7555f83 fix: Sonar and GitGuardian findings on the product-readiness branch
+43412ac style: one element per line in multi-line collections (CI dotnet format)
+5bb50e2 feat(web): /politicos/<slug>, SEO only with explicit indexing, electoral profile
+85961e2 feat(api): permanent politician slugs, latest candidacy and readable insights
+102ae9e feat(api): harden the HTTP pipeline — errors, headers, limits, cache, health
+3136609 feat: home explains the product with what is actually imported
+fc90152 feat(web): global search everywhere — "/" or Ctrl+K, sidebar and mobile bar
+f5da3cf feat(search): global search for politicians, places, parties and elections
+a3ab4c1 fix(etl): lowercase particles of renamed places without adopting the new name
+18fcbc3 feat(map): keep the map framed on resize and add zoom/refit controls
+860fb35 feat: official spelling of place and person names ("Juazeiro do Norte")
+9b2c9e8 feat(web): brand mark, app icon and Portuguese 404/error pages
+5129706 (origin/feat/product-readiness) feat: add Ceará electoral x-ray for 2022, 2024 and 2026
+eb234e4 fix: make statewide electoral loader directly executable (#6)
+e4045aa feat: generalize statewide electoral loading (#5)
+3ab5c84 feat: enable multi-UF electoral intelligence (#3)

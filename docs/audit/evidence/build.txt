@@ -1,0 +1,46 @@
+
+> repbrasil-frontend@0.1.0 prebuild
+> node scripts/copy-maplibre-worker.mjs
+
+maplibre worker 6.13.0 → public/maplibre/
+
+> repbrasil-frontend@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.18
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 20.0s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/13) ...
+   Generating static pages (3/13) 
+   Generating static pages (6/13) 
+   Generating static pages (9/13) 
+ ✓ Generating static pages (13/13)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                  Size  First Load JS  Revalidate  Expire
+┌ ○ /                                     5.85 kB         129 kB
+├ ○ /_not-found                             144 B         103 kB
+├ ○ /eleicoes                             2.09 kB         120 kB
+├ ƒ /eleicoes/[year]/[round]/[[...path]]    144 B         103 kB
+├ ○ /eleicoes/comparar                    6.96 kB         127 kB
+├ ○ /glossario                              144 B         103 kB
+├ ○ /icon.png                                 0 B            0 B
+├ ○ /manifesto                              161 B         106 kB
+├ ○ /politicos                            5.76 kB         120 kB
+├ ƒ /politicos/[slug]                     25.1 kB         145 kB
+├ ○ /robots.txt                             144 B         103 kB
+├ ○ /sitemap.xml                            144 B         103 kB          1h      1y
+└ ○ /suporte                              4.38 kB         110 kB
++ First Load JS shared by all              103 kB
+  ├ chunks/493-38dd501cd76b5ad2.js        46.2 kB
+  ├ chunks/4bd1b696-c023c6e3521b1417.js   54.2 kB
+  └ other shared chunks (total)           2.05 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
