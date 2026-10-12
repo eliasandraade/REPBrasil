@@ -1,0 +1,118 @@
+namespace RepBrasil.Application.Parliament;
+
+public sealed record ParliamentMemberDto(
+    long Id,
+    string Institution,
+    string ExternalId,
+    string Name,
+    string? ParliamentaryName,
+    string? StateCode,
+    string? PartyAcronym,
+    string? PhotoUrl,
+    string IdentityMethod,
+    string Provider,
+    string Dataset,
+    string SourceUrl,
+    DateTimeOffset RetrievedAt);
+
+public sealed record ParliamentActivityDto(
+    long Id,
+    long MemberId,
+    string Institution,
+    string ActivityType,
+    string ExternalId,
+    DateTimeOffset? OccurredAt,
+    string? Title,
+    string? Description,
+    string? SourceUrl,
+    string Provider,
+    string Dataset,
+    string DatasetSourceUrl,
+    DateTimeOffset RetrievedAt);
+
+public sealed record ParliamentAmendmentDto(
+    long Id,
+    string ExternalId,
+    long? AuthorMemberId,
+    string? AuthorName,
+    int? Year,
+    string? AmendmentType,
+    string? FunctionalProgramming,
+    string? BeneficiaryDocument,
+    string? BeneficiaryName,
+    string? Locality,
+    string? MunicipalityIbgeCode,
+    decimal? CommittedAmount,
+    decimal? PaidAmount,
+    string Provider,
+    string Dataset,
+    string SourceUrl,
+    DateTimeOffset RetrievedAt);
+
+public sealed record AmendmentMunicipalityDto(
+    string MunicipalityIbgeCode,
+    string MunicipalityName,
+    int AmendmentCount,
+    decimal? CommittedAmount,
+    decimal? PaidAmount,
+    DateTimeOffset RetrievedAt);
+
+public interface IParliamentRepository
+{
+    Task<IReadOnlyList<ParliamentMemberDto>> MembersAsync(string? uf, string? institution, CancellationToken ct);
+    Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, int limit, CancellationToken ct);
+    Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct);
+    Task<IReadOnlyList<AmendmentMunicipalityDto>> AmendmentMapAsync(int? year, string uf, CancellationToken ct);
+}
+
+public sealed class ParliamentService(IParliamentRepository repository)
+{
+    private static readonly HashSet<string> Institutions = new(StringComparer.OrdinalIgnoreCase) { "camara", "senado", "alece" };
+
+    public Task<IReadOnlyList<ParliamentMemberDto>> MembersAsync(string? uf, string? institution, CancellationToken ct) =>
+        repository.MembersAsync(NormalizeUf(uf), NormalizeInstitution(institution), ct);
+
+    public Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, int limit, CancellationToken ct)
+    {
+        if (memberId is <= 0) throw new ArgumentOutOfRangeException(nameof(memberId));
+        return repository.ActivitiesAsync(memberId, NormalizeInstitution(institution), NormalizeLimit(limit), ct);
+    }
+
+    public Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct)
+    {
+        ValidateYear(year);
+        if (memberId is <= 0) throw new ArgumentOutOfRangeException(nameof(memberId));
+        return repository.AmendmentsAsync(year, memberId, NormalizeUf(uf), NormalizeLimit(limit), ct);
+    }
+
+    public Task<IReadOnlyList<AmendmentMunicipalityDto>> AmendmentMapAsync(int? year, string uf, CancellationToken ct)
+    {
+        ValidateYear(year);
+        return repository.AmendmentMapAsync(year, NormalizeUf(uf) ?? throw new ArgumentException("uf is required", nameof(uf)), ct);
+    }
+
+    private static int NormalizeLimit(int limit) => limit is >= 1 and <= 200 ? limit : throw new ArgumentOutOfRangeException(nameof(limit), "limit must be between 1 and 200");
+
+    private static void ValidateYear(int? year)
+    {
+        if (year is < 1988 or > 2200) throw new ArgumentOutOfRangeException(nameof(year));
+    }
+
+    private static string? NormalizeUf(string? uf)
+    {
+        if (string.IsNullOrWhiteSpace(uf)) return null;
+        var normalized = uf.Trim().ToUpperInvariant();
+        if (normalized.Length != 2 || normalized.Any(c => c is < 'A' or > 'Z'))
+            throw new ArgumentException("uf must be a two-letter state code", nameof(uf));
+        return normalized;
+    }
+
+    private static string? NormalizeInstitution(string? institution)
+    {
+        if (string.IsNullOrWhiteSpace(institution)) return null;
+        var normalized = institution.Trim().ToLowerInvariant();
+        if (!Institutions.Contains(normalized))
+            throw new ArgumentException("institution must be camara, senado or alece", nameof(institution));
+        return normalized;
+    }
+}
