@@ -6,6 +6,7 @@
 import type { Indicator } from "./data-intelligence";
 import { fetchJson } from "./api";
 import { buildElectionsPath } from "./elections/route";
+import { municipalityProfilePath, stateProfilePath } from "./entities";
 import { politicianPath } from "./paths";
 
 export const SEARCH_MIN_LENGTH = 2;
@@ -133,16 +134,11 @@ export function politicianHref(p: SearchPolitician): string {
   return politicianPath(p);
 }
 
-/** Lugar com pleito importado → explorador no pleito mais recente; sem dados → `null`. */
+/** Lugar com pleito importado → perfil territorial; sem dados → `null`. */
 export function territoryHref(t: SearchTerritory): string | null {
-  const latest = t.elections[0];
-  if (!latest) return null;
-  return buildElectionsPath({
-    year: latest.year,
-    round: latest.round,
-    state: t.uf.toLowerCase(),
-    municipality: t.kind === "municipality" ? t.slug ?? undefined : undefined,
-  });
+  if (t.elections.length === 0) return null;
+  if (t.kind === "state") return stateProfilePath(t.uf);
+  return t.slug ? municipalityProfilePath(t.uf, t.slug) : null;
 }
 
 export function electionHref(e: SearchElection): string {

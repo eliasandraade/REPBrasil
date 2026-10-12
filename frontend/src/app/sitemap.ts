@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import type { MunicipalitiesResponse } from "@/lib/elections/types";
+import { electionProfilePath, municipalityProfilePath, stateProfilePath } from "@/lib/entities";
 import type { OverviewResponse } from "@/lib/overview";
 import type { PartiesResponse } from "@/lib/parties";
 import { serverJson } from "@/lib/server-api";
@@ -20,13 +21,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lists = await Promise.all(
     elections.map((e) => serverJson<MunicipalitiesResponse>(`/api/v1/elections/${e.year}/${e.round}/states/${e.uf}/municipalities`)),
   );
+  const electionProfiles = new Set<string>();
+  const stateProfiles = new Set<string>();
+  const municipalityProfiles = new Set<string>();
   elections.forEach((e, i) => {
+    electionProfiles.add(electionProfilePath(e.year, e.round));
+    stateProfiles.add(stateProfilePath(e.uf));
     const base = `${site}/eleicoes/${e.year}/${e.round}/${e.uf.toLowerCase()}`;
     entries.push({ url: base, changeFrequency: "monthly" });
     for (const m of lists[i]?.municipalities ?? []) {
       if (m.resultsAvailable) entries.push({ url: `${base}/${m.slug}`, changeFrequency: "monthly" });
+      if (m.territoryKnown) municipalityProfiles.add(municipalityProfilePath(e.uf, m.slug));
     }
   });
+  for (const path of electionProfiles) entries.push({ url: `${site}${path}`, changeFrequency: "monthly" });
+  for (const path of stateProfiles) entries.push({ url: `${site}${path}`, changeFrequency: "monthly" });
+  for (const path of municipalityProfiles) entries.push({ url: `${site}${path}`, changeFrequency: "monthly" });
 
   const parties = await serverJson<PartiesResponse>("/api/v1/parties?uf=CE");
   for (const p of parties?.parties ?? []) entries.push({ url: `${site}/partidos/${encodeURIComponent(p.slug)}`, changeFrequency: "monthly" });
