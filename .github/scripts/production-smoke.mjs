@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 
 const WEB = process.env.REPBRASIL_WEB_URL ?? "https://www.apprepbrasil.com.br";
 const API = process.env.REPBRASIL_API_URL ?? "https://api.apprepbrasil.com.br";
+const EXPECTED_SHA = process.env.REPBRASIL_EXPECTED_SHA ?? "";
 const outputDir = "artifacts/production-smoke";
 const results = [];
 
@@ -16,6 +17,7 @@ const apiChecks = [
 const webChecks = ["/parlamento", "/dados", "/offline", "/sw.js"];
 const captureTargets = [["parlamento", "/parlamento"], ["dados", "/dados"]];
 
+assert.match(EXPECTED_SHA, /^[0-9a-f]{40}$/i, "REPBRASIL_EXPECTED_SHA must be a full git SHA");
 await mkdir(outputDir, { recursive: true });
 
 function record(name, details = {}) {
@@ -42,6 +44,30 @@ async function fetchOk(url, options = {}, attempt = 1) {
   return fetchOk(url, options, attempt + 1);
 }
 
+async function waitForRevision(url, surface, attempt = 1) {
+  let observed = "unreachable";
+  try {
+    const response = await fetch(url, { redirect: "manual", cache: "no-store" });
+    if (response.ok) {
+      observed = response.headers.get("x-repbrasil-revision") ?? "missing";
+      if (observed === EXPECTED_SHA) {
+        record(`${surface} deployed revision`, { revision: observed });
+        return;
+      }
+    } else {
+      observed = `HTTP ${response.status}`;
+    }
+  } catch (error) {
+    observed = error instanceof Error ? error.message : String(error);
+  }
+
+  if (attempt >= 60) {
+    throw new Error(`${surface} did not reach revision ${EXPECTED_SHA}; last observation: ${observed}`);
+  }
+  await delay(5000);
+  return waitForRevision(url, surface, attempt + 1);
+}
+
 async function verifyApi([name, path]) {
   const response = await fetchOk(`${API}${path}`);
   const body = await response.json();
@@ -54,11 +80,31 @@ async function verifyWebPath(path) {
   record(`${path} HTTP`, { status: response.status });
 }
 
+async function assertRenderedData(page, path) {
+  if (path === "/parlamento") {
+    await page.waitForFunction(
+      () => {
+        const cards = document.querySelectorAll('section[aria-label="Resumo parlamentar"] article');
+        if (cards.length !== 3) return false;
+        return [...cards].every((card) => card.querySelector("p:nth-of-type(2)")?.textContent?.trim() !== "…");
+      },
+      undefined,
+      { timeout: 30000 },
+    );
+  } else if (path === "/dados") {
+    await page.locator('[data-testid="correlation-summary"]').waitFor({ state: "visible", timeout: 30000 });
+  }
+
+  const renderedErrors = await page.getByText(/Não foi possível/).count();
+  assert.equal(renderedErrors, 0, `${path} rendered an application data error`);
+}
+
 async function capturePage(context, slug, path, profile, waitMs) {
   const page = await context.newPage();
   try {
     const response = await page.goto(`${WEB}${path}`, { waitUntil: "domcontentloaded", timeout: 60000 });
     assert.ok(response?.ok(), `${path} ${profile} navigation failed`);
+    await assertRenderedData(page, path);
     await page.waitForTimeout(waitMs);
     await page.screenshot({ path: `${outputDir}/${slug}-${profile}.png`, fullPage: true });
     record(`${path} ${profile} screenshot`);
@@ -67,6 +113,10 @@ async function capturePage(context, slug, path, profile, waitMs) {
   }
 }
 
+await Promise.all([
+  waitForRevision(`${WEB}/offline`, "frontend"),
+  waitForRevision(`${API}/api/v1/overview`, "API"),
+]);
 await Promise.all(apiChecks.map(verifyApi));
 await Promise.all(webChecks.map(verifyWebPath));
 
@@ -89,12 +139,14 @@ try {
   const offlinePage = await desktop.newPage();
   try {
     await offlinePage.goto(`${WEB}/dados`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await assertRenderedData(offlinePage, "/dados");
     const serviceWorkerScope = await offlinePage.evaluate(async () => {
       if (!("serviceWorker" in navigator)) throw new Error("Service worker unsupported");
       const registration = await navigator.serviceWorker.ready;
       return registration.scope;
     });
-    assert.ok(serviceWorkerScope.startsWith(WEB), `unexpected service worker scope: ${serviceWorkerScope}`);
+    const expectedScope = new URL("/", WEB).href;
+    assert.equal(serviceWorkerScope, expectedScope, `unexpected service worker scope: ${serviceWorkerScope}`);
     await offlinePage.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
     await desktop.setOffline(true);
     await offlinePage.goto(`${WEB}/dados?production-offline-smoke=1`, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -118,7 +170,7 @@ try {
 
 await writeFile(
   `${outputDir}/report.json`,
-  `${JSON.stringify({ generatedAt: new Date().toISOString(), web: WEB, api: API, results }, null, 2)}\n`,
+  `${JSON.stringify({ generatedAt: new Date().toISOString(), expectedSha: EXPECTED_SHA, web: WEB, api: API, results }, null, 2)}\n`,
   "utf8",
 );
 
