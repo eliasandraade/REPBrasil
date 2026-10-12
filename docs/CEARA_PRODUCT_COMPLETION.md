@@ -10,10 +10,11 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 
 | Item | Situação |
 |---|---|
-| Baseline funcional | pós-PR #26 (`d9a7953`), com comparador universal, perfis territoriais e indicadores socioeconômicos canônicos |
-| Produção | PR J ainda não alterou produção; rollout só ocorre após gates e merge do #27 |
+| Baseline funcional | pós-PR #27 (`e9d727d`), com comparador universal, perfis territoriais, Data Intelligence, pesquisas eleitorais auditáveis e infraestrutura oficial de totalização |
+| Produção | PR #27 implantado; `front-v2`, `back-v2` e `electoral-etl-ce2026` concluíram rollout com sucesso |
 | Data Intelligence | Censo 2022 carregado para os 184 municípios do Ceará: população, alfabetização 15+ e analfabetismo 15+; perfil socioeleitoral ativo |
 | Parlamento | migration e cinco tabelas auditáveis aplicadas em produção; fundação de Câmara/emendas pronta, sem linking por nome |
+| Pesquisas / apuração | schema, API, ETL e `/pesquisas` implantados; observações reais só aparecem após ingestão operacional das fontes oficiais, sem seed sintético |
 | Custo novo | nenhum (regra da missão) |
 
 ## PRs
@@ -28,15 +29,15 @@ Status: `TODO` · `IN PROGRESS` · `BLOCKED` · `DONE`. Cada PR registra SHA de 
 | F | Fundação auditável de Parlamento + emendas: fontes, membros, mandatos, atividades, emendas, Câmara paginada, parser fail-closed e identidade sem heurística de nome | DONE | [#23](https://github.com/eliasandraade/REPBrasil/pull/23) | `a428c56` | migration e schema verificados |
 | G | Busca por indicadores, comparador universal por tipo, insights determinísticos versionados e exports CSV/XLSX/PDF/PNG | DONE | [#24](https://github.com/eliasandraade/REPBrasil/pull/24) | `2a4f6bc` | deploy concluído; smoke humano do comparador/exports pendente |
 | H | Auth (Google + magic link), favoritos, watchlist, alertas, entitlements, API comercial | TODO | — | — | — |
-| I | Município, estado, eleição, perfil unificado, SEO | DONE | [#25](https://github.com/eliasandraade/REPBrasil/pull/25) | `ec54967` | deploy concluído; correção de indicadores no #26 |
-| J | Pesquisas eleitorais auditáveis + snapshots oficiais de apuração, estados não iniciado/parcial/final, `/pesquisas` | IN PROGRESS | [#27](https://github.com/eliasandraade/REPBrasil/pull/27) | — | não implantado |
+| I | Município, estado, eleição, perfil unificado, SEO | DONE | [#25](https://github.com/eliasandraade/REPBrasil/pull/25) | `ec54967` | validado após correção de indicadores no #26 |
+| J | Pesquisas eleitorais auditáveis + snapshots oficiais de apuração, estados não iniciado/parcial/final, `/pesquisas` | DONE | [#27](https://github.com/eliasandraade/REPBrasil/pull/27) | `e9d727d` | rollout concluído; smoke humano de `/pesquisas` pendente |
 | K | PWA, mobile, segurança, performance, screenshots | TODO | — | — | — |
 
 ## Ordem recomendada a partir daqui
 
-**J → H → K**.
+**H → K**.
 
-O PR J adiciona o ciclo eleitoral vivo; o H entra quando há valor recorrente suficiente para conta, alertas e monetização; o K encerra a missão Ceará com acabamento de produção.
+O H entra agora que o produto público possui valor recorrente suficiente para conta, favoritos, alertas e monetização. O K encerra a missão Ceará com acabamento de produção.
 
 ## Checklist — produto (Ceará)
 
@@ -59,8 +60,8 @@ O PR J adiciona o ciclo eleitoral vivo; o H entra quando há valor recorrente su
 | Exports (CSV, XLSX, PDF, PNG) | DONE (#24) — contexto, fontes, metodologia, timestamp e URL reproduzível |
 | Busca por indicadores | DONE (#24) — catálogo oficial do Data Intelligence integrado à busca agrupada |
 | Município / estado / eleição como entidades | DONE (#25/#26) — perfis canônicos, SEO, sitemap, timeline, rankings e Data Intelligence |
-| Pesquisas eleitorais | IN PROGRESS (#27) — registro e fonte auditáveis; percentuais só quando publicados por fonte auditada |
-| Apuração ao vivo | IN PROGRESS (#27) — snapshots oficiais TSE, sem reconstrução ou projeção |
+| Pesquisas eleitorais | DONE (#27) — registro, escopo e fonte auditáveis; percentuais só quando publicados por fonte auditada; carga real é operação separada |
+| Apuração oficial | DONE (#27) — snapshots oficiais TSE com `not_started`/`partial`/`final`, sem reconstrução ou projeção; captura real é operação separada |
 | Auth / favoritos / watchlist / alertas | TODO (H) |
 | Entitlements / API comercial | TODO (H) |
 
@@ -68,16 +69,16 @@ O PR J adiciona o ciclo eleitoral vivo; o H entra quando há valor recorrente su
 
 | Item | Status |
 |---|---|
-| Proveniência de todo dataset novo | DONE para Data Intelligence e fundação parlamentar; IN PROGRESS no #27 com URL, SHA-256, parser e instante da fonte eleitoral viva |
-| Ausência de dado nunca vira zero | DONE nas camadas eleitoral, socioeconômica e parlamentar; preservada nos PRs G/I e no contrato do #27 |
-| Reedição oficial preserva histórico | DONE no Data Intelligence; #27 preserva snapshots por SHA de bytes oficiais |
+| Proveniência de todo dataset novo | DONE para Data Intelligence, Parlamento e PR J; pesquisas/live preservam URL, SHA-256, parser e instante de aquisição |
+| Ausência de dado nunca vira zero | DONE nas camadas eleitoral, socioeconômica, parlamentar e PR J |
+| Reedição oficial preserva histórico | DONE no Data Intelligence; PR J preserva snapshots/edições por SHA dos bytes oficiais |
 | Correlação com N/período/método e caveat causal | DONE (#20/#21) |
 | Falácia ecológica explicitamente sinalizada | DONE (#21), mantida no contrato analítico do #24 e perfis do #25 |
 | Linking de identidade por nome | PROIBIDO; Câmara exige evidência documental oficial; TSE live usa `SQ_CANDIDATO`; pesquisa só aceita `candidacy_id` previamente auditado |
 | Insights factuais gerados por IA | PROIBIDO no runtime; PR G usa regras determinísticas versionadas |
 | Zero serviço pago novo | DONE |
-| CI verde por PR | DONE até #26; #27 em execução |
-| Smoke de produção | PR J aguardará merge/deploy e smoke específico de `/pesquisas` |
+| CI verde por PR | DONE até #27 |
+| Smoke de produção | deploy do #27 verificado no Railway; smoke humano específico de `/pesquisas` pendente |
 
 ## Regras permanentes do Data Intelligence
 
@@ -108,6 +109,7 @@ Entregue no #24:
 
 - PesqEle/TSE registra a pesquisa; percentuais só entram quando o resultado publicado é auditável.
 - Pesquisa é estimativa amostral, não previsão nem resultado eleitoral.
+- Registro pertence ao ciclo; turno pertence ao cenário quando houver classificação auditável.
 - EA20 oficial é validado por fase, eleição, turno, cargo e abrangência antes da persistência.
 - `not_started`, `partial` e `final` são estados diferentes e visíveis.
 - Apuração parcial nunca é apresentada como resultado encerrado.
@@ -115,4 +117,5 @@ Entregue no #24:
 - Vínculo da apuração usa `SQ_CANDIDATO`, nunca nome.
 - Snapshots preservam SHA-256 dos bytes oficiais e versões anteriores.
 - Nenhuma observação sintética é semeada em produção.
+- Ingestão real de pesquisas e captura real de totalização são operações explícitas e auditáveis, separadas do deploy do produto.
 - Contrato completo: `docs/ELECTORAL_LIVE.md`.
