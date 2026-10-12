@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS poll (
   CHECK (margin_error_pp IS NULL OR margin_error_pp >= 0),
   CHECK (confidence_level IS NULL OR (confidence_level > 0 AND confidence_level <= 100)),
   CHECK (municipality_id IS NULL OR state_code IS NOT NULL),
-  UNIQUE (registration_number, source_id)
+  UNIQUE NULLS NOT DISTINCT (
+    registration_number, office_code, state_code, municipality_id, source_id
+  )
 );
 
 CREATE INDEX IF NOT EXISTS poll_scope_idx
@@ -89,7 +91,7 @@ CREATE TABLE IF NOT EXISTS totalization_snapshot (
   municipality_id uuid REFERENCES municipality(id),
   captured_at timestamptz NOT NULL DEFAULT now(),
   tse_generated_at timestamptz,
-  status text NOT NULL CHECK (status IN ('partial', 'final')),
+  status text NOT NULL CHECK (status IN ('not_started', 'partial', 'final')),
   counted_sections integer,
   total_sections integer,
   counted_percent numeric(7,4),
