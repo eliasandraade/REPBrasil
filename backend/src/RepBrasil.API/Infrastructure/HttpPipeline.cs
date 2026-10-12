@@ -12,8 +12,12 @@ public static partial class HttpPipeline
     /// Cabeçalhos de segurança para uma API JSON. Aplicados no início da resposta (OnStarting), então também saem
     /// nas respostas de erro. O Swagger (quando ligado) precisa de scripts e estilos: fica fora da CSP restritiva.
     /// </summary>
-    public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app) =>
-        app.Use(async (http, next) =>
+    public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app)
+    {
+        var revision = Environment.GetEnvironmentVariable("RAILWAY_GIT_COMMIT_SHA")
+            ?? Environment.GetEnvironmentVariable("REPBRASIL_REVISION");
+
+        return app.Use(async (http, next) =>
         {
             http.Response.OnStarting(() =>
             {
@@ -22,12 +26,14 @@ public static partial class HttpPipeline
                 h.XFrameOptions = "DENY";
                 h["Referrer-Policy"] = "no-referrer";
                 h["Cross-Origin-Opener-Policy"] = "same-origin";
+                if (!string.IsNullOrWhiteSpace(revision)) h["X-RepBrasil-Revision"] = revision;
                 if (!http.Request.Path.StartsWithSegments("/swagger"))
                     h.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'";
                 return Task.CompletedTask;
             });
             await next(http);
         });
+    }
 
     /// <summary>
     /// Uma linha estruturada por requisição (método, rota-modelo, status, duração) e o cabeçalho Server-Timing.
