@@ -1,0 +1,51 @@
+name: Production smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Public production + PWA evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      REPBRASIL_WEB_URL: https://www.apprepbrasil.com.br
+      REPBRASIL_API_URL: https://api.apprepbrasil.com.br
+      REPBRASIL_EXPECTED_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Install isolated Playwright runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/repbrasil-smoke
+          cd /tmp/repbrasil-smoke
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund --save-exact playwright@1.55.0
+          ln -s /tmp/repbrasil-smoke/node_modules "$GITHUB_WORKSPACE/node_modules"
+          ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Smoke the exact deployed revision and capture evidence
+        run: node .github/scripts/production-smoke.mjs
+
+      - name: Upload production evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: repbrasil-production-smoke
+          path: artifacts/production-smoke
+          if-no-files-found: warn
+          retention-days: 14

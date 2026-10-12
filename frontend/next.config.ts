@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+const revision = process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.REPBRASIL_REVISION ?? "unknown";
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+  { key: "X-RepBrasil-Revision", value: revision },
 ];
 
 const nextConfig: NextConfig = {
