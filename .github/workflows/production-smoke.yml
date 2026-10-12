@@ -33,7 +33,7 @@ jobs:
           mkdir -p /tmp/repbrasil-smoke
           cd /tmp/repbrasil-smoke
           npm init -y >/dev/null
-          npm install --no-audit --no-fund --save-exact playwright@1.55.0
+          npm install --ignore-scripts --no-audit --no-fund --save-exact playwright@1.55.0
           ln -s /tmp/repbrasil-smoke/node_modules "$GITHUB_WORKSPACE/node_modules"
           ./node_modules/.bin/playwright install --with-deps chromium
 
