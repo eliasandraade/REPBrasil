@@ -13,6 +13,7 @@ dependencies = [
     # Inteligência eleitoral (src/electoral): psycopg 3 (COPY/transações por zona) e ASN.1 do BU.
     "psycopg[binary]>=3.2",
     "asn1tools>=0.167",
+    "cryptography>=44",
 ]
 
 [project.optional-dependencies]
