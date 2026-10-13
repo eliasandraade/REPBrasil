@@ -7,7 +7,11 @@ namespace RepBrasil.API.Infrastructure;
 
 public sealed record GoogleProfile(string Subject, string Email, string? Name, string? Picture, bool EmailVerified);
 
-public sealed class AuthExternalService(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<AuthExternalService> logger)
+public sealed class AuthExternalService(
+    IConfiguration configuration,
+    IHttpClientFactory httpClientFactory,
+    IHostEnvironment environment,
+    ILogger<AuthExternalService> logger)
 {
     public async Task SendMagicLinkAsync(MagicLinkChallenge challenge, CancellationToken cancellationToken)
     {
@@ -19,6 +23,9 @@ public sealed class AuthExternalService(IConfiguration configuration, IHttpClien
 
         if (string.Equals(delivery, "log", StringComparison.OrdinalIgnoreCase))
         {
+            // O link é uma credencial de login: só pode ir para o log em desenvolvimento local.
+            if (!environment.IsDevelopment())
+                throw new InvalidOperationException("Entrega de magic link por log só é permitida em desenvolvimento.");
             logger.LogInformation("Magic link for {Email}: {Link}", challenge.Email, link);
             return;
         }

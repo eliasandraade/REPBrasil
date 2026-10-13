@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using RepBrasil.API.Infrastructure;
 
 namespace RepBrasil.Tests.Api;
@@ -12,9 +15,54 @@ public sealed class AccountSecurityTests
     [InlineData("//evil.example/path", "/")]
     [InlineData("https://evil.example/path", "/")]
     [InlineData("javascript:alert(1)", "/")]
+    [InlineData("/\\evil.example/path", "/")]
+    [InlineData("/conta\\..\\x", "/")]
+    [InlineData("/conta\r\nSet-Cookie: x=1", "/")]
+    [InlineData("/conta\t", "/")]
     public void NormalizeReturnTo_AllowsOnlyLocalAbsolutePaths(string? value, string expected)
     {
         Assert.Equal(expected, AccountService.NormalizeReturnTo(value));
+    }
+
+    private sealed class FixedEnvironment(string name) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = name;
+        public string ApplicationName { get; set; } = "RepBrasil.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
+    }
+
+    private sealed class NoHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new InvalidOperationException("no network in this test");
+    }
+
+    private static AuthExternalService LogDelivery(string environment) => new(
+        new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Auth:PublicBaseUrl"] = "https://api.example.test",
+            ["Auth:MagicLink:Delivery"] = "log",
+        }).Build(),
+        new NoHttpClientFactory(),
+        new FixedEnvironment(environment),
+        NullLogger<AuthExternalService>.Instance);
+
+    private static readonly MagicLinkChallenge Challenge = new("pessoa@example.test", "token", "/conta", DateTimeOffset.UtcNow.AddMinutes(15));
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public async Task Magic_link_is_never_written_to_logs_outside_development(string environment)
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            LogDelivery(environment).SendMagicLinkAsync(Challenge, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Magic_link_log_delivery_remains_available_for_local_development()
+    {
+        await LogDelivery(Environments.Development).SendMagicLinkAsync(Challenge, CancellationToken.None);
     }
 
     [Fact]

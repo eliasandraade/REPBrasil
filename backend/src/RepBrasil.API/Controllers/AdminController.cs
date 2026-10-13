@@ -16,7 +16,9 @@ public sealed class AdminController(AccountService accounts, ApplicationDbContex
     {
         var session = await CurrentSession(cancellationToken);
         if (session is null) return Unauthorized();
-        if (!await IsSuperadminAsync(session, cancellationToken)) return Forbid();
+        // Sem esquema de autenticação registrado, Forbid() lançaria (500); a recusa é um 403 explícito.
+        if (!await IsSuperadminAsync(session, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "forbidden" });
 
         return Ok(new
         {
