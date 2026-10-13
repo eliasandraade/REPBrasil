@@ -18,7 +18,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -41,6 +41,7 @@ AMENDMENTS_URL = (
 AMENDMENTS_MEMBER = "EmendasParlamentares.csv"
 _DOWNLOAD_HOSTS = frozenset({"portaldatransparencia.gov.br", "dadosabertos-download.cgu.gov.br"})
 _MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
+_MAX_REDIRECTS = 5
 _MAX_MEMBER_BYTES = 600 * 1024 * 1024
 
 # Início oficial de cada legislatura (Câmara dos Deputados).
@@ -63,22 +64,64 @@ class OfficialDownload:
 
 
 def _official_url(url: str) -> str:
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.hostname not in _DOWNLOAD_HOSTS:
-        raise ValueError(f"unexpected amendments download host: {url}")
+    """Só HTTPS, num host oficial, na porta padrão e sem credenciais na URL."""
+    parsed = urlsplit(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"amendments download must use https: {url}")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("amendments download URL must not carry credentials")
+    if parsed.hostname not in _DOWNLOAD_HOSTS:
+        raise ValueError(f"unexpected amendments download host: {parsed.hostname}")
+    if parsed.port not in (None, 443):
+        raise ValueError(f"unexpected amendments download port: {parsed.port}")
     return url
 
 
-def download_amendments(http: httpx.Client) -> OfficialDownload:
-    """ZIP oficial de emendas; cada salto do redirecionamento precisa ser um host oficial."""
-    response = http.get(AMENDMENTS_URL, follow_redirects=True)
-    for hop in [*response.history, response]:
-        _official_url(str(hop.url))
-    response.raise_for_status()
-    if len(response.content) > _MAX_DOWNLOAD_BYTES:
-        raise ValueError("amendments download exceeds the expected size")
-    last_modified = response.headers.get("last-modified")
-    return OfficialDownload(str(response.url), response.content, last_modified)
+def _read_limited(response: httpx.Response, max_bytes: int) -> bytes:
+    """Corpo lido aos pedaços, com teto rígido: nada além do limite chega à memória."""
+    declared = response.headers.get("content-length")
+    if declared is not None:
+        if not declared.isdigit():
+            raise ValueError(f"invalid amendments Content-Length: {declared!r}")
+        if int(declared) > max_bytes:
+            raise ValueError(
+                f"amendments download declares {declared} bytes, above the {max_bytes}-byte limit"
+            )
+    content = bytearray()
+    # Codificação `identity` (exigida antes da leitura): os bytes são os da rede, sem descompressão.
+    for chunk in response.iter_bytes():
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise ValueError(f"amendments download exceeds the {max_bytes}-byte limit")
+    return bytes(content)
+
+
+def download_amendments(
+    http: httpx.Client,
+    *,
+    max_bytes: int = _MAX_DOWNLOAD_BYTES,
+    max_redirects: int = _MAX_REDIRECTS,
+) -> OfficialDownload:
+    """ZIP oficial de emendas.
+
+    Redirecionamentos são seguidos à mão: a URL inicial e cada `Location` são validadas *antes*
+    da requisição (nenhum host fora da lista é contatado). O corpo é pedido sem codificação de
+    transporte e lido em streaming com limite rígido; a URL final oficial fica na proveniência.
+    """
+    url = _official_url(AMENDMENTS_URL)
+    for _ in range(max_redirects + 1):
+        with http.stream(
+            "GET", url, follow_redirects=False, headers={"Accept-Encoding": "identity"}
+        ) as response:
+            if response.has_redirect_location:
+                url = _official_url(urljoin(url, response.headers["location"]))
+                continue
+            response.raise_for_status()
+            if response.headers.get("content-encoding", "identity").lower() != "identity":
+                raise ValueError("amendments download must not use a transfer encoding")
+            content = _read_limited(response, max_bytes)
+            return OfficialDownload(url, content, response.headers.get("last-modified"))
+    raise ValueError(f"amendments download exceeded {max_redirects} redirects")
 
 
 def amendments_csv(zip_bytes: bytes) -> bytes:

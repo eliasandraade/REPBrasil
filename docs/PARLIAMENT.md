@@ -78,8 +78,13 @@ DATABASE_URL=... python scripts/ingest_parliament.py --uf CE --legislature 57
 
 - O detalhe do deputado publica CPF e dados pessoais: nada disso é guardado (`raw` leva só os
   campos usados).
-- Download de emendas só segue redirecionamentos para `portaldatransparencia.gov.br` e
-  `dadosabertos-download.cgu.gov.br`, com limite de tamanho do ZIP e do CSV.
+- Download de emendas: redirecionamentos seguidos à mão (no máximo 5). A URL inicial e cada
+  `Location` são validadas **antes** da requisição: só HTTPS, porta padrão, sem credenciais na URL e
+  host exatamente `portaldatransparencia.gov.br` ou `dadosabertos-download.cgu.gov.br`; nenhum outro
+  host chega a ser contatado. A URL final oficial vai para a proveniência.
+- O ZIP é pedido sem codificação de transporte e lido em streaming com teto rígido de 200 MB:
+  `Content-Length` acima do teto é recusado antes de ler o corpo, e um corpo sem tamanho declarado é
+  interrompido assim que passa do teto. O CSV dentro do ZIP tem teto próprio (600 MB declarados).
 - Layout oficial verificado em 13/10/2026: Latin-1, `;`, "Sem informação" como ausência, código de
   município em `Código Município IBGE`, UF em `Código UF IBGE` (`2300000`); `-1`/`-14` são
   escopos oficiais não estaduais (Nacional/Exterior/região, Múltiplo) e não pertencem a nenhuma UF.
@@ -100,3 +105,6 @@ DATABASE_URL=... python scripts/ingest_parliament.py --uf CE --legislature 57
   recorte" com o total da API, nunca o tamanho da listagem.
 - `etl/tests/sources/camara/test_activity.py` e `etl/tests/sources/transparencia/test_amendments.py`:
   parsers fail-closed, código IBGE oficial obrigatório, dinheiro ausente não vira zero.
+- `etl/tests/pipeline/test_parliament_download.py`: redirecionamento fora da lista, com downgrade
+  para HTTP, credenciais ou porta estranha recusado sem que o host seja contatado; limite de saltos;
+  `Content-Length` acima do teto recusado antes de ler o corpo; corpo sem tamanho cortado no teto.

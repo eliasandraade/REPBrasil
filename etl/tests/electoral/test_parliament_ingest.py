@@ -59,9 +59,11 @@ def _detail(deputy_id: int, party: str) -> dict:
                       "ultimoStatus": status}, "links": []}
 
 
-def _handler(zip_bytes: bytes, *, redirect_to: str = ZIP_URL):
+def _handler(zip_bytes: bytes, *, redirect_to: str = ZIP_URL, seen: list[str] | None = None):
     def handle(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
+        if seen is not None:
+            seen.append(request.url.host)
         if url.startswith(AMENDMENTS_URL):
             return httpx.Response(302, headers={"Location": redirect_to})
         if url.startswith(ZIP_URL):
@@ -131,6 +133,8 @@ def test_amendments_edition_keeps_official_provenance_and_scope(conn) -> None:
     assert source[1] == hashlib.sha256(FIRST_EDITION).hexdigest()
     assert source[2] == "parliament-v1"
     assert source[3]["last_modified"] == "Sat, 10 Oct 2026 02:57:21 GMT"
+    # Escopo oficial da edição: é ele que recorta /amendments?uf=CE (inclusive sem município).
+    assert source[3]["uf"] == "CE"
     amendments = conn.execute(
         "SELECT external_id, municipality_ibge_code, committed_amount FROM parliament_amendment ORDER BY external_id"
     ).fetchall()
@@ -163,6 +167,14 @@ def test_new_official_edition_is_added_and_the_previous_one_preserved(conn) -> N
 
 @db
 def test_download_redirected_outside_official_hosts_is_refused(conn) -> None:
+    seen: list[str] = []
     with pytest.raises(ValueError, match="unexpected amendments download host"):
-        _ingest(conn, FIRST_EDITION, redirect_to="https://evil.example/EmendasParlamentares.zip")
+        _ingest(
+            conn,
+            FIRST_EDITION,
+            redirect_to="https://evil.example/EmendasParlamentares.zip",
+            seen=seen,
+        )
+    assert "evil.example" not in seen
+    assert "portaldatransparencia.gov.br" in seen
     assert conn.execute("SELECT count(*) FROM parliament_amendment").fetchone()[0] == 0

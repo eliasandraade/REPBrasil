@@ -214,6 +214,7 @@ jobs:
           src/sources/tse/polls.py src/sources/tse/live_results.py
           scripts/electoral_lake_worker.py
           tests/sources/ibge/test_sidra.py tests/sources/test_atlas.py tests/pipeline/test_socioeconomic.py
+          tests/pipeline/test_parliament_download.py
           tests/sources/camara/test_activity.py tests/sources/camara/test_members.py
           tests/sources/transparencia/test_amendments.py tests/sources/transparencia/test_amendments_official_layout.py
           scripts/ingest_poll_registry.py scripts/ingest_live_results.py scripts/ingest_parliament.py
