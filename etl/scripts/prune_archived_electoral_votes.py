@@ -60,19 +60,34 @@ def _derived_snapshot(cur, scope: LakeScope) -> dict[str, dict[str, int]]:
     )
     zone_rows, zone_votes = cur.fetchone()
 
+    marker_votable_rows = int(marker[0])
+    marker_votable_votes = int(marker[1])
+    marker_zone_rows = int(marker[2])
+    marker_zone_votes = int(marker[3])
+    actual_votable_rows = int(votable_rows)
+    actual_votable_votes = int(votable_votes)
+    actual_zone_rows = int(zone_rows)
+    actual_zone_votes = int(zone_votes)
+
     expected = {
-        "votable": {"rows": int(marker[0]), "votes": int(marker[1])},
-        "zone": {"rows": int(marker[2]), "votes": int(marker[3])},
+        "votable": {"rows": marker_votable_rows, "votes": marker_votable_votes},
+        "zone": {"rows": marker_zone_rows, "votes": marker_zone_votes},
     }
     actual = {
-        "votable": {"rows": int(votable_rows), "votes": int(votable_votes)},
-        "zone": {"rows": int(zone_rows), "votes": int(zone_votes)},
+        "votable": {"rows": actual_votable_rows, "votes": actual_votable_votes},
+        "zone": {"rows": actual_zone_rows, "votes": actual_zone_votes},
     }
-    if actual != expected:
+    snapshot_differs = (
+        actual_votable_rows != marker_votable_rows
+        or actual_votable_votes != marker_votable_votes
+        or actual_zone_rows != marker_zone_rows
+        or actual_zone_votes != marker_zone_votes
+    )
+    if snapshot_differs:
         raise SystemExit(f"refusing prune: derived snapshot marker/data differ: marker={expected} actual={actual}")
-    if min(actual["votable"]["rows"], actual["zone"]["rows"]) <= 0:
+    if actual_votable_rows <= 0 or actual_zone_rows <= 0:
         raise SystemExit("refusing prune: derived snapshot is empty")
-    if actual["votable"]["votes"] != actual["zone"]["votes"]:
+    if actual_votable_votes != actual_zone_votes:
         raise SystemExit(f"refusing prune: derived snapshot vote totals differ: {actual}")
     return actual
 

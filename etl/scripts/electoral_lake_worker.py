@@ -3,10 +3,12 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import socket
 import sys
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
+from socketserver import ThreadingTCPServer
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,21 +54,26 @@ def _private_bind_host() -> str:
         return "0.0.0.0"
     if os.environ.get("REPBRASIL_LAKE_LOCAL_ONLY") == "1":
         return "127.0.0.1"
-    raise SystemExit(
-        "electoral lake worker requires Railway private networking with no public domain"
-    )
+    raise SystemExit("electoral lake worker requires Railway private networking with no public domain")
 
 
-class PrivateNetworkHTTPServer(ThreadingHTTPServer):
-    pass
+class PrivateNetworkServer(ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+    def server_bind(self) -> None:
+        super().server_bind()
+        host, port = self.server_address[:2]
+        self.server_name = socket.getfqdn(host)
+        self.server_port = port
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "REPBrasilElectoralLake/3"
+    server_version = "REPBrasilElectoralLake/4"
     auth_token = ""
 
     def log_message(self, format: str, *args: Any) -> None:
-        print(f"lake-http {self.address_string()} {format % args}", flush=True)
+        print(f"lake-rpc {self.address_string()} {format % args}", flush=True)
 
     def _reply(self, status: int, body: Any) -> None:
         payload = _json_bytes(body)
@@ -96,7 +103,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            self._reply(HTTPStatus.OK, {"status": "ok", "storage": "parquet", "schema": 3})
+            self._reply(HTTPStatus.OK, {"status": "ok", "storage": "parquet", "schema": 4})
             return
         self._reply(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
@@ -169,7 +176,7 @@ class Handler(BaseHTTPRequestHandler):
         except (KeyError, TypeError, ValueError, LakeError) as exc:
             self._reply(HTTPStatus.BAD_REQUEST, {"error": "invalid_request", "message": str(exc)})
         except Exception as exc:
-            print(f"lake-http error: {type(exc).__name__}: {exc}", flush=True)
+            print(f"lake-rpc error: {type(exc).__name__}: {exc}", flush=True)
             self._reply(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal_error"})
 
 
@@ -177,7 +184,7 @@ def main() -> int:
     port = int(os.environ.get("PORT", "8080"))
     Handler.auth_token = _required_token()
     host = _private_bind_host()
-    server = PrivateNetworkHTTPServer((host, port), Handler)
+    server = PrivateNetworkServer((host, port), Handler)
     print(f"electoral lake worker listening on private transport :{port}", flush=True)
     server.serve_forever()
     return 0
