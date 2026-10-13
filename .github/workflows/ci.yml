@@ -209,13 +209,14 @@ jobs:
           uv run --frozen --no-sync --no-build ruff check
           src/electoral tests/electoral
           src/sources/ibge/sidra.py src/sources/atlas.py src/pipeline/socioeconomic.py
-          src/sources/camara/api.py src/sources/camara/activity.py
-          src/sources/transparencia/amendments.py src/pipeline/parliament.py
+          src/sources/camara/api.py src/sources/camara/activity.py src/sources/camara/members.py
+          src/sources/transparencia/amendments.py src/pipeline/parliament.py src/pipeline/parliament_ingest.py
           src/sources/tse/polls.py src/sources/tse/live_results.py
           scripts/electoral_lake_worker.py
           tests/sources/ibge/test_sidra.py tests/sources/test_atlas.py tests/pipeline/test_socioeconomic.py
-          tests/sources/camara/test_activity.py tests/sources/transparencia/test_amendments.py
-          scripts/ingest_poll_registry.py scripts/ingest_live_results.py
+          tests/sources/camara/test_activity.py tests/sources/camara/test_members.py
+          tests/sources/transparencia/test_amendments.py tests/sources/transparencia/test_amendments_official_layout.py
+          scripts/ingest_poll_registry.py scripts/ingest_live_results.py scripts/ingest_parliament.py
           scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
       - name: Test (DB tests skip without database)
         run: uv run --frozen --no-sync --no-build pytest -q
