@@ -95,6 +95,31 @@ IBGE (malhas v3) ─────────────────────
 Território sem cadastro responde `status: "cadaster_missing"` (200), não 404. Divergência de
 agregação entre fonte e cadastro responde 500 `integrity_error` — nunca um dado "vazio".
 
+### Lake arquivado — RPC privado em TLS
+
+Eleições arquivadas (votos por seção podados do PostGIS) são lidas do lake Parquet pelo worker
+`etl/scripts/electoral_lake_worker.py`, que só escuta na rede privada do Railway (sem domínio
+público) e exige `Authorization: Bearer REPBRASIL_LAKE_TOKEN` em todo RPC.
+
+- **Todo RPC trafega em TLS 1.2+.** A cada início o worker gera uma chave EC P-256 efêmera e um
+  certificado autoassinado cujo *Subject Key Identifier* é
+  `HMAC-SHA256(REPBRASIL_LAKE_TOKEN, "repbrasil-electoral-lake-tls/v1\0" || SubjectPublicKeyInfo)`
+  (`etl/src/electoral/lake_tls.py`).
+- **A API só aceita esse servidor.** `ElectoralLakeTransport` (backend) valida o certificado
+  recalculando o HMAC com o mesmo token (`ElectoralLake:Token`); certificado sem o vínculo, com
+  outro token ou adulterado encerra o handshake. Não há CA, arquivo de certificado nem variável
+  de ambiente nova, e nenhum certificado é aceito às cegas.
+- `ElectoralLake:BaseUrl` é sempre HTTPS. Um valor legado `http://` é promovido para `https://`
+  no mesmo host e porta (com aviso no log de inicialização), nunca o contrário.
+- **Texto claro só para o probe da plataforma.** O healthcheck do Railway fala HTTP simples com a
+  `PORT` do serviço; o worker responde apenas `GET /health` com `{"status":"ok"}` (sem dados nem
+  credenciais). Qualquer outra requisição sem TLS recebe `426 tls_required` sem que o corpo seja
+  lido ou processado.
+- Contrato entre as duas linguagens: o certificado de exemplo
+  `etl/tests/electoral/fixtures/lake-tls/token-bound-certificate.pem` (token fictício) é validado
+  pelos testes Python e .NET; o job de CI "Lake RPC TLS" sobe o worker real em loopback e faz o
+  handshake com o cliente .NET de produção.
+
 ### Frontend (`/eleicoes`)
 
 - `/eleicoes/:ano/:turno[/:uf[/:municipio[/zona/:n[/secao/:n]]]]` — a URL é a fonte de verdade

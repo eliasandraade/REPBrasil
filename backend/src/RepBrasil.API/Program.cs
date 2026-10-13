@@ -44,14 +44,14 @@ builder.Services.AddScoped<IScoreRepository, ScoreRepository>();
 builder.Services.AddScoped<GetPoliticianScoreQuery>();
 builder.Services.AddScoped<GetPoliticianScoreHistoryQuery>();
 
-var lakeBaseUrl = builder.Configuration["ElectoralLake:BaseUrl"] ?? "http://electoral-lake.railway.internal:8080";
+var (lakeBaseUrl, lakeUrlUpgraded) = ElectoralLakeTransport.ResolveBaseAddress(builder.Configuration["ElectoralLake:BaseUrl"]);
 var lakeToken = builder.Configuration["ElectoralLake:Token"] ?? builder.Configuration["REPBRASIL_LAKE_TOKEN"];
 builder.Services.AddHttpClient<IElectoralLakeClient, ElectoralLakeClient>(client =>
 {
-    client.BaseAddress = new Uri(lakeBaseUrl, UriKind.Absolute);
+    client.BaseAddress = lakeBaseUrl;
     client.Timeout = TimeSpan.FromSeconds(15);
     ElectoralLakeClient.ConfigureAuthorization(client, lakeToken);
-});
+}).ConfigurePrimaryHttpMessageHandler(() => ElectoralLakeTransport.CreateHandler(lakeToken));
 builder.Services.AddScoped<ElectoralReadRepository>();
 builder.Services.AddScoped<IElectoralReadRepository, HybridElectoralReadRepository>();
 builder.Services.AddScoped<ElectoralCatalogService>();
@@ -132,6 +132,9 @@ var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
 builder.WebHost.UseUrls($"http://+:{port}");
 
 var app = builder.Build();
+
+if (lakeUrlUpgraded)
+    app.Logger.LogWarning("ElectoralLake:BaseUrl uses http://; the lake RPC only speaks TLS, so {LakeBaseUrl} is used instead.", lakeBaseUrl);
 
 app.UseForwardedHeaders();
 app.UseSecurityHeaders();
