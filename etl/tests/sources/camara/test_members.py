@@ -125,8 +125,9 @@ def test_state_listing_refuses_rows_from_another_state() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_listing([{"id": 1, "nome": "X", "siglaUf": "SP"}]))
 
+    api = _api(handler)
     with pytest.raises(ValueError, match="outside the requested UF"):
-        fetch_state_deputies(_api(handler), "CE", 57)
+        fetch_state_deputies(api, "CE", 57)
 
 
 def test_propositions_are_queried_per_year_and_cut_by_the_official_presentation_date() -> None:
@@ -165,13 +166,10 @@ def test_propositions_are_queried_per_year_and_cut_by_the_official_presentation_
 
 
 def test_propositions_interval_must_be_ordered() -> None:
+    api = _api(lambda _r: httpx.Response(200))
+    later, earlier = date(2026, 1, 2), date(2026, 1, 1)
     with pytest.raises(ValueError, match="interval"):
-        fetch_deputy_propositions(
-            _api(lambda _r: httpx.Response(200)),
-            "1",
-            presented_from=date(2026, 1, 2),
-            presented_to=date(2026, 1, 1),
-        )
+        fetch_deputy_propositions(api, "1", presented_from=later, presented_to=earlier)
 
 
 def test_transient_gateway_errors_are_retried_but_client_errors_are_not() -> None:
@@ -192,6 +190,7 @@ def test_transient_gateway_errors_are_retried_but_client_errors_are_not() -> Non
         calls["count"] += 1
         return httpx.Response(405)
 
+    api = _api(missing)
     with pytest.raises(httpx.HTTPStatusError):
-        _api(missing).fetch_all("/deputados/1/proposicoes")
+        api.fetch_all("/deputados/1/proposicoes")
     assert calls["count"] == 1
