@@ -49,7 +49,8 @@ o produto diz isso explicitamente.
   ativa o worker novo quando o anterior não atende nenhuma requisição; viewport móvel sem rolagem
   horizontal. Evidências: artefato `repbrasil-pwa-local`.
 - **Produção, depois do deploy** (`.github/scripts/production-smoke.mjs`): os mesmos cenários contra
-  `www.apprepbrasil.com.br`, exigindo o worker da revisão exata implantada.
+  `www.apprepbrasil.com.br`, exigindo o worker da revisão exata implantada — exceto a troca de versão,
+  que só o CI simula (em produção, o deploy seguinte é a própria troca).
 
 ### Por que não a emulação offline do DevTools
 

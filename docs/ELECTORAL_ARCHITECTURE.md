@@ -54,9 +54,9 @@ IBGE (malhas v3) ─────────────────────
 
 - Schema **`electoral`** (PostgreSQL + PostGIS), criado pela migration EF aditiva
   `AddElectoralIntelligence`, que aplica SQL versionado em
-  `backend/src/RepBrasil.Infrastructure/Persistence/Electoral/Sql/` (001–004). Esses arquivos
-  são a fonte única: os testes do ETL recriam o schema com eles. Um script aplicado é imutável;
-  mudanças entram em `005_*.sql` + nova migration.
+  `backend/src/RepBrasil.Infrastructure/Persistence/Electoral/Sql/` (001–004 na migration
+  inicial; hoje 001–019). Esses arquivos são a fonte única: os testes do ETL recriam o schema com
+  eles. Um script aplicado é imutável; cada mudança entra em um novo `NNN_*.sql` + nova migration.
 - Nenhuma tabela de `public` foi alterada além de um índice único parcial em
   `Persons (DocumentType, NormalizedDocumentHash)` (`AddPersonDocumentHashIndex`).
 - Entidades EF `ElectionEvent`, `Contest`, `Candidacy` são mapeadas com

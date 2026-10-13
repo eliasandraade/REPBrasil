@@ -1,5 +1,8 @@
 # Roadmap REPBrasil
 
+> Estado vivo do escopo ativo (Ceará): [`CEARA_PRODUCT_COMPLETION.md`](CEARA_PRODUCT_COMPLETION.md).
+> Este roadmap registra as fases históricas e pode estar defasado em relação ao código.
+
 ## Fase 0 — Fundação ✅ (atual)
 
 - [x] Criar repositório público no GitHub
