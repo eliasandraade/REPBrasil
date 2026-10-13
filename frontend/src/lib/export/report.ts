@@ -21,13 +21,22 @@ export interface ExportReport {
 const encoder = new TextEncoder();
 const utf8 = (value: string) => encoder.encode(value);
 
-function safeFilename(value: string): string {
-  const cleaned = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function trimHyphens(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value[start] === "-") start += 1;
+  while (end > start && value[end - 1] === "-") end -= 1;
+  return value.slice(start, end);
+}
+
+export function exportFilename(value: string): string {
+  const cleaned = trimHyphens(
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-"),
+  );
   return cleaned || "repbrasil-export";
 }
 
@@ -64,7 +73,7 @@ function columnName(index: number): string {
   let result = "";
   while (n > 0) {
     n -= 1;
-    result = String.fromCharCode(65 + (n % 26)) + result;
+    result = String.fromCodePoint(65 + (n % 26)) + result;
     n = Math.floor(n / 26);
   }
   return result;
@@ -358,7 +367,7 @@ function download(filename: string, data: string | Blob | ArrayBuffer, type: str
 export type ExportFormat = "csv" | "xlsx" | "pdf" | "png";
 
 export async function downloadReport(report: ExportReport, format: ExportFormat): Promise<void> {
-  const base = safeFilename(report.filename);
+  const base = exportFilename(report.filename);
   if (format === "csv") download(`${base}.csv`, reportCsv(report), "text/csv;charset=utf-8");
   else if (format === "xlsx") download(`${base}.xlsx`, bytesToArrayBuffer(reportXlsx(report)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   else if (format === "pdf") download(`${base}.pdf`, bytesToArrayBuffer(reportPdf(report)), "application/pdf");
