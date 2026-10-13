@@ -23,11 +23,30 @@ Contrato da camada parlamentar (`electoral.parliament_*`, `/api/v1/parliament/*`
 
 - Cada `(provider, dataset)` de `parliament_source` é uma edição **completa** do seu recorte,
   identificada pelo SHA-256 dos bytes oficiais.
-- As leituras de emendas (`/amendments`, `/amendments/map`) usam somente a edição mais recente de
-  cada dataset. Uma emenda que deixou de aparecer na edição oficial mais nova não "ressuscita" da
-  edição anterior.
+- As leituras de emendas (`/amendments`, `/amendments/map`, `/amendments/years`) usam somente a
+  edição mais recente de cada dataset, decidida em `parliament_source` **antes** de olhar as emendas.
+  Uma edição vigente sem nenhuma emenda é ausência oficial no recorte: nada da edição anterior
+  aparece. Uma emenda que deixou de aparecer na edição oficial mais nova não "ressuscita".
 - Edições anteriores nunca são apagadas: continuam no banco, com a URL e o hash de origem, para
   auditoria.
+
+## Recorte territorial
+
+- O recorte de UF de `/amendments` é o escopo oficial da edição, gravado pela ingestão em
+  `parliament_source.metadata.uf` a partir dos códigos IBGE oficiais da fonte (município ou UF). Nada
+  é derivado de `locality`, do nome do dataset ou de nome de lugar.
+- `/amendments?uf=CE` lista **todas** as emendas da edição vigente do CE, inclusive as que a fonte
+  publica só com a UF (`municipalityIbgeCode = null`). O município ausente continua ausente.
+- `/amendments/map` só agrega emendas com código IBGE oficial de município, da edição vigente da UF.
+
+## Totais e listagens
+
+- `/activities` e `/amendments` são listagens limitadas (até 100 e 200 linhas na interface). Nenhuma
+  delas serve de contagem.
+- `/activities/count` devolve `{ "total": N }` para o mesmo recorte de `/activities`; "Atos no
+  recorte" usa esse total, e a lista informa quando exibe só parte dele.
+- `/amendments/years` devolve todos os anos com emenda na edição vigente do recorte; o seletor de
+  ano de `/parlamento` usa essa lista, nunca os anos da listagem limitada.
 
 ## Ausência de dados
 
@@ -44,7 +63,11 @@ Contrato da camada parlamentar (`electoral.parliament_*`, `/api/v1/parliament/*`
 ## Testes
 
 - `backend/tests/RepBrasil.Tests/Electoral/ParliamentRepositoryTests.cs` (banco de teste do CI):
-  edição vigente por dataset, histórico preservado, somas com contagem de ausentes, filtro de ano.
+  edição vigente por dataset, edição vigente vazia sem ressuscitar a anterior, emenda só com UF
+  listada e fora do mapa, outra UF fora do recorte, anos além do limite da listagem, total de atos
+  além do limite, histórico preservado, somas com contagem de ausentes, filtro de ano.
 - `frontend/tests/parliament.test.ts`: texto do mapa para total completo, soma parcial e ausência.
+- `frontend/tests/parliament-hub.test.tsx`: seletor com todos os anos da edição vigente e "Atos no
+  recorte" com o total da API, nunca o tamanho da listagem.
 - `etl/tests/sources/camara/test_activity.py` e `etl/tests/sources/transparencia/test_amendments.py`:
   parsers fail-closed, código IBGE oficial obrigatório, dinheiro ausente não vira zero.

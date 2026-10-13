@@ -113,6 +113,20 @@ export function getParliamentActivities(params: { memberId?: number | null; inst
   }));
 }
 
+/** Total de atos do recorte; a listagem de atos é limitada e nunca serve de contagem. */
+export function getParliamentActivityTotal(params: { memberId?: number | null; institution?: string; uf?: string } = {}): Promise<{ total: number }> {
+  return fetchJson<{ total: number }>(query("/api/v1/parliament/activities/count", {
+    memberId: params.memberId,
+    institution: params.institution,
+    uf: params.uf,
+  }));
+}
+
+/** Anos com emenda na edição vigente do recorte, independente do limite da listagem de emendas. */
+export function getAmendmentYears(uf = "CE"): Promise<number[]> {
+  return fetchJson<number[]>(query("/api/v1/parliament/amendments/years", { uf }));
+}
+
 export function getParliamentAmendments(params: { year?: number | null; memberId?: number | null; uf?: string; limit?: number } = {}): Promise<ParliamentAmendment[]> {
   return fetchJson<ParliamentAmendment[]>(query("/api/v1/parliament/amendments", {
     year: params.year,
