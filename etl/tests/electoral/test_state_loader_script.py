@@ -59,10 +59,29 @@ def test_uf_is_normalized(value: str) -> None:
     assert _loader()._normalize_uf(value) == "CE"
 
 
-@pytest.mark.parametrize("value", ["", "C", "CEA", "C1", "../", "ÇE"])
+def test_normalized_uf_comes_from_the_closed_list_not_from_the_cli_text() -> None:
+    from src.electoral.paths import UNITS
+
+    uf = _loader()._normalize_uf(" ce ")
+    assert any(uf is unit for unit in UNITS)
+
+
+@pytest.mark.parametrize("value", ["", "C", "CEA", "C1", "../", "ÇE", "XX"])
 def test_invalid_uf_is_refused(value: str) -> None:
     with pytest.raises(SystemExit, match="invalid UF"):
         _loader()._normalize_uf(value)
+
+
+def test_progress_never_records_unvalidated_cli_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    monkeypatch.setenv("REPBRASIL_IMPORT_OUTPUT_ROOT", str(tmp_path))
+    with pytest.raises(SystemExit, match="invalid UF"):
+        _loader().main(["--uf", "../x", "--year", "2024", "--turn", "1", "--manifest", str(tmp_path / "m.json"),
+                        "--progress", "progress.json"])
+    recorded = json.loads((tmp_path / "progress.json").read_text(encoding="utf-8"))
+    assert recorded["uf"] is None
+    assert (recorded["year"], recorded["turn"]) == (2024, 1)
 
 
 def test_manifest_must_match_scope_and_record_the_verified_official_checksum() -> None:

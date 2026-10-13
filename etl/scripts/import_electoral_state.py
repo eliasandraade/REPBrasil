@@ -21,9 +21,8 @@ from src.electoral.open_data.layout import detect_layout
 from src.electoral.open_data.pipeline import prepare_import
 from src.electoral.open_data.scope_index import load_or_build_scope_index
 from src.electoral.open_data.store import import_prepared
+from src.electoral.paths import UNITS, unit_code
 
-
-_UF_RE = re.compile(r"^[A-Z]{2}$")
 _URL_CREDENTIALS = re.compile(r"://[^/@\s]+@")
 _PROGRESS_FILE = "progress.json"
 _REPORT_FILE = "report.json"
@@ -34,10 +33,10 @@ def _safe_error(exc: BaseException) -> str:
 
 
 def _normalize_uf(value: str) -> str:
-    uf = value.strip().upper()
-    if not _UF_RE.fullmatch(uf):
-        raise SystemExit(f"invalid UF {value!r}; expected two ASCII letters")
-    return uf
+    try:
+        return unit_code(value)
+    except SystemExit as exc:
+        raise SystemExit(f"invalid UF {value!r}; expected one of {', '.join(UNITS)}") from exc
 
 
 def _validate_manifest(manifest: dict[str, Any], *, year: int, turn: int, uf: str) -> None:
@@ -78,9 +77,10 @@ def _output_requested(requested: Path | None, *, output_root: Path, filename: st
 
 
 def _write_fixed(destination: Path, payload: dict[str, Any]) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     destination.parent.mkdir(parents=True, exist_ok=True)
-    tmp = destination.with_suffix(destination.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp = destination.with_name(destination.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
     tmp.replace(destination)
 
 
@@ -167,11 +167,13 @@ def main(argv: list[str] | None = None) -> int:
     output_root = _output_root()
     progress_enabled = _output_requested(args.progress, output_root=output_root, filename=_PROGRESS_FILE)
     report_enabled = _output_requested(args.report, output_root=output_root, filename=_REPORT_FILE)
+    # Só valores validados seguem adiante: ano/turno inteiros e UF da lista fechada.
+    year, turn = int(args.year), int(args.turn)
 
     summary: dict[str, Any] = {
-        "uf": args.uf,
-        "year": args.year,
-        "turn": args.turn,
+        "uf": None,
+        "year": year,
+        "turn": turn,
         "csv_sha256_verified": False,
         "scopes_total": 0,
         "imported": 0,
@@ -184,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         summary["uf"] = uf
         protect_uf = _normalize_uf(args.protect_uf) if args.protect_uf else None
         manifest, csv_path = load_manifest(args.manifest)
-        _validate_manifest(manifest, year=args.year, turn=args.turn, uf=uf)
+        _validate_manifest(manifest, year=year, turn=turn, uf=uf)
         verify_file_sha256(csv_path, manifest["csv"]["sha256"])
         summary["csv_sha256_verified"] = True
         scope_index = load_or_build_scope_index(
@@ -194,9 +196,14 @@ def main(argv: list[str] | None = None) -> int:
             csv_size=int(manifest["csv"]["size"]),
         )
         return _run(
-            args,
+            database_url=_database_url(args.database_url),
+            manifest_path=args.manifest,
+            year=year,
+            turn=turn,
             uf=uf,
             protect_uf=protect_uf,
+            link=args.link_votables,
+            refresh=not args.no_refresh,
             scope_index=scope_index,
             summary=summary,
             output_root=output_root,
@@ -211,21 +218,26 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run(
-    args: argparse.Namespace,
     *,
+    database_url: str,
+    manifest_path: Path,
+    year: int,
+    turn: int,
     uf: str,
     protect_uf: str | None,
+    link: bool,
+    refresh: bool,
     scope_index: Any,
     summary: dict[str, Any],
     output_root: Path,
     progress_enabled: bool,
     report_enabled: bool,
 ) -> int:
-    with electoral_db.connect(_database_url(args.database_url), autocommit=True) as conn:
-        protected_before = _state_stats(conn, year=args.year, turn=args.turn, uf=protect_uf) if protect_uf else None
-        pairs = _scopes(conn, year=args.year, turn=args.turn, uf=uf)
+    with electoral_db.connect(database_url, autocommit=True) as conn:
+        protected_before = _state_stats(conn, year=year, turn=turn, uf=protect_uf) if protect_uf else None
+        pairs = _scopes(conn, year=year, turn=turn, uf=uf)
         if not pairs:
-            raise SystemExit(f"no electoral cadaster scopes found for {uf} {args.year}/{args.turn}")
+            raise SystemExit(f"no electoral cadaster scopes found for {uf} {year}/{turn}")
         summary["scopes_total"] = len(pairs)
 
         for index, (code, zone) in enumerate(pairs, 1):
@@ -234,21 +246,21 @@ def _run(
                        SELECT 1 FROM section_office_result
                         WHERE year=%s AND turn=%s AND uf=%s AND municipality_tse_code=%s AND zone=%s
                      )""",
-                (args.year, args.turn, uf, str(code), zone),
+                (year, turn, uf, str(code), zone),
             ).fetchone()[0]
             if exists:
                 summary["already_present"] += 1
             else:
                 snapshot = load_zone_snapshot(
                     conn,
-                    year=args.year,
-                    turn=args.turn,
+                    year=year,
+                    turn=turn,
                     uf=uf,
                     municipality=int(code),
                     zone=zone,
                 )
                 prepared = prepare_import(
-                    args.manifest,
+                    manifest_path,
                     municipality=int(code),
                     zone=zone,
                     cadastro=snapshot,
@@ -262,14 +274,14 @@ def _run(
             summary["progress"] = {"done": index, "total": len(pairs)}
             _write_progress(progress_enabled, summary, output_root=output_root)
 
-        if args.link_votables:
-            summary["link"] = link_votables(conn, year=args.year, turn=args.turn, uf=uf)
-        if summary["imported"] > 0 and not args.no_refresh:
+        if link:
+            summary["link"] = link_votables(conn, year=year, turn=turn, uf=uf)
+        if summary["imported"] > 0 and refresh:
             summary["derived"] = refresh_derived(conn)
 
-        summary["state"] = _state_stats(conn, year=args.year, turn=args.turn, uf=uf)
+        summary["state"] = _state_stats(conn, year=year, turn=turn, uf=uf)
         if protect_uf:
-            protected_after = _state_stats(conn, year=args.year, turn=args.turn, uf=protect_uf)
+            protected_after = _state_stats(conn, year=year, turn=turn, uf=protect_uf)
             summary["protected_uf"] = {
                 "uf": protect_uf,
                 "before": protected_before,
