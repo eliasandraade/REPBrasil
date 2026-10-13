@@ -7,17 +7,26 @@ using RepBrasil.Infrastructure.Persistence;
 
 namespace RepBrasil.API.Infrastructure;
 
+/// <summary>Resultado do gate: chave inválida/revogada, escopo insuficiente e quota esgotada são distintos.</summary>
+public enum CommercialApiAccess
+{
+    Granted,
+    InvalidKey,
+    InsufficientScope,
+    QuotaExhausted,
+}
+
 public static class CommercialApiQuotaGate
 {
     private const int DefaultDailyQuota = 1000;
 
-    public static async Task<bool> ValidateAndConsumeAsync(
+    public static async Task<CommercialApiAccess> ValidateAndConsumeAsync(
         ApplicationDbContext db,
         string secret,
         string requiredScope,
         CancellationToken cancellationToken)
     {
-        if (!secret.StartsWith("rep_live_", StringComparison.Ordinal) || secret.Length < 30) return false;
+        if (!secret.StartsWith("rep_live_", StringComparison.Ordinal) || secret.Length < 30) return CommercialApiAccess.InvalidKey;
 
         await db.Database.OpenConnectionAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
@@ -34,8 +43,10 @@ public static class CommercialApiQuotaGate
             await using var reader = await keyCommand.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken))
             {
+                // Reader fechado antes do rollback (aberto, o Npgsql lança e a chave inválida virava 500).
+                await reader.DisposeAsync();
                 await transaction.RollbackAsync(cancellationToken);
-                return false;
+                return CommercialApiAccess.InvalidKey;
             }
 
             var apiKeyId = reader.GetGuid(0);
@@ -46,7 +57,7 @@ public static class CommercialApiQuotaGate
             if (!scopes.Contains(requiredScope, StringComparer.Ordinal))
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return false;
+                return CommercialApiAccess.InsufficientScope;
             }
 
             await using (var accountLock = Command(db,
@@ -56,7 +67,7 @@ public static class CommercialApiQuotaGate
                 if (await accountLock.ExecuteScalarAsync(cancellationToken) is null)
                 {
                     await transaction.RollbackAsync(cancellationToken);
-                    return false;
+                    return CommercialApiAccess.InvalidKey;
                 }
             }
 
@@ -91,7 +102,7 @@ public static class CommercialApiQuotaGate
             if (usedToday >= quota)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return false;
+                return CommercialApiAccess.QuotaExhausted;
             }
 
             await using (var increment = Command(db, """
@@ -112,7 +123,7 @@ public static class CommercialApiQuotaGate
             }
 
             await transaction.CommitAsync(cancellationToken);
-            return true;
+            return CommercialApiAccess.Granted;
         }
         finally
         {

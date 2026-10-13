@@ -12,19 +12,24 @@ public sealed class CommercialApiController(ApplicationDbContext db) : Controlle
     public async Task<IActionResult> Ping(CancellationToken cancellationToken)
     {
         var secret = Request.Headers["X-Api-Key"].ToString();
-        if (!await CommercialApiQuotaGate.ValidateAndConsumeAsync(db, secret, "read:public", cancellationToken))
-            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "invalid_or_exhausted_api_key" });
+        var access = await CommercialApiQuotaGate.ValidateAndConsumeAsync(db, secret, "read:public", cancellationToken);
 
-        return Ok(new
+        return access switch
         {
-            status = "ok",
-            apiVersion = "v1",
-            semantics = new
+            CommercialApiAccess.Granted => Ok(new
             {
-                missingIsNotZero = true,
-                provenanceRequired = true,
-                syntheticElectionFacts = false
-            }
-        });
+                status = "ok",
+                apiVersion = "v1",
+                semantics = new
+                {
+                    missingIsNotZero = true,
+                    provenanceRequired = true,
+                    syntheticElectionFacts = false
+                }
+            }),
+            CommercialApiAccess.InsufficientScope => StatusCode(StatusCodes.Status403Forbidden, new { error = "insufficient_scope" }),
+            CommercialApiAccess.QuotaExhausted => StatusCode(StatusCodes.Status429TooManyRequests, new { error = "daily_quota_exhausted" }),
+            _ => StatusCode(StatusCodes.Status401Unauthorized, new { error = "invalid_api_key" }),
+        };
     }
 }

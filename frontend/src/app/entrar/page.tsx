@@ -3,15 +3,34 @@
 import { FormEvent, useEffect, useState } from "react";
 import { googleLoginUrl, requestMagicLink } from "@/lib/account";
 
+// Códigos com que a API devolve um login recusado (AccountController) e o que eles significam.
+const SIGN_IN_FAILURES = new Map([
+  [
+    "link-invalido",
+    "Este link de acesso não pode ser usado: ele expirou, já foi usado ou foi aberto em um navegador diferente daquele em que foi pedido. Por segurança, peça um novo link e abra-o neste mesmo navegador.",
+  ],
+  ["estado-invalido", "Não foi possível confirmar o login com o Google neste navegador. Comece de novo por esta página."],
+  ["google-cancelado", "O login com o Google foi cancelado."],
+  ["google-falhou", "O Google não confirmou o acesso. É preciso uma conta Google com e-mail verificado; tente novamente."],
+  ["google-indisponivel", "O login com o Google está indisponível no momento. Use o link por e-mail ou tente mais tarde."],
+]);
+
+function isLocalPath(value: string | null): value is string {
+  if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return false;
+  return ![...value].some((character) => (character.codePointAt(0) ?? 0) < 32);
+}
+
 export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [returnTo, setReturnTo] = useState("/conta");
+  const [failure, setFailure] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const next = params.get("returnTo");
-    if (next?.startsWith("/") && !next.startsWith("//")) setReturnTo(next);
+    if (isLocalPath(next)) setReturnTo(next);
+    setFailure(SIGN_IN_FAILURES.get(params.get("erro") ?? "") ?? null);
   }, []);
 
   async function submit(event: FormEvent) {
@@ -33,6 +52,12 @@ export default function SignInPage() {
         <p className="mt-2 text-sm leading-6 text-fg-muted">
           Sua conta guarda favoritos, watchlist, alertas e credenciais da API. O conteúdo público continua acessível sem login.
         </p>
+
+        {failure && (
+          <p className="mt-4 rounded-lg border border-danger/40 bg-danger/5 px-3 py-3 text-sm text-danger" role="alert">
+            {failure}
+          </p>
+        )}
 
         <a
           href={googleLoginUrl(returnTo)}

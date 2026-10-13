@@ -93,11 +93,11 @@ jobs:
       - name: Migrations up again
         working-directory: backend
         run: dotnet tool run dotnet-ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
-      - name: .NET database tests (synthetic data, rolled back)
+      - name: .NET database tests (synthetic data, rolled back; account flows clean up their own users)
         working-directory: backend
         env:
           REPBRASIL_ELECTORAL_TEST_DB: Host=localhost;Port=5432;Database=repbrasil_ci_test;Username=repbrasil
-        run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral|FullyQualifiedName~Search|FullyQualifiedName~Rankings|FullyQualifiedName~Parties|FullyQualifiedName~DataIntelligence"
+        run: dotnet test --no-build -c Release --filter "FullyQualifiedName~Electoral|FullyQualifiedName~Search|FullyQualifiedName~Rankings|FullyQualifiedName~Parties|FullyQualifiedName~DataIntelligence|FullyQualifiedName~AccountFlow"
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.12"
