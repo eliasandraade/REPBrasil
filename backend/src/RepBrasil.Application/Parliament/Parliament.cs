@@ -49,12 +49,18 @@ public sealed record ParliamentAmendmentDto(
     string SourceUrl,
     DateTimeOffset RetrievedAt);
 
+/// <summary>
+/// Somas por município sobre a edição vigente. Valor ausente não entra como zero: as somas cobrem só
+/// os valores publicados, e *Missing conta as emendas sem valor (soma parcial quando &gt; 0).
+/// </summary>
 public sealed record AmendmentMunicipalityDto(
     string MunicipalityIbgeCode,
     string MunicipalityName,
     int AmendmentCount,
     decimal? CommittedAmount,
+    int CommittedAmountMissing,
     decimal? PaidAmount,
+    int PaidAmountMissing,
     DateTimeOffset RetrievedAt);
 
 public interface IParliamentRepository

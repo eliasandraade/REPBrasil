@@ -47,17 +47,26 @@ public sealed class ParliamentRepository(ApplicationDbContext db) : IParliamentR
         object yearParameter = year.HasValue ? year.Value : DBNull.Value;
         object memberParameter = memberId.HasValue ? memberId.Value : DBNull.Value;
         return Query<ParliamentAmendmentDto>("""
-            WITH current_amendment AS (
+            -- Cada (provider, dataset) de emendas é uma edição completa do seu recorte: vale só a mais
+            -- recente; edições anteriores ficam preservadas para auditoria, mas não "ressuscitam" emendas.
+            WITH amendment_edition AS (
+              SELECT DISTINCT ON (s.provider, s.dataset)
+                     s.id, s.provider, s.dataset, s.source_url, s.retrieved_at
+                FROM electoral.parliament_source s
+                JOIN (SELECT DISTINCT source_id FROM electoral.parliament_amendment) used ON used.source_id = s.id
+               ORDER BY s.provider, s.dataset, s.retrieved_at DESC, s.id DESC
+            ),
+            current_amendment AS (
               SELECT DISTINCT ON (a.external_id)
                      a.id, a.external_id, a.author_member_id, a.author_name, a.year, a.amendment_type,
                      a.functional_programming, a.beneficiary_document, a.beneficiary_name, a.locality,
                      a.municipality_ibge_code, a.committed_amount, a.paid_amount,
-                     s.provider, s.dataset, s.source_url, s.retrieved_at
+                     e.provider, e.dataset, e.source_url, e.retrieved_at
                 FROM electoral.parliament_amendment a
-                JOIN electoral.parliament_source s ON s.id = a.source_id
+                JOIN amendment_edition e ON e.id = a.source_id
                WHERE ({0}::int IS NULL OR a.year = {0})
                  AND ({1}::bigint IS NULL OR a.author_member_id = {1})
-               ORDER BY a.external_id, s.retrieved_at DESC, s.id DESC, a.id DESC
+               ORDER BY a.external_id, e.retrieved_at DESC, e.id DESC, a.id DESC
             )
             SELECT a.id AS "Id", a.external_id AS "ExternalId", a.author_member_id AS "AuthorMemberId",
                    a.author_name AS "AuthorName", a.year AS "Year", a.amendment_type AS "AmendmentType",
@@ -78,19 +87,32 @@ public sealed class ParliamentRepository(ApplicationDbContext db) : IParliamentR
     {
         object yearParameter = year.HasValue ? year.Value : DBNull.Value;
         return Query<AmendmentMunicipalityDto>("""
-            WITH current_amendment AS (
+            -- Cada (provider, dataset) de emendas é uma edição completa do seu recorte: vale só a mais
+            -- recente; edições anteriores ficam preservadas para auditoria, mas não "ressuscitam" emendas.
+            WITH amendment_edition AS (
+              SELECT DISTINCT ON (s.provider, s.dataset)
+                     s.id, s.provider, s.dataset, s.source_url, s.retrieved_at
+                FROM electoral.parliament_source s
+                JOIN (SELECT DISTINCT source_id FROM electoral.parliament_amendment) used ON used.source_id = s.id
+               ORDER BY s.provider, s.dataset, s.retrieved_at DESC, s.id DESC
+            ),
+            current_amendment AS (
               SELECT DISTINCT ON (a.external_id)
                      a.external_id, a.year, a.municipality_ibge_code, a.committed_amount, a.paid_amount,
-                     s.retrieved_at
+                     e.retrieved_at
                 FROM electoral.parliament_amendment a
-                JOIN electoral.parliament_source s ON s.id = a.source_id
+                JOIN amendment_edition e ON e.id = a.source_id
                WHERE a.municipality_ibge_code IS NOT NULL
                  AND ({0}::int IS NULL OR a.year = {0})
-               ORDER BY a.external_id, s.retrieved_at DESC, s.id DESC, a.id DESC
+               ORDER BY a.external_id, e.retrieved_at DESC, e.id DESC, a.id DESC
             )
             SELECT a.municipality_ibge_code AS "MunicipalityIbgeCode", m.name AS "MunicipalityName",
-                   count(*)::int AS "AmendmentCount", sum(a.committed_amount) AS "CommittedAmount",
-                   sum(a.paid_amount) AS "PaidAmount", max(a.retrieved_at) AS "RetrievedAt"
+                   count(*)::int AS "AmendmentCount",
+                   sum(a.committed_amount) AS "CommittedAmount",
+                   count(*) FILTER (WHERE a.committed_amount IS NULL)::int AS "CommittedAmountMissing",
+                   sum(a.paid_amount) AS "PaidAmount",
+                   count(*) FILTER (WHERE a.paid_amount IS NULL)::int AS "PaidAmountMissing",
+                   max(a.retrieved_at) AS "RetrievedAt"
               FROM current_amendment a
               JOIN electoral.municipality m ON m.ibge_code::text = a.municipality_ibge_code AND m.state_code = {1}
              GROUP BY a.municipality_ibge_code, m.name
