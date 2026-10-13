@@ -58,11 +58,19 @@ evidência simulada.
 | [#39](https://github.com/eliasandraade/REPBrasil/pull/39) | `fix/lake-rpc-tls` | #38 | RPC privado do lake em TLS vinculado ao token (S5332) | AUTOMATED GATES GREEN |
 | [#40](https://github.com/eliasandraade/REPBrasil/pull/40) | `fix/pwa-offline-production` | #39 | PWA factual-safe provado com corte real de rede; causa do smoke #3 | AUTOMATED GATES GREEN |
 | [#41](https://github.com/eliasandraade/REPBrasil/pull/41) | `fix/auth-export-hardening` | #40 | três 500 de auth, recusas explicadas em `/entrar`, testes de fluxo de conta, CSV sem fórmula | AUTOMATED GATES GREEN |
-| [#42](https://github.com/eliasandraade/REPBrasil/pull/42) | `fix/parliament-identity-integrity` | #41 | fim do vínculo por nome Câmara↔TSE, edição vigente de emendas, somas parciais sinalizadas | AUTOMATED GATES GREEN |
-| [#43](https://github.com/eliasandraade/REPBrasil/pull/43) | `feat/parliament-ce-ingestion` | #42 | ingestão auditável de parlamento por UF a partir das fontes oficiais | AUTOMATED GATES GREEN |
+| [#42](https://github.com/eliasandraade/REPBrasil/pull/42) | `fix/parliament-identity-integrity` | #41 | fim do vínculo por nome Câmara↔TSE; edição vigente decidida em `parliament_source` (vazia = ausência oficial); recorte de UF pela edição, com as emendas só com UF; anos e total de atos por endpoints próprios; somas parciais sinalizadas; cenário PWA de troca de versão isolado | AUTOMATED GATES GREEN |
+| [#43](https://github.com/eliasandraade/REPBrasil/pull/43) | `feat/parliament-ce-ingestion` | #42 | ingestão auditável de parlamento por UF a partir das fontes oficiais; cada redirecionamento validado antes da requisição e download com teto rígido em streaming | AUTOMATED GATES GREEN |
 | [#44](https://github.com/eliasandraade/REPBrasil/pull/44) | `chore/ceara-final-evidence` | #43 | smoke de produção ampliado, documentação reconciliada e roteiro de smoke humano | ver os checks do próprio PR |
 
 Resultados de CI, Sonar e testes de cada PR estão na descrição do PR.
+
+**Ingestão parlamentar real em banco descartável** (13/10/2026, migrations do zero, código do #43;
+nada em produção): 34 deputados federais do CE (todos `unlinked`), 8.757 atos, 2.927 emendas no
+recorte CE (1.302 com município IBGE oficial, em 176 municípios; 1.625 publicadas só com a UF),
+anos 2015–2026. Pela API local: `/amendments?uf=CE` inclui as emendas só com UF; `/amendments/map`
+agrega só as 1.302 com município; `/activities/count` devolve 8.757 enquanto a listagem traz 100;
+uma edição vigente vazia (simulada só nesse banco) esvazia `/amendments`, o mapa e os anos sem
+apagar as 2.927 linhas da edição anterior.
 
 ## Ordem de merge e operações
 
@@ -102,7 +110,7 @@ Resultados de CI, Sonar e testes de cada PR estão na descrição do PR.
 | Perfil socioeleitoral | DONE (#21) — Pearson, Spearman, N, scatter, quintis e caveat de falácia ecológica |
 | Fundação parlamentar auditável | DONE (#23) — schema, proveniência, Câmara e emendas |
 | Mapas temáticos | base/partido DONE; socioeconômico READY FOR HUMAN SMOKE (#34); emendas CODE COMPLETE — dependem de #42, #43 e da ingestão |
-| Atividade parlamentar e emendas | CODE COMPLETE — APIs e `/parlamento` em produção (#34), vazios; identidade documental, edição vigente e somas parciais no #42; ingestão no #43; carga real é operação pós-merge |
+| Atividade parlamentar e emendas | CODE COMPLETE — APIs e `/parlamento` em produção (#34), vazios; no #42 identidade documental, edição vigente (vazia = ausência oficial), recorte pela UF oficial da edição, anos e total de atos por endpoints próprios e somas parciais sinalizadas; ingestão no #43; carga real é operação pós-merge |
 | Comparador universal | READY FOR HUMAN SMOKE (#24) — candidaturas, partidos, municípios e eleições; até cinco itens do mesmo tipo |
 | Insights determinísticos | READY FOR HUMAN SMOKE (#24) — regras versionadas, sem LLM factual em runtime; conferidos no comparador |
 | Exports (CSV, XLSX, PDF, PNG) | READY FOR HUMAN SMOKE (#24) — contexto, fontes, metodologia, timestamp e URL reproduzível; CSV sem fórmulas no #41; validação por conteúdo no smoke do #44 |

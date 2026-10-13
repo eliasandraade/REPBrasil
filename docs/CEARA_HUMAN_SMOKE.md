@@ -10,7 +10,8 @@ números podem mudar, mas a forma do resultado não.
 
 1. O workflow **Production smoke** do commit de merge na `main` terminou verde (GitHub → Actions →
    "Production smoke"). Ele já confere automaticamente: revisão implantada em front e API, APIs
-   parlamentares, seções arquivadas servidas pelo lake, `/sw.js?v=<SHA>`, headers, contratos
+   parlamentares (com o total de atos e os anos de emendas vindos de endpoints próprios), seções
+   arquivadas servidas pelo lake, `/sw.js?v=<SHA>`, headers, contratos
    anônimos de auth (401/redirects de recusa), PWA offline com corte real de rede, páginas sem
    erro de console/5xx em desktop e celular e os quatro exports do comparador. Se ele falhou, pare
    aqui: o smoke humano não substitui o automático.
@@ -113,17 +114,25 @@ Registre cada item como **OK** ou **FALHA** (com captura de tela e horário) na 
 
 - **URL:** https://www.apprepbrasil.com.br/parlamento
 - **Passos:** conferir os três cartões; escolher um parlamentar em "Parlamentar — atos"; abrir o link
-  "documento oficial" de um ato; escolher um ano em "Ano — emendas"; passar o mouse/tocar em
-  municípios do mapa.
-- **Esperado (após a ingestão):** "Parlamentares do CE carregados" com os deputados federais do CE da
-  57ª legislatura (34 na execução local de 13/10/2026); atos com fonte, data de coleta e link para a
-  Câmara; emendas com valores publicados ou "—"; no mapa, só totais completos coloridos e municípios
-  com "soma parcial: N emendas sem valor publicado" sem cor. Nenhum parlamentar aparece vinculado a
-  perfil de candidato.
+  "documento oficial" de um ato; abrir o seletor "Ano — emendas" e escolher o ano mais antigo da
+  lista; procurar na tabela "Emendas destinadas ao Ceará" linhas com destino só na UF (ex.:
+  "CEARÁ (UF)" ou "MÚLTIPLO"); passar o mouse/tocar em municípios do mapa.
+- **Esperado (após a ingestão):**
+  - "Parlamentares do CE carregados" com os deputados federais do CE da 57ª legislatura (34 na
+    execução local de 13/10/2026), nenhum vinculado a perfil de candidato;
+  - "Atos no recorte" com o **total** de atos (8.757 na execução local), e a lista de atos dizendo
+    "Exibindo os 100 mais recentes de …" — nunca 100 como se fosse o total;
+  - o seletor de ano com **todos** os anos da edição vigente (2015 a 2026 na execução local), mesmo
+    os que não aparecem nas 200 linhas da tabela;
+  - a tabela inclui emendas destinadas ao CE sem município publicado (1.625 das 2.927 na execução
+    local), que **não** aparecem no mapa; o mapa só mostra municípios com código IBGE oficial (176
+    na execução local), com totais completos coloridos e soma parcial ("soma parcial: N emendas sem
+    valor publicado") sem cor.
   **Antes da ingestão:** "Nenhum ato oficial carregado para este recorte." e "Nenhuma emenda oficial
   carregada para este recorte." — nunca "0 atos" como se fosse atividade nula.
-- **Falha:** parlamentar ligado a perfil do TSE por nome; zero exibido como atividade; soma parcial
-  colorida como total; link oficial quebrado; erro de carregamento.
+- **Falha:** parlamentar ligado a perfil do TSE por nome; "Atos no recorte" igual ao tamanho da lista;
+  ano ausente do seletor; emenda só com UF ausente da tabela ou presente no mapa; zero exibido como
+  atividade; soma parcial colorida como total; link oficial quebrado; erro de carregamento.
 
 ## 10. Dados (Data Intelligence)
 
