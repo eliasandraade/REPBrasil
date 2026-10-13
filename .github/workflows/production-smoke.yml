@@ -14,9 +14,9 @@ concurrency:
 
 jobs:
   smoke:
-    name: Public production + PWA evidence
+    name: Public production, PWA, auth contracts and exports
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       REPBRASIL_WEB_URL: https://www.apprepbrasil.com.br
       REPBRASIL_API_URL: https://api.apprepbrasil.com.br

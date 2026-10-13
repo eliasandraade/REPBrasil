@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { startConnectTunnel } from "./network-switch.mjs";
+import {
+  assertNoProblems,
+  verifyAnonymousContracts,
+  verifyArchivedSections,
+  verifyComparatorExports,
+  verifyGuardedPages,
+  visitGuarded,
+} from "./production-checks.mjs";
 import { verifyFactualSafeOffline } from "./pwa-offline-verify.mjs";
 
 const WEB = process.env.REPBRASIL_WEB_URL ?? "https://www.apprepbrasil.com.br";
@@ -16,7 +24,7 @@ const apiChecks = [
   ["amendments API", "/api/v1/parliament/amendments?uf=CE&limit=5"],
   ["amendment map API", "/api/v1/parliament/amendments/map?uf=CE"],
 ];
-const webChecks = ["/parlamento", "/dados", "/offline", "/offline.html", "/sw.js"];
+const webChecks = ["/parlamento", "/dados", "/pesquisas", "/comparar", "/entrar", "/offline", "/offline.html", "/sw.js"];
 const captureTargets = [["parlamento", "/parlamento"], ["dados", "/dados"]];
 
 assert.match(EXPECTED_SHA, /^[0-9a-f]{40}$/i, "REPBRASIL_EXPECTED_SHA must be a full git SHA");
@@ -119,14 +127,12 @@ async function assertRenderedData(page, path) {
 }
 
 async function capturePage(context, slug, path, profile, waitMs) {
-  const page = await context.newPage();
+  const { page, problems } = await visitGuarded(context, `${WEB}${path}`, (loaded) => assertRenderedData(loaded, path));
   try {
-    const response = await page.goto(`${WEB}${path}`, { waitUntil: "domcontentloaded", timeout: 60000 });
-    assert.ok(response?.ok(), `${path} ${profile} navigation failed`);
-    await assertRenderedData(page, path);
     await page.waitForTimeout(waitMs);
     await page.screenshot({ path: `${outputDir}/${slug}-${profile}.png`, fullPage: true });
-    record(`${path} ${profile} screenshot`);
+    assertNoProblems(problems, `${path} ${profile}`);
+    record(`${path} ${profile}: rendered without 5xx, page or console errors`);
   } finally {
     await page.close();
   }
@@ -137,6 +143,7 @@ await Promise.all([
   waitForRevision(`${API}/api/v1/overview`, "API"),
 ]);
 await Promise.all(apiChecks.map(verifyApi));
+await verifyArchivedSections({ api: API, record });
 await Promise.all(webChecks.map(verifyWebPath));
 
 const sw = await fetchOk(`${WEB}/sw.js`);
@@ -149,6 +156,8 @@ const parliamentPage = await fetchOk(`${WEB}/parlamento`);
 assert.equal(parliamentPage.headers.get("x-content-type-options"), "nosniff");
 assert.equal(parliamentPage.headers.get("x-frame-options"), "SAMEORIGIN");
 record("browser security headers");
+
+await verifyAnonymousContracts({ web: WEB, api: API, record });
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -179,6 +188,9 @@ try {
   } finally {
     await mobile.close();
   }
+
+  await verifyGuardedPages({ browser, web: WEB, outputDir, record });
+  await verifyComparatorExports({ browser, web: WEB, outputDir, record });
 } finally {
   await browser.close();
 }

@@ -64,14 +64,21 @@ para cargos federais):
 
 Votos de legenda pertencem ao partido, não a uma pessoa: nunca ligam a perfil.
 
-**Substituição de candidatura (CE 2026).** 8 votáveis ficaram `ambiguous`: o número passou da
-candidatura substituída para a substituta (ex.: Dep. Federal 4077, Dep. Estadual 40777, Governador 30,
-Presidente 28). A candidatura substituída aparece no arquivo de candidatos sem totalização
-(`DS_SIT_TOT_TURNO = #NULO`). Regra candidata, **ainda não aplicada** e sujeita a revisão: entre
-candidaturas com o mesmo número na disputa, considerar só as totalizadas; se restar exatamente uma e o
-nome de urna coincidir com o do BU, vincular com um método próprio (`contest_number_totalized`). Até
-lá, esses votos aparecem sem perfil — corretos, apenas sem vínculo. Os 3 casos `name_mismatch` são
-abreviações divergentes entre as duas fontes oficiais (ex.: `PROFª` × `PROF.`).
+**Substituição de candidatura.** O TSE mantém a candidatura substituída e a substituta na mesma
+disputa, com o mesmo número. Com mais de uma candidatura para disputa + número, o vínculo só é feito
+pelos sinalizadores oficiais do arquivo complementar de candidatos, com método próprio
+(`_pick_candidacy` em `etl/src/electoral/candidates/store.py`):
+
+- exatamente uma inserida na urna (`ST_CANDIDATO_INSERIDO_URNA = SIM`) ⇒
+  `contest_number_inserted_in_urn` (migration 010);
+- substituição posterior à carga das urnas (as duas constam como inseridas) e exatamente uma não
+  substituída (`ST_SUBSTITUIDO = N`) ⇒ `contest_number_substitution` (migration 011);
+- sem essa prova oficial ⇒ `ambiguous`, sem vínculo.
+
+O nome de urna nunca escolhe a candidatura: ele só veta o vínculo quando diverge, comparado sem
+acentos, pontuação nem indicadores ordinais (`PROFª` e `PROF.` conferem). Auditoria CE 2026 · 1º turno
+(`docs/audits/audit_2026_CE_t1.md`): 643 vínculos `contest_number`, 7
+`contest_number_inserted_in_urn` e 1 `contest_number_substitution`; nenhum votável ambíguo.
 
 ## Situação na eleição
 
