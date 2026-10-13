@@ -145,7 +145,7 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
   return (
     <div className="space-y-5">
       <section className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-3">
-        <label className="text-sm text-fg-muted">Recorte
+        <label className="text-sm text-fg-muted"><span>Recorte</span>
           <select value={contextKey} onChange={(event) => {
             const [nextYear, nextRound, nextOffice] = event.target.value.split("-");
             setParam({ ano: nextYear, turno: nextRound, cargo: nextOffice });
@@ -153,7 +153,7 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
             {contexts.map((item) => <option key={`${item.year}-${item.round}-${item.office}`} value={`${item.year}-${item.round}-${item.office}`}>{item.year} · {item.round}º turno · {item.name}{item.covered ? "" : " · cobertura parcial"}</option>)}
           </select>
         </label>
-        <label className="text-sm text-fg-muted">Adicionar partido
+        <label className="text-sm text-fg-muted"><span>Adicionar partido</span>
           <select defaultValue="" onChange={(event) => { if (event.target.value) add(event.target.value); event.currentTarget.value = ""; }} disabled={selected.length >= MAX_ITEMS} className="mt-1 w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg">
             <option value="">Escolha…</option>
             {data.parties.filter((party) => !selected.includes(party.slug)).map((party) => <option key={party.slug} value={party.slug}>{party.acronym}{party.name ? ` — ${party.name}` : ""}</option>)}
@@ -260,13 +260,13 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
   return (
     <div className="space-y-5">
       <section className="grid gap-3 rounded-xl border border-line bg-surface p-4 md:grid-cols-3">
-        <label className="text-sm text-fg-muted">Adicionar município
+        <label className="text-sm text-fg-muted"><span>Adicionar município</span>
           <select defaultValue="" disabled={selected.length >= MAX_ITEMS} onChange={(event) => { if (event.target.value) addMunicipality(event.target.value); event.currentTarget.value = ""; }} className="mt-1 w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg"><option value="">Escolha…</option>{catalog.filter((item) => item.ibgeCode !== null && !selected.includes(String(item.ibgeCode))).map((item) => <option key={item.tseCode} value={String(item.ibgeCode)}>{item.name}</option>)}</select>
         </label>
-        <label className="text-sm text-fg-muted">Período
+        <label className="text-sm text-fg-muted"><span>Período</span>
           <input type="number" value={period} onChange={(event) => setParam({ periodo: event.target.value })} className="mt-1 w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" />
         </label>
-        <label className="text-sm text-fg-muted">Adicionar indicador
+        <label className="text-sm text-fg-muted"><span>Adicionar indicador</span>
           <select defaultValue="" disabled={effectiveMetrics.length >= MAX_ITEMS} onChange={(event) => { if (event.target.value) addMetric(event.target.value); event.currentTarget.value = ""; }} className="mt-1 w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg"><option value="">Escolha…</option>{(indicators.data ?? []).filter((item) => !effectiveMetrics.includes(item.code)).map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select>
         </label>
         <div className="md:col-span-3 flex flex-wrap gap-2">{picked.map((item) => <button key={item.tseCode} type="button" onClick={() => setParam({ itens: selected.filter((code) => code !== String(item.ibgeCode)).join(",") || null })} className="rounded-full border border-line px-2.5 py-1 text-xs text-fg-soft">{item.name} ×</button>)}{metrics.map((item) => <button key={item.code} type="button" onClick={() => setParam({ metricas: effectiveMetrics.filter((code) => code !== item.code).join(",") || null })} className="rounded-full border border-accent/25 px-2.5 py-1 text-xs text-accent-text">{item.name} ×</button>)}</div>
@@ -344,7 +344,7 @@ function ElectionComparator({ setParam }: Readonly<{ setParam: (updates: Record<
   return (
     <div className="space-y-5">
       <section className="rounded-xl border border-line bg-surface p-4">
-        <label className="block max-w-xl text-sm text-fg-muted">Adicionar eleição
+        <label className="block max-w-xl text-sm text-fg-muted"><span>Adicionar eleição</span>
           <select defaultValue="" disabled={selected.length >= MAX_ITEMS} onChange={(event) => { if (event.target.value) add(event.target.value); event.currentTarget.value = ""; }} className="mt-1 w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg"><option value="">Escolha…</option>{catalog.data.elections.filter((item) => !selected.includes(electionKey(item))).map((item) => <option key={electionKey(item)} value={electionKey(item)}>{item.year} · {item.round}º turno · {item.description ?? "Eleição"}</option>)}</select>
         </label>
         <div className="mt-3 flex flex-wrap gap-2">{selectedElections.map((item) => <button key={electionKey(item)} type="button" onClick={() => setParam({ itens: selected.filter((key) => key !== electionKey(item)).join(",") || null })} className="rounded-full border border-line px-2.5 py-1 text-xs text-fg-soft">{item.year} · {item.round}º turno ×</button>)}</div>

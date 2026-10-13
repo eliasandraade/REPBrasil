@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Indicator } from "@/lib/data-intelligence";
-import { reportCsv, reportPdf, reportXlsx, type ExportReport } from "@/lib/export/report";
+import { exportFilename, reportCsv, reportPdf, reportXlsx, type ExportReport } from "@/lib/export/report";
 import { indicatorHref, searchOptions, withIndicatorResults, type SearchResponse } from "@/lib/search";
 
 const REPORT: ExportReport = {
@@ -51,6 +51,20 @@ describe("PR G — exports auditáveis", () => {
     expect(pdf.slice(0, 8)).toBe("%PDF-1.4");
     expect(pdf).toContain("4a6f73e9");
     expect(pdf).toContain("97");
+  });
+});
+
+describe("PR G — nome dos arquivos exportados", () => {
+  it("normaliza acentos e separadores sem hífens nas pontas", () => {
+    expect(exportFilename("  Comparação: José / Fortaleza!  ")).toBe("comparacao-jose-fortaleza");
+    expect(exportFilename("---")).toBe("repbrasil-export");
+  });
+
+  it("processa entradas patológicas em tempo linear", () => {
+    const value = `${"-".repeat(50_000)}a${"-".repeat(50_000)}`;
+    const started = performance.now();
+    expect(exportFilename(value)).toBe("a");
+    expect(performance.now() - started).toBeLessThan(250);
   });
 });
 

@@ -83,7 +83,7 @@ def trim(rgba: np.ndarray) -> np.ndarray:
 
 
 def _bounds(rgba: np.ndarray) -> tuple[slice, slice]:
-    ys, xs = np.where(rgba[..., 3] > 0)
+    ys, xs = np.nonzero(rgba[..., 3] > 0)
     return slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1)
 
 
