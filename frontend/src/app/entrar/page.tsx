@@ -17,7 +17,7 @@ const SIGN_IN_FAILURES = new Map([
 
 function isLocalPath(value: string | null): value is string {
   if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return false;
-  return ![...value].some((character) => character.charCodeAt(0) < 32);
+  return ![...value].some((character) => (character.codePointAt(0) ?? 0) < 32);
 }
 
 export default function SignInPage() {
