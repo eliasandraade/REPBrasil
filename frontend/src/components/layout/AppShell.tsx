@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { SearchProvider, SearchTrigger } from "@/components/search/GlobalSearch";
+import { OfflineNotice } from "@/components/pwa/OfflineNotice";
 import { TransitionLink } from "@/motion/navigation";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -312,6 +313,8 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
             <SearchTrigger compact />
           </div>
         </div>
+
+        <OfflineNotice />
 
         <div data-route-frame className="flex min-w-0 flex-1 flex-col">
           {children}
