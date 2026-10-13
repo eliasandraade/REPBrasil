@@ -102,7 +102,7 @@ class PrivateLakeServer(ThreadingHTTPServer):
             return
         try:
             secure = self.tls_context.wrap_socket(request, server_side=True)
-        except (ssl.SSLError, OSError) as exc:
+        except OSError as exc:  # inclui ssl.SSLError (handshake recusado ou inválido)
             print(f"lake-rpc tls handshake refused: {type(exc).__name__}", flush=True)
             return
         with secure:
