@@ -13,6 +13,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Versão do service worker (/sw.js?v=...): cada deploy instala um worker novo e poda os caches antigos.
+  env: { NEXT_PUBLIC_REPBRASIL_REVISION: revision },
   outputFileTracingRoot: path.join(__dirname, "../"),
   redirects: () =>
     Promise.resolve([
