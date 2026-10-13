@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
+import { verifyFactualSafeOffline } from "./pwa-offline-verify.mjs";
 
 const WEB = process.env.REPBRASIL_WEB_URL ?? "https://www.apprepbrasil.com.br";
 const API = process.env.REPBRASIL_API_URL ?? "https://api.apprepbrasil.com.br";
@@ -14,7 +15,7 @@ const apiChecks = [
   ["amendments API", "/api/v1/parliament/amendments?uf=CE&limit=5"],
   ["amendment map API", "/api/v1/parliament/amendments/map?uf=CE"],
 ];
-const webChecks = ["/parlamento", "/dados", "/offline", "/sw.js"];
+const webChecks = ["/parlamento", "/dados", "/offline", "/offline.html", "/sw.js"];
 const captureTargets = [["parlamento", "/parlamento"], ["dados", "/dados"]];
 
 assert.match(EXPECTED_SHA, /^[0-9a-f]{40}$/i, "REPBRASIL_EXPECTED_SHA must be a full git SHA");
@@ -151,29 +152,19 @@ record("browser security headers");
 const browser = await chromium.launch({ headless: true });
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  await Promise.all(captureTargets.map(([slug, path]) => capturePage(desktop, slug, path, "desktop", 3000)));
-
-  const offlinePage = await desktop.newPage();
   try {
-    await offlinePage.goto(`${WEB}/dados`, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await assertRenderedData(offlinePage, "/dados");
-    const serviceWorkerScope = await offlinePage.evaluate(async () => {
-      if (!("serviceWorker" in navigator)) throw new Error("Service worker unsupported");
-      const registration = await navigator.serviceWorker.ready;
-      return registration.scope;
-    });
-    const expectedScope = new URL("/", WEB).href;
-    assert.equal(serviceWorkerScope, expectedScope, `unexpected service worker scope: ${serviceWorkerScope}`);
-    await offlinePage.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
-    await desktop.setOffline(true);
-    await offlinePage.goto(`${WEB}/dados?production-offline-smoke=1`, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await offlinePage.getByText("Você está sem conexão", { exact: true }).waitFor({ timeout: 15000 });
-    await offlinePage.screenshot({ path: `${outputDir}/offline-desktop.png`, fullPage: true });
-    record("PWA factual-safe offline fallback", { scope: serviceWorkerScope });
+    await Promise.all(captureTargets.map(([slug, path]) => capturePage(desktop, slug, path, "desktop", 3000)));
   } finally {
-    await offlinePage.close();
     await desktop.close();
   }
+
+  await verifyFactualSafeOffline({
+    web: WEB,
+    outputDir,
+    record,
+    expectedRevision: EXPECTED_SHA,
+    factualPath: "/dados",
+  });
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {

@@ -49,6 +49,8 @@ data/processed/*
 !data/processed/.gitkeep
 # Artefatos locais do ETL (downloads, relatórios de importação)
 etl/artifacts/
+# Evidências geradas pelos smokes (production smoke, PWA local); publicadas como artefatos do CI
+/artifacts/
 
 # OS
 .DS_Store
