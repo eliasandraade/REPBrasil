@@ -56,9 +56,40 @@ export interface AmendmentMunicipality {
   municipalityIbgeCode: string;
   municipalityName: string;
   amendmentCount: number;
+  /** Soma só dos valores publicados; null quando nenhuma emenda do município tem valor. */
   committedAmount: number | null;
+  /** Emendas sem valor empenhado publicado (soma parcial quando > 0). */
+  committedAmountMissing: number;
   paidAmount: number | null;
+  paidAmountMissing: number;
   retrievedAt: string;
+}
+
+const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
+const integer = new Intl.NumberFormat("pt-BR");
+
+function amendments(total: number): string {
+  return `${integer.format(total)} emenda${total === 1 ? "" : "s"}`;
+}
+
+function amountText(value: number | null, missing: number, label: string): string {
+  if (value === null) return `${label} não publicado`;
+  const total = `${money.format(value)} ${label}`;
+  return missing > 0 ? `${total} (soma parcial: ${amendments(missing)} sem valor publicado)` : total;
+}
+
+/** Texto do município no mapa: valor ausente nunca vira zero nem é apresentado como total. */
+export function describeAmendmentMunicipality(row: AmendmentMunicipality): string {
+  return [
+    amendments(row.amendmentCount),
+    amountText(row.committedAmount, row.committedAmountMissing, "empenhado"),
+    amountText(row.paidAmount, row.paidAmountMissing, "pago"),
+  ].join(" · ");
+}
+
+/** Só um total completo (todas as emendas com valor publicado) entra na escala de cor. */
+export function isCompleteCommittedTotal(row: AmendmentMunicipality): boolean {
+  return row.committedAmount !== null && row.committedAmountMissing === 0;
 }
 
 function query(path: string, params: Record<string, string | number | null | undefined>) {

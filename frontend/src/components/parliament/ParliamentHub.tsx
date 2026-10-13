@@ -7,10 +7,12 @@ import { useResolvedTheme } from "@/components/theme/theme";
 import { mix, SEQUENTIAL } from "@/lib/dataviz/palette";
 import type { MapLayerView } from "@/lib/elections/map-layers";
 import {
+  describeAmendmentMunicipality,
   getAmendmentMap,
   getParliamentActivities,
   getParliamentAmendments,
   getParliamentMembers,
+  isCompleteCommittedTotal,
   type AmendmentMunicipality,
   type ParliamentActivity,
   type ParliamentAmendment,
@@ -37,7 +39,10 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
   const reduced = useReducedMotion();
 
   const layer = useMemo<MapLayerView>(() => {
-    const observed = rows.map((row) => row.committedAmount).filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const observed = rows
+      .filter(isCompleteCommittedTotal)
+      .map((row) => row.committedAmount)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
     const min = observed.length ? Math.min(...observed) : 0;
     const max = observed.length ? Math.max(...observed) : 0;
     const span = max - min;
@@ -45,16 +50,12 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
     const municipalities: MapLayerView["municipalities"] = {};
 
     for (const row of rows) {
-      const committed = row.committedAmount;
       let color: string | null = null;
-      if (committed !== null) {
-        const intensity = span === 0 ? 0.55 : (committed - min) / span;
+      if (isCompleteCommittedTotal(row) && row.committedAmount !== null) {
+        const intensity = span === 0 ? 0.55 : (row.committedAmount - min) / span;
         color = mix(palette.low, palette.high, intensity);
       }
-      const parts = [`${count.format(row.amendmentCount)} emenda${row.amendmentCount === 1 ? "" : "s"}`];
-      parts.push(committed === null ? "empenhado não publicado" : `${money.format(committed)} empenhado`);
-      if (row.paidAmount !== null) parts.push(`${money.format(row.paidAmount)} pago`);
-      municipalities[row.municipalityIbgeCode] = { color, text: parts.join(" · ") };
+      municipalities[row.municipalityIbgeCode] = { color, text: describeAmendmentMunicipality(row) };
     }
 
     return {
@@ -64,7 +65,7 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
       places: [],
       legend: [],
       gradient: observed.length ? { from: palette.low, to: palette.high, min: money.format(min), max: money.format(max) } : null,
-      note: "A cor representa somente o valor empenhado observado. Município sem código IBGE oficial ou sem valor publicado não é inferido nem tratado como zero.",
+      note: "A cor representa somente totais completos do valor empenhado. Soma parcial (emendas sem valor publicado) fica sem cor e é identificada no texto; município sem código IBGE oficial ou sem valor publicado não é inferido nem tratado como zero.",
     };
   }, [rows, theme]);
 
