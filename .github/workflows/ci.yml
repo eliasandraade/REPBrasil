@@ -188,7 +188,9 @@ jobs:
           REPBRASIL_LAKE_TOKEN: ci-only-fictitious-lake-token
           PORT: "18443"
         run: |
-          nohup uv run --frozen --no-sync --no-build python scripts/electoral_lake_worker.py > "$RUNNER_TEMP/lake-worker.log" 2>&1 &
+          # Python do .venv direto: um `uv run` em segundo plano seguraria o lock do cache do uv.
+          nohup .venv/bin/python scripts/electoral_lake_worker.py > "$RUNNER_TEMP/lake-worker.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/lake-worker.pid"
           for attempt in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:18443/health; then exit 0; fi
             sleep 1
@@ -206,6 +208,8 @@ jobs:
           dotnet restore
           dotnet build --no-restore -c Release
           dotnet test --no-build -c Release --filter "FullyQualifiedName~ElectoralLakeTransport"
-      - name: Worker log
+      - name: Stop the lake worker and show its log
         if: always()
-        run: cat "$RUNNER_TEMP/lake-worker.log" || true
+        run: |
+          kill "$(cat "$RUNNER_TEMP/lake-worker.pid")" 2>/dev/null || true
+          cat "$RUNNER_TEMP/lake-worker.log" || true
