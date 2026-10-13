@@ -76,9 +76,11 @@ def test_progress_never_records_unvalidated_cli_text(tmp_path: Path, monkeypatch
     import json
 
     monkeypatch.setenv("REPBRASIL_IMPORT_OUTPUT_ROOT", str(tmp_path))
+    loader = _loader()
+    argv = ["--uf", "../x", "--year", "2024", "--turn", "1", "--manifest", str(tmp_path / "m.json"),
+            "--progress", "progress.json"]
     with pytest.raises(SystemExit, match="invalid UF"):
-        _loader().main(["--uf", "../x", "--year", "2024", "--turn", "1", "--manifest", str(tmp_path / "m.json"),
-                        "--progress", "progress.json"])
+        loader.main(argv)
     recorded = json.loads((tmp_path / "progress.json").read_text(encoding="utf-8"))
     assert recorded["uf"] is None
     assert (recorded["year"], recorded["turn"]) == (2024, 1)
