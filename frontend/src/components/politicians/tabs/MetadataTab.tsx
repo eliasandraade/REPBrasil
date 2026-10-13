@@ -22,7 +22,7 @@ function SourceCard({ source }: { source: DataSourceItem }) {
         </div>
         <span className="flex-shrink-0 inline-flex items-center gap-1 rounded border border-accent/20 bg-accent/8 px-2 py-0.5 text-[10px] font-medium text-accent-text">
           <span className="h-1 w-1 rounded-full bg-accent" />
-          Fonte pública oficial
+          <span>Fonte pública oficial</span>
         </span>
       </div>
 

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { DataState } from "@/components/ui/DataState";
 import { MunicipalityDirectory } from "./MunicipalityDirectory";
-import { displayName, formatCount, formatPercent, UNAVAILABLE } from "@/lib/elections/format";
+import { displayName, formatCount, UNAVAILABLE } from "@/lib/elections/format";
 import { buildElectionsPath } from "@/lib/elections/route";
 import {
   electionProfilePath,
   indicatorValueText,
-  municipalityProfilePath,
   stateProfilePath,
 } from "@/lib/entities";
 import type {

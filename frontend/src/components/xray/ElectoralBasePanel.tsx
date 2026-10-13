@@ -85,7 +85,7 @@ export function ElectoralBasePanel({ c }: Readonly<{ c: XrayCandidacy }>) {
       </fieldset>
       {national && (
         <label className="flex items-center gap-1.5 text-xs text-fg-muted">
-          Estado
+          <span>Estado</span>
           <select
             value={uf}
             onChange={(e) => {
