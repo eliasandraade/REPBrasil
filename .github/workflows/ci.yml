@@ -158,9 +158,54 @@ jobs:
           src/sources/camara/api.py src/sources/camara/activity.py
           src/sources/transparencia/amendments.py src/pipeline/parliament.py
           src/sources/tse/polls.py src/sources/tse/live_results.py
+          scripts/electoral_lake_worker.py
           tests/sources/ibge/test_sidra.py tests/sources/test_atlas.py tests/pipeline/test_socioeconomic.py
           tests/sources/camara/test_activity.py tests/sources/transparencia/test_amendments.py
           scripts/ingest_poll_registry.py scripts/ingest_live_results.py
           scripts/audit_electoral_cross_db.py scripts/electoral_invariants.py
       - name: Test (DB tests skip without database)
         run: uv run --frozen --no-sync --no-build pytest -q
+
+  lake-tls:
+    name: Lake RPC TLS (Python worker + .NET client)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "8.0.x"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: "3.12"
+      - name: Install ETL runtime (lockfile only)
+        working-directory: etl
+        run: uv sync --frozen --no-install-project --no-build
+      - name: Start the lake worker on loopback (TLS RPC + plaintext platform probe)
+        working-directory: etl
+        env:
+          REPBRASIL_LAKE_LOCAL_ONLY: "1"
+          # Segredo FICTÍCIO, só para o worker efêmero deste runner.
+          REPBRASIL_LAKE_TOKEN: ci-only-fictitious-lake-token
+          PORT: "18443"
+        run: |
+          nohup uv run --frozen --no-sync --no-build python scripts/electoral_lake_worker.py > "$RUNNER_TEMP/lake-worker.log" 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18443/health; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/lake-worker.log"
+          exit 1
+      - name: Plaintext RPC is refused before reaching the lake
+        run: test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{}' http://127.0.0.1:18443/v1/result-votes)" = "426"
+      - name: .NET client completes TLS only with the shared token
+        working-directory: backend
+        env:
+          REPBRASIL_LAKE_TLS_TEST_URL: https://127.0.0.1:18443
+          REPBRASIL_LAKE_TLS_TEST_TOKEN: ci-only-fictitious-lake-token
+        run: |
+          dotnet restore
+          dotnet build --no-restore -c Release
+          dotnet test --no-build -c Release --filter "FullyQualifiedName~ElectoralLakeTransport"
+      - name: Worker log
+        if: always()
+        run: cat "$RUNNER_TEMP/lake-worker.log" || true
