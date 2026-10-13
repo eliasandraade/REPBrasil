@@ -49,19 +49,30 @@ public sealed record ParliamentAmendmentDto(
     string SourceUrl,
     DateTimeOffset RetrievedAt);
 
+/// <summary>
+/// Somas por município sobre a edição vigente. Valor ausente não entra como zero: as somas cobrem só
+/// os valores publicados, e *Missing conta as emendas sem valor (soma parcial quando &gt; 0).
+/// </summary>
 public sealed record AmendmentMunicipalityDto(
     string MunicipalityIbgeCode,
     string MunicipalityName,
     int AmendmentCount,
     decimal? CommittedAmount,
+    int CommittedAmountMissing,
     decimal? PaidAmount,
+    int PaidAmountMissing,
     DateTimeOffset RetrievedAt);
+
+/// <summary>Total de atos do recorte, independente do limite da listagem.</summary>
+public sealed record ParliamentActivityTotalDto(int Total);
 
 public interface IParliamentRepository
 {
     Task<IReadOnlyList<ParliamentMemberDto>> MembersAsync(string? uf, string? institution, CancellationToken ct);
     Task<IReadOnlyList<ParliamentActivityDto>> ActivitiesAsync(long? memberId, string? institution, string? uf, int limit, CancellationToken ct);
+    Task<int> ActivityTotalAsync(long? memberId, string? institution, string? uf, CancellationToken ct);
     Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct);
+    Task<IReadOnlyList<int>> AmendmentYearsAsync(string? uf, CancellationToken ct);
     Task<IReadOnlyList<AmendmentMunicipalityDto>> AmendmentMapAsync(int? year, string uf, CancellationToken ct);
 }
 
@@ -78,12 +89,22 @@ public sealed class ParliamentService(IParliamentRepository repository)
         return repository.ActivitiesAsync(memberId, NormalizeInstitution(institution), NormalizeUf(uf), NormalizeLimit(limit), ct);
     }
 
+    public async Task<ParliamentActivityTotalDto> ActivityTotalAsync(long? memberId, string? institution, string? uf, CancellationToken ct)
+    {
+        if (memberId is <= 0) throw new ArgumentOutOfRangeException(nameof(memberId));
+        return new ParliamentActivityTotalDto(
+            await repository.ActivityTotalAsync(memberId, NormalizeInstitution(institution), NormalizeUf(uf), ct));
+    }
+
     public Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct)
     {
         ValidateYear(year);
         if (memberId is <= 0) throw new ArgumentOutOfRangeException(nameof(memberId));
         return repository.AmendmentsAsync(year, memberId, NormalizeUf(uf), NormalizeLimit(limit), ct);
     }
+
+    public Task<IReadOnlyList<int>> AmendmentYearsAsync(string? uf, CancellationToken ct) =>
+        repository.AmendmentYearsAsync(NormalizeUf(uf), ct);
 
     public Task<IReadOnlyList<AmendmentMunicipalityDto>> AmendmentMapAsync(int? year, string uf, CancellationToken ct)
     {

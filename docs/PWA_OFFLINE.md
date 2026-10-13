@@ -45,7 +45,9 @@ o produto diz isso explicitamente.
   `controllerchange`, `statechange`), sem sleep. Cenários: primeira visita → sem rede; recarga sem
   rede; aviso numa página factual carregada; segunda visita (cache quente) → sem rede; inventário do
   cache (só fallback, ícones e estáticos com hash); próximo deploy (worker novo assume e poda o cache
-  anterior); viewport móvel sem rolagem horizontal. Evidências: artefato `repbrasil-pwa-local`.
+  anterior), em contexto próprio e a partir de página ociosa — mesmo com `skipWaiting()` o Chrome só
+  ativa o worker novo quando o anterior não atende nenhuma requisição; viewport móvel sem rolagem
+  horizontal. Evidências: artefato `repbrasil-pwa-local`.
 - **Produção, depois do deploy** (`.github/scripts/production-smoke.mjs`): os mesmos cenários contra
   `www.apprepbrasil.com.br`, exigindo o worker da revisão exata implantada.
 
