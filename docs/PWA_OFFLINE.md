@@ -38,8 +38,10 @@ o produto diz isso explicitamente.
   versionada do registro.
 - **Navegador real, antes do merge** (job de CI "PWA offline", `.github/scripts/pwa-local.mjs`):
   build de produção desta revisão + Chromium. "Sem conexão" é uma queda real de rede
-  (`.github/scripts/network-switch.mjs`, um proxy local que derruba e recusa conexões), que atinge
-  também o `fetch` do service worker. O ciclo de vida é esperado por eventos (`ready`,
+  (`.github/scripts/network-switch.mjs`), que atinge também o `fetch` do service worker: no CI, um
+  gate TCP com upstream fixo (o `next start` do job) que derruba e recusa conexões; em produção, um
+  túnel só CONNECT para uma lista fechada de destinos (site e API). Nenhum dos dois é proxy aberto:
+  o destino nunca vem da requisição. O ciclo de vida é esperado por eventos (`ready`,
   `controllerchange`, `statechange`), sem sleep. Cenários: primeira visita → sem rede; recarga sem
   rede; aviso numa página factual carregada; segunda visita (cache quente) → sem rede; inventário do
   cache (só fallback, ícones e estáticos com hash); próximo deploy (worker novo assume e poda o cache

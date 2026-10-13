@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
+import { startConnectTunnel } from "./network-switch.mjs";
 import { verifyFactualSafeOffline } from "./pwa-offline-verify.mjs";
 
 const WEB = process.env.REPBRASIL_WEB_URL ?? "https://www.apprepbrasil.com.br";
@@ -158,13 +159,19 @@ try {
     await desktop.close();
   }
 
-  await verifyFactualSafeOffline({
-    web: WEB,
-    outputDir,
-    record,
-    expectedRevision: EXPECTED_SHA,
-    factualPath: "/dados",
-  });
+  const network = await startConnectTunnel({ origins: [WEB, API] });
+  try {
+    await verifyFactualSafeOffline({
+      network,
+      web: WEB,
+      outputDir,
+      record,
+      expectedRevision: EXPECTED_SHA,
+      factualPath: "/dados",
+    });
+  } finally {
+    await network.close();
+  }
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {

@@ -1,10 +1,10 @@
 // Verificação factual-safe da PWA, compartilhada pelo job de CI (build local de produção) e pelo
 // production smoke. O ciclo de vida do service worker é esperado por eventos (ready,
 // controllerchange, statechange) — nunca por sleep — e "sem conexão" é uma queda real de rede
-// (network-switch.mjs), que também derruba o fetch do próprio service worker.
+// (network-switch.mjs: gate TCP local ou túnel CONNECT de produção), que também derruba o fetch do
+// próprio service worker.
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { startNetworkSwitch } from "./network-switch.mjs";
 
 const OFFLINE_HEADING = "Você está sem conexão";
 const FACTUAL_SAFE_META = 'meta[name="repbrasil-offline"][content="factual-safe"]';
@@ -85,15 +85,15 @@ async function setNetwork(context, network, online) {
 /** Só o fallback estático, ícones e estáticos com hash podem estar em cache — nunca páginas, RSC ou API. */
 async function auditCaches(page, expectedRevision) {
   const inventory = await page.evaluate(async () => {
-    const result = {};
-    for (const name of await caches.keys()) {
-      const cache = await caches.open(name);
-      result[name] = (await cache.keys()).map((request) => {
-        const url = new URL(request.url);
-        return `${url.origin === location.origin ? "" : url.origin}${url.pathname}${url.search}`;
-      });
-    }
-    return result;
+    const describe = (request) => {
+      const url = new URL(request.url);
+      return `${url.origin === location.origin ? "" : url.origin}${url.pathname}${url.search}`;
+    };
+    const names = await caches.keys();
+    const entries = await Promise.all(
+      names.map(async (name) => [name, (await (await caches.open(name)).keys()).map(describe)]),
+    );
+    return Object.fromEntries(entries);
   });
   assert.deepEqual(Object.keys(inventory), [`repbrasil-${expectedRevision}`], "only the deployed revision may own a cache");
   const entries = Object.values(inventory).flat();
@@ -226,17 +226,15 @@ async function mobileScenario(browser, network, { web, outputDir, record, expect
 /**
  * Cenários: primeira visita → sem rede; recarga sem rede; aviso numa página factual já carregada;
  * segunda visita (cache quente) → sem rede; inventário do cache; viewport móvel; (opcional) deploy
- * seguinte. O navegador é próprio, com todo o tráfego passando pelo interruptor de rede.
+ * seguinte. O navegador é próprio, e todo o tráfego dele passa pelo interruptor `network`.
  */
-export async function verifyFactualSafeOffline(options) {
+export async function verifyFactualSafeOffline({ network, ...options }) {
   assert.ok(options.expectedRevision, "expected revision is required");
-  const network = await startNetworkSwitch();
-  const browser = await chromium.launch({ headless: true, proxy: { server: network.proxyServer } });
+  const browser = await chromium.launch({ headless: true, ...network.launchOptions });
   try {
     await desktopScenarios(browser, network, options);
     await mobileScenario(browser, network, options);
   } finally {
     await browser.close();
-    await network.close();
   }
 }
