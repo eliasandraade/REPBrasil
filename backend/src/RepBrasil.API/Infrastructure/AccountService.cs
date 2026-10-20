@@ -602,24 +602,34 @@ public sealed class AccountService(ApplicationDbContext db)
     private DbCommand Command(string sql, params (string Name, object? Value)[] args) => db.Command(sql, args);
 
     /// <summary>
-    /// Login em transação Serializable: dois logins simultâneos podem colidir (SQLSTATE 40001) sem erro de ninguém.
-    /// A tentativa que colide é desfeita por inteiro (o desafio continua sem uso), então repetir é seguro.
+    /// Login em transação Serializable: logins simultâneos podem colidir (SQLSTATE 40001, ou 40P01 quando a colisão
+    /// vira impasse) sem erro de ninguém. A tentativa que colide é desfeita por inteiro (o desafio continua sem uso),
+    /// então repetir é seguro. A espera dobra a cada rodada, com teto e variação aleatória para os concorrentes não se
+    /// reencontrarem: sob contenção alta, as oito rodadas somam pouco mais de um segundo no pior caso.
     /// </summary>
     private static async Task<T> RetrySerializableAsync<T>(Func<Task<T>> attempt, CancellationToken cancellationToken)
     {
-        const int attempts = 4;
+        const int attempts = 8;
         for (var round = 1; ; round++)
         {
             try
             {
                 return await attempt();
             }
-            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure && round < attempts)
+            catch (PostgresException ex) when (IsSerializationConflict(ex) && round < attempts)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(10, 40) * round), cancellationToken);
+                await Task.Delay(RetryDelay(round), cancellationToken);
             }
         }
     }
+
+    /// <summary>Colisão que a própria transação resolve sendo repetida: falha de serialização ou impasse.</summary>
+    public static bool IsSerializationConflict(PostgresException exception) =>
+        exception.SqlState is PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected;
+
+    /// <summary>Espera antes da próxima rodada: 15 ms dobrando a cada rodada, até 400 ms, mais até 25 ms de variação.</summary>
+    public static TimeSpan RetryDelay(int round) =>
+        TimeSpan.FromMilliseconds(Math.Min(400, 15 * (1 << Math.Clamp(round - 1, 0, 5))) + Random.Shared.Next(0, 25));
 
     /// <summary>Trava a linha da conta até o fim da transação: serializa contagem + inserção contra o limite do plano.</summary>
     private async Task LockUserAsync(Guid userId, CancellationToken cancellationToken)
