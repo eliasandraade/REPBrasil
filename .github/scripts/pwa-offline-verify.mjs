@@ -161,7 +161,7 @@ async function verifyDeployUpgrade(page, web, nextRevision) {
   assert.deepEqual(result.caches, [`repbrasil-${nextRevision}`], `previous revision cache was not pruned: ${detail}`);
 }
 
-async function desktopScenarios(browser, network, { web, outputDir, record, expectedRevision, factualPath, upgradeTo }) {
+async function desktopScenarios(browser, network, { web, outputDir, record, expectedRevision, factualPath }) {
   const context = await browser.newContext(DESKTOP);
   try {
     const page = await context.newPage();
@@ -196,11 +196,25 @@ async function desktopScenarios(browser, network, { web, outputDir, record, expe
     assert.equal(await online.getByTestId("offline-notice").count(), 0, "online page must not show the offline notice");
     const entries = await auditCaches(online, expectedRevision);
     record("PWA cache holds no factual page, RSC or API response", { entries: entries.length });
+  } finally {
+    await context.close();
+  }
+}
 
-    if (upgradeTo) {
-      await verifyDeployUpgrade(online, web, upgradeTo);
-      record("PWA next deploy: new worker takes control at once and prunes the previous cache");
-    }
+/**
+ * Deploy seguinte num contexto próprio. Mesmo com skipWaiting(), o Chrome só ativa o worker novo
+ * quando o anterior não está atendendo nenhuma requisição; por isso a troca não herda as páginas e as
+ * quedas de rede dos cenários anteriores e começa com a página ociosa (evento `networkidle`, não sleep).
+ */
+async function upgradeScenario(browser, { web, record, expectedRevision, upgradeTo }) {
+  const context = await browser.newContext(DESKTOP);
+  try {
+    const page = await context.newPage();
+    await page.goto(new URL("/", web).href, { waitUntil: "domcontentloaded", timeout: 60000 });
+    assertControl(await waitForServiceWorkerControl(page), web, expectedRevision, "before the next deploy");
+    await page.waitForLoadState("networkidle", { timeout: LIFECYCLE_TIMEOUT_MS });
+    await verifyDeployUpgrade(page, web, upgradeTo);
+    record("PWA next deploy: new worker takes control at once and prunes the previous cache");
   } finally {
     await context.close();
   }
@@ -225,14 +239,16 @@ async function mobileScenario(browser, network, { web, outputDir, record, expect
 
 /**
  * Cenários: primeira visita → sem rede; recarga sem rede; aviso numa página factual já carregada;
- * segunda visita (cache quente) → sem rede; inventário do cache; viewport móvel; (opcional) deploy
- * seguinte. O navegador é próprio, e todo o tráfego dele passa pelo interruptor `network`.
+ * segunda visita (cache quente) → sem rede; inventário do cache; (opcional) deploy seguinte, em
+ * contexto próprio; viewport móvel. O navegador é próprio, e todo o tráfego dele passa pelo
+ * interruptor `network`.
  */
 export async function verifyFactualSafeOffline({ network, ...options }) {
   assert.ok(options.expectedRevision, "expected revision is required");
   const browser = await chromium.launch({ headless: true, ...network.launchOptions });
   try {
     await desktopScenarios(browser, network, options);
+    if (options.upgradeTo) await upgradeScenario(browser, options);
     await mobileScenario(browser, network, options);
   } finally {
     await browser.close();

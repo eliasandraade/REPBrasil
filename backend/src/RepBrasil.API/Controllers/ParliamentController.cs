@@ -33,6 +33,19 @@ public sealed class ParliamentController(ParliamentService service) : Controller
         catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
     }
 
+    /// <summary>Total de atos do mesmo recorte de <c>/activities</c>, que é limitado.</summary>
+    [HttpGet("activities/count")]
+    [OutputCache(PolicyName = CachePolicies.PublicData)]
+    public async Task<ActionResult<ParliamentActivityTotalDto>> ActivityTotal(
+        [FromQuery] long? memberId,
+        [FromQuery] string? institution,
+        [FromQuery] string? uf,
+        CancellationToken ct)
+    {
+        try { return Ok(await service.ActivityTotalAsync(memberId, institution, uf, ct)); }
+        catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
+    }
+
     [HttpGet("amendments")]
     [OutputCache(PolicyName = CachePolicies.PublicData)]
     public async Task<ActionResult<IReadOnlyList<ParliamentAmendmentDto>>> Amendments(
@@ -43,6 +56,15 @@ public sealed class ParliamentController(ParliamentService service) : Controller
         CancellationToken ct = default)
     {
         try { return Ok(await service.AmendmentsAsync(year, memberId, uf, limit, ct)); }
+        catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
+    }
+
+    /// <summary>Anos com emenda na edição vigente do recorte, independente do limite de <c>/amendments</c>.</summary>
+    [HttpGet("amendments/years")]
+    [OutputCache(PolicyName = CachePolicies.PublicData)]
+    public async Task<ActionResult<IReadOnlyList<int>>> AmendmentYears([FromQuery] string? uf, CancellationToken ct)
+    {
+        try { return Ok(await service.AmendmentYearsAsync(uf, ct)); }
         catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
     }
 

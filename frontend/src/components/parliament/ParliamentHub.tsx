@@ -7,10 +7,14 @@ import { useResolvedTheme } from "@/components/theme/theme";
 import { mix, SEQUENTIAL } from "@/lib/dataviz/palette";
 import type { MapLayerView } from "@/lib/elections/map-layers";
 import {
+  describeAmendmentMunicipality,
   getAmendmentMap,
+  getAmendmentYears,
   getParliamentActivities,
+  getParliamentActivityTotal,
   getParliamentAmendments,
   getParliamentMembers,
+  isCompleteCommittedTotal,
   type AmendmentMunicipality,
   type ParliamentActivity,
   type ParliamentAmendment,
@@ -32,12 +36,27 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** Total do recorte vindo da API; sem ele, ausência explícita (nunca a quantidade listada). */
+function totalText(loading: boolean, total: number | null) {
+  if (loading) return "…";
+  return total === null ? "—" : count.format(total);
+}
+
+/** A listagem de atos é limitada: deixa explícito quando ela mostra só parte do total. */
+function listingNote(shown: number, total: number | null) {
+  if (total === null || shown >= total) return "";
+  return ` Exibindo os ${count.format(shown)} mais recentes de ${count.format(total)}.`;
+}
+
 function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; year: number | null }>) {
   const theme = useResolvedTheme();
   const reduced = useReducedMotion();
 
   const layer = useMemo<MapLayerView>(() => {
-    const observed = rows.map((row) => row.committedAmount).filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const observed = rows
+      .filter(isCompleteCommittedTotal)
+      .map((row) => row.committedAmount)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
     const min = observed.length ? Math.min(...observed) : 0;
     const max = observed.length ? Math.max(...observed) : 0;
     const span = max - min;
@@ -45,16 +64,12 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
     const municipalities: MapLayerView["municipalities"] = {};
 
     for (const row of rows) {
-      const committed = row.committedAmount;
       let color: string | null = null;
-      if (committed !== null) {
-        const intensity = span === 0 ? 0.55 : (committed - min) / span;
+      if (isCompleteCommittedTotal(row) && row.committedAmount !== null) {
+        const intensity = span === 0 ? 0.55 : (row.committedAmount - min) / span;
         color = mix(palette.low, palette.high, intensity);
       }
-      const parts = [`${count.format(row.amendmentCount)} emenda${row.amendmentCount === 1 ? "" : "s"}`];
-      parts.push(committed === null ? "empenhado não publicado" : `${money.format(committed)} empenhado`);
-      if (row.paidAmount !== null) parts.push(`${money.format(row.paidAmount)} pago`);
-      municipalities[row.municipalityIbgeCode] = { color, text: parts.join(" · ") };
+      municipalities[row.municipalityIbgeCode] = { color, text: describeAmendmentMunicipality(row) };
     }
 
     return {
@@ -64,7 +79,7 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
       places: [],
       legend: [],
       gradient: observed.length ? { from: palette.low, to: palette.high, min: money.format(min), max: money.format(max) } : null,
-      note: "A cor representa somente o valor empenhado observado. Município sem código IBGE oficial ou sem valor publicado não é inferido nem tratado como zero.",
+      note: "A cor representa somente totais completos do valor empenhado. Soma parcial (emendas sem valor publicado) fica sem cor e é identificada no texto; município sem código IBGE oficial ou sem valor publicado não é inferido nem tratado como zero.",
     };
   }, [rows, theme]);
 
@@ -105,6 +120,8 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
 export function ParliamentHub() {
   const [members, setMembers] = useState<ParliamentMember[]>([]);
   const [activities, setActivities] = useState<ParliamentActivity[]>([]);
+  const [activityTotal, setActivityTotal] = useState<number | null>(null);
+  const [years, setYears] = useState<number[]>([]);
   const [amendments, setAmendments] = useState<ParliamentAmendment[]>([]);
   const [mapRows, setMapRows] = useState<AmendmentMunicipality[]>([]);
   const [memberId, setMemberId] = useState<number | null>(null);
@@ -124,16 +141,26 @@ export function ParliamentHub() {
 
   useEffect(() => {
     let active = true;
+    getAmendmentYears("CE")
+      .then((rows) => active && setYears(rows))
+      .catch(() => active && setError("Não foi possível carregar os anos das emendas."));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     setLoadingData(true);
     setError(null);
     Promise.all([
       getParliamentActivities({ memberId, uf: "CE", limit: 100 }),
+      getParliamentActivityTotal({ memberId, uf: "CE" }),
       getParliamentAmendments({ year, uf: "CE", limit: 200 }),
       getAmendmentMap(year, "CE"),
     ])
-      .then(([activityRows, amendmentRows, municipalityRows]) => {
+      .then(([activityRows, activityCount, amendmentRows, municipalityRows]) => {
         if (!active) return;
         setActivities(activityRows);
+        setActivityTotal(activityCount.total);
         setAmendments(amendmentRows);
         setMapRows(municipalityRows);
       })
@@ -142,10 +169,6 @@ export function ParliamentHub() {
     return () => { active = false; };
   }, [memberId, year]);
 
-  const years = useMemo(
-    () => [...new Set(amendments.map((row) => row.year).filter((value): value is number => value !== null))].sort((a, b) => b - a),
-    [amendments],
-  );
   const memberById = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
 
   return (
@@ -161,7 +184,7 @@ export function ParliamentHub() {
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo parlamentar">
         <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Parlamentares do CE carregados</p><p className="mt-1 text-2xl font-semibold text-fg">{loadingMembers ? "…" : count.format(members.length)}</p></article>
-        <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Atos no recorte</p><p className="mt-1 text-2xl font-semibold text-fg">{loadingData ? "…" : count.format(activities.length)}</p></article>
+        <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Atos no recorte</p><p className="mt-1 text-2xl font-semibold text-fg">{totalText(loadingData, activityTotal)}</p></article>
         <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Municípios com emenda mapeável</p><p className="mt-1 text-2xl font-semibold text-fg">{loadingData ? "…" : count.format(mapRows.length)}</p></article>
       </section>
 
@@ -191,7 +214,7 @@ export function ParliamentHub() {
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="border-b border-line px-4 py-3">
           <h2 className="font-semibold text-fg">Atos parlamentares</h2>
-          <p className="text-xs text-fg-muted">{memberId ? `Recorte de ${memberById.get(memberId)?.parliamentaryName ?? memberById.get(memberId)?.name ?? "parlamentar selecionado"}.` : "Parlamentares do Ceará."} Dados ausentes não são convertidos em atividade zero.</p>
+          <p className="text-xs text-fg-muted">{memberId ? `Recorte de ${memberById.get(memberId)?.parliamentaryName ?? memberById.get(memberId)?.name ?? "parlamentar selecionado"}.` : "Parlamentares do Ceará."} Dados ausentes não são convertidos em atividade zero.{listingNote(activities.length, activityTotal)}</p>
         </div>
         {activities.length === 0 && !loadingData ? <p className="p-5 text-sm text-fg-muted">Nenhum ato oficial carregado para este recorte.</p> : (
           <div className="divide-y divide-line">
