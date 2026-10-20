@@ -212,6 +212,32 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
   transition-delay: 0s;
 }
 
+/* Controle segmentado (modo e vista do mapa): a opção escolhida ganha superfície e contorno; troca de cor, nunca de
+   tamanho. Opção indisponível fica legível, esmaecida, com o motivo no título. */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.625rem;
+  background-color: rgb(var(--surface));
+}
+.segmented-item {
+  color: rgb(var(--text-soft));
+  transition:
+    background-color var(--motion-settle) var(--ease-precise),
+    color var(--motion-acknowledge) var(--ease-precise),
+    box-shadow var(--motion-settle) var(--ease-precise);
+}
+.segmented-item:hover:not(:disabled) { color: rgb(var(--text-primary)); background-color: rgb(var(--text-primary) / 0.05); }
+.segmented-item[aria-pressed="true"] {
+  color: rgb(var(--text-primary));
+  background-color: rgb(var(--canvas));
+  box-shadow: 0 0 0 1px rgb(var(--border-strong)), var(--shadow-sm);
+}
+.segmented-item:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* ─── Navegação do produto ────────────────────────────────────────────────── */
 
 /* Marcador da seção atual: estende-se quando a página passa a ser a atual. */
@@ -283,10 +309,14 @@ html[data-nav-direction="lateral"]::view-transition-new(root) {
 
   /* Novo segmento da trilha territorial: o caminho se estende. */
   .crumb-extend { animation: crumb-extend var(--motion-traverse) var(--ease-enter) both; }
+
+  /* Valor que muda de contexto (outro território, indicador ou ano): sobe pronto por trás de uma máscara. */
+  .value-swap { animation: value-swap var(--motion-settle) var(--ease-enter) both; }
 }
 @keyframes list-arrive { from { opacity: 0; clip-path: inset(0 0 40% 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
 @keyframes value-arrive { from { opacity: 0; } }
 @keyframes crumb-extend { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes value-swap { from { clip-path: inset(100% 0 0 0); transform: translateY(30%); } to { clip-path: inset(0 0 0 0); transform: none; } }
 
 /* ─── Reduced Motion: nada depende de movimento ──────────────────────────── */
 

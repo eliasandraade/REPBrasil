@@ -1,3 +1,4 @@
+import { accountFetch } from "./account";
 import { fetchJson } from "./api";
 
 export interface ParliamentMember {
@@ -138,4 +139,20 @@ export function getParliamentAmendments(params: { year?: number | null; memberId
 
 export function getAmendmentMap(year?: number | null, uf = "CE"): Promise<AmendmentMunicipality[]> {
   return fetchJson<AmendmentMunicipality[]>(query("/api/v1/parliament/amendments/map", { year, uf }));
+}
+
+export interface AmendmentSeriesYear {
+  year: number;
+  municipalities: AmendmentMunicipality[];
+}
+
+/** O mapa de emendas da UF ano a ano numa consulta. */
+export interface AmendmentMapSeries {
+  uf: string;
+  years: AmendmentSeriesYear[];
+}
+
+/** Linha do tempo do mapa de emendas (plano com `data.map_series`; a API decide e recusa com 403). */
+export function getAmendmentMapSeries(uf: string): Promise<AmendmentMapSeries> {
+  return accountFetch<AmendmentMapSeries>(query("/api/v1/parliament/amendments/map-series", { uf }));
 }

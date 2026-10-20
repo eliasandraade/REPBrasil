@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { DataState } from "@/components/ui/DataState";
 import { MunicipalityDirectory } from "./MunicipalityDirectory";
@@ -16,6 +17,9 @@ import type {
 } from "@/lib/entities-server";
 import { politicianPath } from "@/lib/paths";
 import { KIND_SLUG, type RankingResponse } from "@/lib/rankings";
+
+/** Nome do território como elemento compartilhado: chega do explorador territorial (/dados) na mesma identidade. */
+const SHARED_NAME = { viewTransitionName: "vt-name" } as CSSProperties;
 
 function MetricCard({ label, value, detail }: Readonly<{ label: string; value: string; detail?: string }>) {
   return (
@@ -141,7 +145,7 @@ export function StateEntityProfile({ data }: Readonly<{ data: StateProfileData }
           <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">Território · Estado</p>
           <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-fg">{data.name}</h1>
+              <h1 className="text-3xl font-bold text-fg" style={SHARED_NAME}>{data.name}</h1>
               <p className="mt-1 text-sm text-fg-muted">
                 {data.uf}{data.ibgeCode !== null ? ` · código IBGE ${data.ibgeCode}` : ""} · {data.snapshots.length} pleito(s) no catálogo
               </p>
@@ -228,7 +232,7 @@ export function MunicipalityEntityProfile({ data }: Readonly<{ data: Municipalit
           </p>
           <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-fg">{displayName(data.name)}</h1>
+              <h1 className="text-3xl font-bold text-fg" style={SHARED_NAME}>{displayName(data.name)}</h1>
               <p className="mt-1 text-sm text-fg-muted">
                 {data.uf} · TSE {data.tseCode}{data.ibgeCode !== null ? ` · IBGE ${data.ibgeCode}` : ""}
               </p>

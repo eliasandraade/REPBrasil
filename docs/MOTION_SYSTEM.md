@@ -142,6 +142,37 @@ A página explica o produto com o que está importado, não com promessa:
 - **Seção:** cabeçalho da seção pedida desde o primeiro quadro. O esqueleto tem a geometria real e mostra rótulos fixos (Aptos, Comparecimento…), mas nenhum número. Os valores aparecem prontos (opacidade) e os votos chegam em sequência curta. A defesa contra dado velho (identidade territorial do resultado = rota atual) continua no `ElectionsExplorer`.
 - **Candidato → perfil:** o nome do candidato é o elemento compartilhado com o `<h1>` do perfil, e o perfil abre em Desempenho eleitoral. É o caminho do voto à pessoa e ao histórico público.
 
+### Dados (explorador territorial)
+
+Um mapa persistente de Brasil → UF → município (`src/components/territory/TerritoryCanvas.tsx`, peças em `engine.ts`). Toda transição vem de `src/motion/map.ts`, que lê os tokens:
+
+- **Câmera:** Brasil → UF com `survey`, UF → município com `traverse`, sempre com a curva `traverse`. Reduced Motion corta seco.
+- **Troca de camada** (outro indicador, ano, cargo ou modo): transição cruzada entre duas camadas de cor (A/B) por opacidade (`traverse`). A câmera e a seleção ficam onde estão.
+- **Holofote:**
+  - com uma UF escolhida, o resto do Brasil recua sob um véu;
+  - com um município escolhido, os outros municípios recuam;
+  - no hover, o véu acompanha o território apontado, entrando com atraso `acknowledge` para não piscar ao passar.
+- **Contorno revelado:** ao escolher território, o contorno teal se traça (largura `reveal`, opacidade `settle`). O teal é cor de interação, nunca cor de dado.
+- **Pulso:** um anel único nos maiores valores, só em grandeza somável (pessoas, R$, emendas) e só quando o dado chega. Nunca em laço; com Reduced Motion não existe.
+- **Relevo 3D** (plano Avançado):
+  - altura proporcional ao valor, com a nota na legenda;
+  - a câmera se inclina com `survey`;
+  - não existe no celular (ponteiro grosso ou tela estreita).
+- **Intensidade** (plano Avançado): mapa de calor a partir de pontos internos calculados da malha oficial, só em grandeza somável. A cor das classes recua.
+- **Antes/depois** (plano Avançado):
+  - um segundo mapa, só de leitura, sob o divisor, com a câmera do principal;
+  - o divisor é um `input range` (teclado: setas);
+  - no mesmo indicador, a escala é comum aos dois lados.
+- **Rótulo:**
+  - fica dentro do mapa e evita cobrir a seleção (`placeTooltip`);
+  - o hover na tabela mostra o rótulo no ponto interno do território, e o hover no mapa destaca a linha da tabela.
+- **Gestos cooperativos:** rolar a página sobre o mapa não vira zoom (Ctrl/⌘ + rolagem; dois dedos no celular).
+- **Texto e números:**
+  - a leitura rápida entra com `reveal-unfold` em sequência curta quando o recorte muda;
+  - o valor do território troca por `value-swap`, pronto e sem contagem;
+  - a trilha territorial estende o segmento novo (`crumb-extend`).
+- **Elemento compartilhado:** o nome do território no link do painel segue para o `<h1>` do perfil do município ou da UF (`data-vt="name"` → `vt-name`).
+
 ### Navegação
 
 - **Marcador da seção atual:** estende-se verticalmente.
@@ -161,6 +192,7 @@ A página explica o produto com o que está importado, não com promessa:
 | `.mi-underline` | sublinhado traçado a partir da esquerda. |
 | `.mi-hint-host` + `.mi-hint` | dica acessível por hover **e foco**. |
 | `.focus-ring` | foco sempre visível e imediato (nunca animado). |
+| `.segmented` + `.segmented-item` | controle segmentado (modo e vista do mapa): a opção escolhida (`aria-pressed`) ganha superfície e contorno; a cor troca (`settle`), o tamanho não. Opção indisponível fica esmaecida, com o motivo no título. |
 
 **Regra:** hover indica "isto é interativo". Nada de "olha uma animação": nenhum hover move o layout, nenhum botão pula.
 
@@ -172,6 +204,8 @@ A página explica o produto com o que está importado, não com promessa:
 | `.query-trace` | consulta em andamento: um traço percorre a régua (indeterminado e honesto). |
 | `.list-arrive` | primeiros itens de uma lista que acabou de chegar. Use `key` com a identidade da consulta para não reaproveitar a lista anterior. |
 | `.value-arrive` | valor oficial que passou a estar disponível: aparece pronto. |
+| `.value-swap` (`SwapValue`) | valor que muda de contexto (outro território, indicador ou ano): sobe pronto por trás de uma máscara (`settle`). Nunca conta. |
+| `useActionFeedback` | ação curta (baixar arquivo): "em andamento" → "concluído" (volta ao repouso) ou "erro" (fica até a próxima ação), com aviso `role="status"`. |
 
 ## 10. Desempenho
 
@@ -184,7 +218,8 @@ A página explica o produto com o que está importado, não com promessa:
 
 - O CSS desliga as View Transitions, o drawer, as abas, a navegação, as dicas, as entradas e as revelações. Os estados escondidos simplesmente não existem.
 - Em JS, `prefersReducedMotion()`/`useReducedMotion()` (`src/motion/reduced-motion.ts`, via `useSyncExternalStore`) fazem `navigate()` não iniciar View Transition, o painel e as abas não animarem, e a câmera do mapa cortar seco. Os locais aparecem de imediato.
-- Testes: `tests/motion.test.tsx` e `tests/electoral-tab.test.tsx`.
+- No mapa territorial, `cameraMotion`/`paintTransition` devolvem duração 0 e `pulseMotion` devolve nulo.
+- Testes: `tests/motion.test.tsx`, `tests/electoral-tab.test.tsx` e `tests/territory-lib.test.ts`.
 
 ## 12. Antipadrões (não fazer)
 
