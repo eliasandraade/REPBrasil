@@ -4,10 +4,7 @@ namespace RepBrasil.Application.Territories;
 public static class BrazilianStates
 {
     public static IReadOnlyList<string> Codes { get; } =
-    [
-        "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA",
-        "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
-    ];
+        ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
 
     public static bool IsValid(string? code) => code is { Length: 2 } && Codes.Contains(code, StringComparer.Ordinal);
 
