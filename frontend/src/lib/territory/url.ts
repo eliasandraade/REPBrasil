@@ -115,5 +115,7 @@ export function explorerHref(state: ExplorerState): string {
   return query ? `/dados?${query}` : "/dados";
 }
 
-export const levelOf = (state: Pick<ExplorerState, "uf" | "municipality">): ExplorerLevel =>
-  state.municipality ? "municipality" : state.uf ? "state" : "country";
+export function levelOf(state: Pick<ExplorerState, "uf" | "municipality">): ExplorerLevel {
+  if (state.municipality) return "municipality";
+  return state.uf ? "state" : "country";
+}

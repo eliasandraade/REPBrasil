@@ -94,11 +94,11 @@ export function AmendmentsTimeline({
         />
         <span className="w-10 text-right font-semibold tabular-nums text-fg">{year}</span>
       </label>
-      {playing && !ready && !failed && <span role="status" className="text-micro text-fg-muted">Carregando a série…</span>}
+      {playing && !ready && !failed && <output className="text-micro text-fg-muted">Carregando a série…</output>}
       {playing && failed && (
-        <span role="status" className="text-micro text-fg-muted">
+        <output className="text-micro text-fg-muted">
           Não foi possível carregar a série. <RetryButton onRetry={onRetry} />
-        </span>
+        </output>
       )}
     </div>
   );

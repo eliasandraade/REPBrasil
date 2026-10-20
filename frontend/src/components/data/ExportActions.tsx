@@ -20,7 +20,8 @@ export function ExportAction({ capability, label, run }: Readonly<{ capability: 
   const base = "focus-ring mi-press rounded-md border border-line px-2.5 py-1.5 text-micro font-medium";
   if (gate.allowed === undefined) return null;
   if (!gate.allowed) {
-    const href = gate.signedIn ? "/planos" : `/entrar?returnTo=${encodeURIComponent(query ? `${pathname}?${query}` : pathname)}`;
+    const here = query ? `${pathname}?${query}` : pathname;
+    const href = gate.signedIn ? "/planos" : `/entrar?returnTo=${encodeURIComponent(here)}`;
     return (
       <TransitionLink href={href} className={`${base} text-fg-muted hover:text-fg`} title={gate.description ?? undefined}>
         {label} · {gate.signedIn ? `plano ${gate.planName ?? "pago"}` : "entrar"}
@@ -32,9 +33,9 @@ export function ExportAction({ capability, label, run }: Readonly<{ capability: 
       <button type="button" onClick={() => void feedback.run(run)} disabled={feedback.state === "busy"} className={`${base} text-fg hover:bg-fg/5 disabled:opacity-60`}>
         {LABEL[feedback.state] || label}
       </button>
-      <span role="status" className="text-micro text-fg-muted">
+      <output className="text-micro text-fg-muted">
         {feedback.state === "error" ? (accountErrorMessage(feedback.error) ?? "Não foi possível exportar agora. Tente de novo.") : ""}
-      </span>
+      </output>
     </span>
   );
 }

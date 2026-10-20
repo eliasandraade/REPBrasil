@@ -119,7 +119,16 @@ function drawnView(p: TerritoryCanvasProps): ExplorerView {
   return compareOn(p) ? "comparar" : "mapa";
 }
 
-export function TerritoryCanvas(props: TerritoryCanvasProps) {
+/** Fonte que recebe a cor de uma camada: UFs no Brasil, municípios na UF. */
+const sourceOf = (layer: CanvasLayer): SourceId => (layer.level === "country" ? "ufs" : "mun");
+
+/** Fonte com véu de hover: no Brasil as UFs, na UF os municípios; no município o holofote é fixo. */
+function hoverVeil(level: ExplorerLevel): SourceId | null {
+  if (level === "country") return "ufs";
+  return level === "state" ? "mun" : null;
+}
+
+export function TerritoryCanvas(props: Readonly<TerritoryCanvasProps>) {
   const container = useRef<HTMLDivElement>(null);
   const compareHost = useRef<HTMLDivElement>(null);
   const tooltip = useRef<HTMLDivElement>(null);
@@ -247,8 +256,7 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
     if (next) map.setFeatureState({ source: next.source, id: next.id }, { hover: true });
     hover.current = next;
     const p = latest.current;
-    // véu de hover: no Brasil sobre as outras UFs, na UF sobre os outros municípios (no município o holofote é fixo)
-    const veil = p.level === "country" ? "ufs" : p.level === "state" ? "mun" : null;
+    const veil = hoverVeil(p.level);
     if (!veil) return;
     const id = next?.source === veil ? next.id : null;
     map.setFilter(`${veil}-veil`, exceptId(id));
@@ -328,7 +336,7 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
   /** Aplica a camada; devolve true quando chegou dado novo (para o pulso). */
   const applyLayer = (map: MapLibreMap, layer: CanvasLayer | null): boolean => {
     const p = latest.current;
-    const target: SourceId | null = layer ? (layer.level === "country" ? "ufs" : "mun") : null;
+    const target: SourceId | null = layer ? sourceOf(layer) : null;
     const drawable = !!target && (target === "ufs" || !!sceneMesh(p));
     for (const source of ["ufs", "mun"] as const) {
       if (drawable && source === target) continue;
@@ -764,9 +772,8 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
         </div>
       )}
       {status === "ready" && sceneState && meshFailed === sceneState && (
-        <div
+        <output
           className="absolute left-3 right-14 top-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-canvas/95 px-3 py-2 text-xs text-fg-soft"
-          role="status"
           data-testid="territory-mesh-error"
         >
           <span>Não foi possível carregar os municípios desta UF. A tabela abaixo traz os mesmos dados.</span>
@@ -776,7 +783,7 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
               setMeshAttempt((n) => n + 1);
             }}
           />
-        </div>
+        </output>
       )}
       {legend && !comparing && (
         <div className="pointer-events-none absolute bottom-8 left-3 z-10 hidden max-w-[17rem] rounded-md border border-line bg-canvas/90 px-2.5 py-2 sm:block">

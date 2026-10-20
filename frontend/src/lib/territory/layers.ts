@@ -47,7 +47,7 @@ export function viewNote(view: "mapa" | "relevo" | "intensidade" | "comparar", l
   if (!layer) return null;
   if (view === "relevo")
     return layer.proportional
-      ? `Altura proporcional ao valor: zero não tem altura${layer.maxText ? `; o mais alto é ${layer.maxText}` : ""}.`
+      ? `Altura proporcional ao valor: zero não tem altura${highestText(layer.maxText)}.`
       : "Altura: posição de cada território entre o menor e o maior valor (há valores negativos).";
   if (view === "intensidade")
     return "Mapa de calor: cada município pesa pelo seu valor, a partir de um ponto interno da malha oficial. Mostra concentração, não fronteira.";
@@ -117,7 +117,7 @@ export function coverageLayer(states: readonly StateCoverage[], mode: ExplorerMo
     if (hasData(state, mode)) colors[code] = color;
   }
   return {
-    key: `coverage:${mode}:${theme}:${Object.keys(colors).sort().join(",")}`,
+    key: `coverage:${mode}:${theme}:${Object.keys(colors).sort((a, b) => a.localeCompare(b)).join(",")}`,
     level: "country",
     colors,
     texts,
@@ -145,13 +145,15 @@ export function electoralLayer(view: MapLayerView, key: string, caption: string)
     texts[code] = value.text;
     if (value.color) colors[code] = value.color;
   }
-  const legend: CanvasLegend | null = view.gradient
-    ? { kind: "gradient", title: caption, from: view.gradient.from, to: view.gradient.to, min: view.gradient.min, max: view.gradient.max, note: view.note }
-    : view.legend.length
-      ? { kind: "categories", title: caption, items: view.legend.map((l) => ({ color: l.color, label: l.label })), note: view.note }
-      : null;
+  let legend: CanvasLegend | null = null;
+  if (view.gradient)
+    legend = { kind: "gradient", title: caption, from: view.gradient.from, to: view.gradient.to, min: view.gradient.min, max: view.gradient.max, note: view.note };
+  else if (view.legend.length)
+    legend = { kind: "categories", title: caption, items: view.legend.map((l) => ({ color: l.color, label: l.label })), note: view.note };
   return { key, level: "state", colors, texts, magnitudes: {}, extensive: false, proportional: true, legend, caption };
 }
+
+const highestText = (maxText: string | null | undefined) => (maxText ? `; o mais alto é ${maxText}` : "");
 
 /** Assinatura estável do que a camada escreve no mapa. */
 export function canvasSignature(layer: CanvasLayer | null | undefined): string {

@@ -56,5 +56,5 @@ export function availabilityText(state: StateCoverage | null | undefined, mode: 
     return `${formatInteger(state.elections.length)} ${state.elections.length === 1 ? "pleito" : "pleitos"}: ${pleitos.join(", ")}`;
   }
   const years = amendmentYears(state);
-  return years.length > 1 ? `emendas de ${years[years.length - 1]} a ${years[0]}` : `emendas de ${years[0]}`;
+  return years.length > 1 ? `emendas de ${years.at(-1)} a ${years[0]}` : `emendas de ${years[0]}`;
 }

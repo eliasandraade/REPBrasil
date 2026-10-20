@@ -184,11 +184,15 @@ export function useSocioMode(ctx: ModeContext): ModeView {
     const place = ofPlace(coverage, uf);
     if (level === "municipality" && selected && selectedValue && rank) {
       const relation = relationTo(selectedValue.value, dist.median);
-      sentences.push(`${name(selected)}: ${fmt(selectedValue.value)}, ${rank.rank}º de ${formatInteger(rank.n)} municípios ${place} (do maior para o menor).`);
-      sentences.push(relation === "igual" ? `Igual à mediana estadual (${fmt(dist.median)}).` : `Fica ${relation} da mediana estadual, que é ${fmt(dist.median)}.`);
+      sentences.push(
+        `${name(selected)}: ${fmt(selectedValue.value)}, ${rank.rank}º de ${formatInteger(rank.n)} municípios ${place} (do maior para o menor).`,
+        relation === "igual" ? `Igual à mediana estadual (${fmt(dist.median)}).` : `Fica ${relation} da mediana estadual, que é ${fmt(dist.median)}.`,
+      );
     } else {
-      sentences.push(`Em ${period}, nos municípios ${place}, ${x.name} vai de ${fmt(dist.min.value)} (${dist.min.name}) a ${fmt(dist.max.value)} (${dist.max.name}).`);
-      sentences.push(`Metade dos municípios fica abaixo de ${fmt(dist.median)} e metade acima.`);
+      sentences.push(
+        `Em ${period}, nos municípios ${place}, ${x.name} vai de ${fmt(dist.min.value)} (${dist.min.name}) a ${fmt(dist.max.value)} (${dist.max.name}).`,
+        `Metade dos municípios fica abaixo de ${fmt(dist.median)} e metade acima.`,
+      );
     }
     const missing = (coverage?.municipalities ?? 0) - dist.n;
     if (missing === 1) sentences.push(`1 município ${place} não tem este dado em ${period} e fica sem cor no mapa.`);

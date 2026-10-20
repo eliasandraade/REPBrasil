@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 
 export function SwapValue({ swapKey, className, children }: Readonly<{ swapKey: string; className?: string; children: ReactNode }>) {
   return (
-    <span key={swapKey} className={`value-swap inline-block${className ? ` ${className}` : ""}`}>
+    <span key={swapKey} className={className ? `value-swap inline-block ${className}` : "value-swap inline-block"}>
       {children}
     </span>
   );

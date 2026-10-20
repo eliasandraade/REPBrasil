@@ -44,8 +44,11 @@ public sealed class DataExplorerUnitTests
     {
         var matrix = DataIntelligenceService.BuildMatrix("CE", 2022, Catalog,
         [
-            Value("ibge.population", "1", 10), Value("ibge.population", "2", 20), Value("ibge.population", "3", 30),
-            Value("ibge.literacy", "1", 50), Value("ibge.literacy", "2", 60),
+            Value("ibge.population", "1", 10),
+            Value("ibge.population", "2", 20),
+            Value("ibge.population", "3", 30),
+            Value("ibge.literacy", "1", 50),
+            Value("ibge.literacy", "2", 60),
             Value("ibge.literacy", "9", 70, period: 2010),
         ]);
 

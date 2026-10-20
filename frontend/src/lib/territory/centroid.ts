@@ -66,7 +66,7 @@ function scanlineMidpoint(polygon: Polygon, y: number): Position | null {
 
 export function insidePoint(geometry: PolygonGeometry): Position {
   const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-  const largest = polygons.reduce((a, b) => (Math.abs(signedArea(b[0])) > Math.abs(signedArea(a[0])) ? b : a));
+  const largest = polygons.reduce((a, b) => (Math.abs(signedArea(b[0])) > Math.abs(signedArea(a[0])) ? b : a), polygons[0]);
   const centroid = ringCentroid(largest[0]);
   if (inPolygon(centroid, largest)) return centroid;
   return scanlineMidpoint(largest, centroid[1]) ?? largest[0][0];

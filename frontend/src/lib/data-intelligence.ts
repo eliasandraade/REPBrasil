@@ -149,7 +149,8 @@ async function downloadCsv(path: string, fileName: string): Promise<void> {
   const response = await fetch(`${API_URL}${path}`, { credentials: "include", headers: { Accept: "text/csv" } });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new ApiError(response.status, `API error ${response.status}: ${path}${body ? ` — ${body}` : ""}`);
+    const detail = body ? ` — ${body}` : "";
+    throw new ApiError(response.status, `API error ${response.status}: ${path}${detail}`);
   }
   const url = URL.createObjectURL(await response.blob());
   const link = document.createElement("a");

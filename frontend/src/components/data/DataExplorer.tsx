@@ -126,6 +126,7 @@ export function DataExplorer() {
   const ufName = coverage?.name ?? ufMeshQ.data?.features.find((f) => f.properties.uf === state.uf)?.properties.name ?? state.uf;
   const municipalityName = state.municipality ? (municipalities.find((m) => m.ibgeCode === state.municipality)?.name ?? state.municipality) : null;
   const place = municipalityName ? `${municipalityName} (${state.uf})` : (ufName ?? "Brasil");
+  const mapLabel = (name: string) => (layer ? `${name}: ${layer.caption}` : name);
   const mapName = (() => {
     if (!state.uf || !ufName) return "Mapa do Brasil";
     const uf = `Mapa ${ofUf(state.uf, ufName)}`;
@@ -197,9 +198,9 @@ export function DataExplorer() {
         {state.view !== "mapa" && advanced.allowed === false && <PlanGateNote capability={ADVANCED_MAP_MODES} className="w-full" />}
         {effectiveView === "comparar" && !mode.compare && mode.compareNote && <p className="text-micro text-fg-muted">{mode.compareNote}</p>}
         {effectiveView === "comparar" && mode.compareError && (
-          <p className="text-micro text-fg-muted" role="status">
+          <output className="block text-micro text-fg-muted">
             {mode.compareError.message} <RetryButton onRetry={mode.compareError.retry} />
-          </p>
+          </output>
         )}
       </div>
 
@@ -220,7 +221,7 @@ export function DataExplorer() {
               onSelect={(target, code) => (target === "state" ? selectState(code) : go({ municipality: code }, true))}
               reduced={reduced}
               allowRelief={allowRelief}
-              label={`${mapName}${layer ? `: ${layer.caption}` : ""}`}
+              label={mapLabel(mapName)}
             />
           </div>
           {(layer?.legend || comparing) && (

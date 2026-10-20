@@ -134,7 +134,8 @@ export function useElectoralMode(ctx: ModeContext): ModeView {
   const reading: ReadingModel = (() => {
     if (coverageStatus !== "ready") return pendingReading(coverageStatus);
     if (!election) return { what: `Nenhum resultado eleitoral carregado para os municípios ${place} até agora.`, facts: [], notice: "A malha municipal (IBGE) continua disponível para navegar." };
-    const what = `Candidatura mais votada em cada município${office ? ` para ${office.label.toLowerCase()}` : ""}, ${electionLabel(election.year, election.round)}. Cores neutras, pela ordem da legenda; nunca cor de partido.`;
+    const forOffice = office ? ` para ${office.label.toLowerCase()}` : "";
+    const what = `Candidatura mais votada em cada município${forOffice}, ${electionLabel(election.year, election.round)}. Cores neutras, pela ordem da legenda; nunca cor de partido.`;
     const source = mapQ.data?.freshness.refreshedAt
       ? { provider: "TSE", dataset: "Boletim de Urna (agregado vigente)", retrievedAt: mapQ.data.freshness.refreshedAt, dateLabel: "agregado atualizado em" }
       : null;

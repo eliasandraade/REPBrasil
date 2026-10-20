@@ -37,7 +37,7 @@ export function placeTooltip(
   const cost = (c: { x: number; y: number }) => (avoid ? overlap({ ...c, ...size }, avoid) : 0);
   const fitting = candidates.filter(fits);
   const pool = fitting.length ? fitting : candidates;
-  const best = pool.reduce((a, b) => (cost(b) < cost(a) ? b : a));
+  const best = pool.reduce((a, b) => (cost(b) < cost(a) ? b : a), pool[0]);
   const clamp = (v: number, max: number) => Math.min(Math.max(v, margin), Math.max(margin, max - margin));
   return { side: best.side, x: clamp(best.x, bounds.width - size.width), y: clamp(best.y, bounds.height - size.height) };
 }

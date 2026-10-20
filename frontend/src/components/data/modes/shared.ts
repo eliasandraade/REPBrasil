@@ -18,7 +18,7 @@ export function ranksOf(rows: ReadonlyArray<{ code: string; value: number }>): M
   const ranks = new Map<string, number>();
   sorted.forEach((row, index) => {
     const previous = sorted[index - 1];
-    ranks.set(row.code, previous && previous.value === row.value ? ranks.get(previous.code)! : index + 1);
+    ranks.set(row.code, previous?.value === row.value ? ranks.get(previous.code)! : index + 1);
   });
   return ranks;
 }

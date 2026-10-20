@@ -97,13 +97,14 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
     const previous = comparing && beforeRows ? beforeRows.filter(isComplete).map((r) => ({ code: r.municipalityIbgeCode, value: metric.value(r)! })) : [];
     // antes/depois do mesmo indicador: escala comum, para as duas metades serem comparáveis
     const scale = comparing ? classedScale([...current, ...previous].map((r) => r.value), theme) : null;
+    const span = comparing ? `${beforeYear} e ${year}` : null;
     const build = (data: typeof current, source: AmendmentMunicipality[], y: number) => {
       const built = valueLayer({
         key: `emendas:${uf}:${y}:${state.metric}:${theme}:${comparing ? "comum" : "ano"}`,
         level: "state",
         rows: data,
         unit: metric.unit,
-        title: `${metric.label} · ${comparing ? `${beforeYear} e ${year}` : y}`,
+        title: `${metric.label} · ${span ?? y}`,
         caption: `${metric.label} · ${y}`,
         theme,
         extensive: true,
@@ -219,11 +220,7 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
   if (year !== null && rows) {
     if (level === "municipality" && selected) {
       const name = municipalities.find((m) => m.ibgeCode === selected)?.name ?? chosen?.municipalityName ?? selected;
-      sentences.push(
-        chosen
-          ? `${name}: ${formatInteger(chosen.amendmentCount)} ${chosen.amendmentCount === 1 ? "emenda identificada" : "emendas identificadas"} em ${year}.`
-          : `${name}: nenhuma emenda identificada por código IBGE em ${year}.`,
-      );
+      sentences.push(chosen ? `${name}: ${amendmentsText(chosen.amendmentCount)} em ${year}.` : `${name}: nenhuma emenda identificada por código IBGE em ${year}.`);
     } else if (rows.length) {
       const destination = totals.municipalities === 1 ? "foi destino" : "foram destino";
       const amendments = totals.amendments === 1 ? "emenda identificada" : "emendas identificadas";
@@ -321,6 +318,9 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
     retry: () => void mapQ.refetch(),
   };
 }
+
+/** "1 emenda identificada", "3 emendas identificadas". */
+const amendmentsText = (count: number) => `${formatInteger(count)} ${count === 1 ? "emenda identificada" : "emendas identificadas"}`;
 
 function amendmentsCompareNote(loaded: number, earlier: number, year: number | null): string | undefined {
   if (loaded < 2) return "Só há um ano de emendas carregado nesta UF; a comparação precisa de dois.";
