@@ -1,3 +1,7 @@
 # Fixtures de layout oficial TSE: bytes exatos (Latin-1, CRLF)
 etl/tests/electoral/fixtures/open-data/*.csv binary
 etl/tests/electoral/fixtures/cadaster/*.csv binary
+
+# Malhas oficiais do IBGE geradas por frontend/scripts/fetch-ibge-geo.mjs (proveniência e SHA-256 em meta.json)
+frontend/public/geo/br-uf.json linguist-generated=true -diff
+frontend/public/geo/municipios/*.json linguist-generated=true -diff

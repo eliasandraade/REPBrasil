@@ -126,7 +126,7 @@ describe("service worker factual-safe", () => {
     ["API de outra origem", new Request("https://api.apprepbrasil.com.br/api/v1/parliament/members?uf=CE")],
     ["payload RSC do Next", new Request(`${ORIGIN}/dados?_rsc=abc123`, { headers: { RSC: "1" } })],
     ["método que não é GET", new Request(`${ORIGIN}/_next/static/chunks/app.js`, { method: "POST", body: "x" })],
-    ["arquivo de malha geográfica", new Request(`${ORIGIN}/geo/ce/municipios.json`)],
+    ["arquivo de malha geográfica", new Request(`${ORIGIN}/geo/municipios/CE.json`)],
   ])("%s nunca é interceptado", async (_label, request) => {
     const worker = loadWorker(offline);
     expect(await dispatchFetch(worker, request)).toBeUndefined();
