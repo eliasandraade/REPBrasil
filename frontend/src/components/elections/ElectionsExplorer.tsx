@@ -48,7 +48,7 @@ function ElectionSwitcher({ route }: Readonly<{ route: ExplorerRoute }>) {
   if (elections.length < 2 || !elections.some((e) => `${e.year}-${e.round}` === current)) return null;
   return (
     <label className="flex items-center gap-2 text-xs text-fg-muted">
-      Eleição
+      <span>Eleição</span>
       <select
         value={current}
         onChange={(e) => {

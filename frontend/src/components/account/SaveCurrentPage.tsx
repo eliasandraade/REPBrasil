@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { getAccount, getSavedItems, removeSavedItem, saveItem, type AccountMe } from "@/lib/account";
+import { getAccount, getSavedItems, removeSavedItem, saveItem, savedPageLabel, type AccountMe } from "@/lib/account";
 import { TransitionLink } from "@/motion/navigation";
 
 type Target = { resourceType: string; resourceKey: string };
@@ -70,7 +70,7 @@ export function SaveCurrentPage() {
           collection,
           resourceType: target.resourceType,
           resourceKey: target.resourceKey,
-          label: document.title.replace(/\s*[|—-]\s*REPBrasil.*$/i, "") || target.resourceKey,
+          label: savedPageLabel(document.title, target.resourceKey),
           href: returnTo,
           metadata: {},
         });

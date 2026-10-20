@@ -86,6 +86,19 @@ async function accountFetch<T>(path: string, init: RequestInit = {}): Promise<T>
   return response.json() as Promise<T>;
 }
 
+const SITE_TITLE_SUFFIX = "repbrasil";
+const TITLE_SEPARATORS = new Set(["·", "|", "—", "-"]);
+
+/** Rótulo de página salva: o título sem o sufixo " · REPBrasil" do template, sem regex com backtracking. */
+export function savedPageLabel(title: string, fallback: string): string {
+  let label = title.trim();
+  if (label.toLowerCase().endsWith(SITE_TITLE_SUFFIX)) {
+    const head = label.slice(0, -SITE_TITLE_SUFFIX.length).trimEnd();
+    if (TITLE_SEPARATORS.has(head.at(-1) ?? "")) label = head.slice(0, -1).trim();
+  }
+  return label || fallback;
+}
+
 export async function getAccount(): Promise<AccountMe | null> {
   try {
     return await accountFetch<AccountMe>("/api/v1/account/me");
