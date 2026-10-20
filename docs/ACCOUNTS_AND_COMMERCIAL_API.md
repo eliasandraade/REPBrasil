@@ -171,9 +171,40 @@ Chaves fora dessa lista são ignoradas pela resolução de acesso.
 
 Na ausência desse entitlement, a quota técnica padrão é de 1000 requisições/dia. A quota é **da conta**: o uso diário de todas as chaves do usuário é somado, então criar ou rotacionar chaves não multiplica a cota. Alterar quota comercial é operação administrativa explícita, não conclusão do produto.
 
-## Superadmin
+## Super Admin
 
-`GET /api/v1/admin/me` decide no servidor, pela mesma resolução de acesso dos planos (`AccountAccessService`): a conta precisa estar em `Auth:SuperadminEmails` ou ter o entitlement ativo `account.role = superadmin`. Sem sessão → 401; sessão de conta comum → 403 (`{"error":"forbidden"}`); superadmin → 200 com `role: "superadmin"`. Nada no estado da conta comum concede o papel.
+O papel é decidido no servidor, pela mesma resolução de acesso dos planos (`AccountAccessService`): a conta precisa estar em `Auth:SuperadminEmails` (configuração, não editável pela interface) ou ter o entitlement ativo `account.role = superadmin`. Toda rota `/api/v1/admin/*` passa pelo filtro `[SuperAdmin]`: sem sessão → 401; sessão sem CSRF em escrita → 401; conta comum → 403 (`{"error":"forbidden"}`). Nada no estado da conta comum concede o papel.
+
+Rotas (escrita só por POST/DELETE, que o CORS do site libera):
+
+| Rota | Função |
+|---|---|
+| `GET /admin/me` | identidade do Super Admin |
+| `GET /admin/overview` | diagnóstico: API (ambiente, revisão, uptime, última migration), banco (latência, versão), migrations pendentes, lake e frontend quando configurados, frescor das bases oficiais, visões derivadas, ingestões recentes (erros mascarados), contas, assinaturas, alertas, suporte e métricas HTTP por rota desde o início do processo |
+| `GET /admin/users` | busca por e-mail/nome, filtros de plano, papel e status, ordenação e paginação (até 5.000 contas por consulta) |
+| `GET /admin/users/{id}` | perfil, acesso efetivo, concessões, assinaturas, uso e histórico administrativo |
+| `POST /admin/users/{id}/suspend` · `/reactivate` | suspende (encerra sessões e recusa login por qualquer provedor) ou reativa |
+| `POST /admin/users/{id}/role` | `user` ou `superadmin` (o da configuração não muda pela interface) |
+| `POST /admin/users/{id}/plan` | plano manual com validade opcional; `FREE` remove a concessão |
+| `POST /admin/users/{id}/entitlements` · `DELETE …/{key}` | concede ou revoga capability do catálogo (ou `api.daily_quota`) |
+| `POST /admin/users/{id}/subscription` | cria ou corrige a assinatura manual |
+| `GET /admin/subscriptions` · `GET /admin/audit` | assinaturas e trilha de auditoria |
+| `GET /admin/support` · `POST /admin/support/{id}/status` | caixa de suporte |
+| `GET /admin/openapi` | documento OpenAPI gerado do código (com `x-repbrasil-access` por rota) e métricas por rota |
+
+Regras:
+- toda alteração grava `account.admin_audit_log` (quem, ação, alvo, antes, depois, contexto, quando) na mesma transação; a tabela é só de inserção (gatilho recusa UPDATE/DELETE) e não guarda segredo;
+- ninguém suspende nem rebaixa a própria conta; uma trava única impede zerar os Super Admins capazes de entrar;
+- conta suspensa não entra por nenhum provedor, e um login novo não cria conta duplicada para o mesmo e-mail (`/entrar?erro=conta-suspensa`);
+- nenhuma resposta leva cadeia de conexão, token, chave ou variável sensível.
+
+O documento OpenAPI é sempre gerado (com os comentários XML); a interface pública do Swagger (`/swagger`) continua só em desenvolvimento ou com `Swagger:Enabled`. A sonda do frontend no diagnóstico pode ser desligada com `Admin__Diagnostics__ProbeFrontend=false`.
+
+Interface: `/admin` (visão geral, contas, detalhe com ações confirmadas, assinaturas, auditoria, API, suporte), `noindex`, com guarda no servidor.
+
+## Suporte
+
+`POST /api/v1/support/requests` grava o pedido (`account.support_request`): categoria (dúvida, contestação, correção de dado, institucional, erro técnico, conta), e-mail para a resposta, nome/organização/assunto/fonte opcionais e a mensagem (30–5.000 caracteres). Com sessão, o pedido fica ligado à conta. O IP não é guardado, só o hash do prefixo. Limite técnico por origem: `RateLimit__SupportPerHour` (padrão 6/h). A página `/suporte` mostra o protocolo devolvido; não há confirmação sem gravação.
 
 ## API comercial
 
@@ -255,4 +286,7 @@ O conteúdo público existente continua navegável sem autenticação.
 - `backend/tests/RepBrasil.Tests/Api/PlanCatalogTests.cs` (sem banco): catálogo e preços, plano maior contém o menor, resolução do plano efetivo (assinatura viva, cancelada no período, vencida, manual, Super Admin), concessões e expirações, catálogo de alertas, ação protegida sem cache compartilhado.
 - `backend/tests/RepBrasil.Tests/Api/AccountFlowPlansTests.cs` (banco de teste): `/account/me` com plano e limites decididos no servidor, catálogo público e checkout 503 sem cobrança, perfil validado e persistido (e mantido após login Google), limites de favoritos/watchlist com concorrência e sem apagar itens, pastas só no Profissional, alertas do catálogo com limite, comparação ampliada 401/403/404 sem cache compartilhado, catálogo territorial.
 - `backend/tests/RepBrasil.Tests/Api/AccountFlowAlertPublisherTests.cs` (banco de teste): edição nova notifica uma vez quem já assinava; quem assina depois e conta suspensa não recebem; emendas pela UF da ingestão.
+- `backend/tests/RepBrasil.Tests/Api/AccountFlowAdminTests.cs` (banco de teste): RBAC 401/403/200 e sem segredo no diagnóstico; suspensão que encerra sessões e recusa login sem criar conta; último Super Admin protegido mesmo contra admin concorrente; plano, concessões, assinatura e papel refletidos no acesso e na auditoria (que recusa UPDATE); suporte gravado, limitado e triado; catálogo OpenAPI só para Super Admin, com a regra de acesso de cada rota.
+- `backend/tests/RepBrasil.Tests/Api/AdminUnitTests.cs` (sem banco): regra de acesso do catálogo lida dos atributos, mascaramento de erros de ingestão, métricas por rota.
+- `frontend/tests/admin.test.tsx`: guarda do `/admin` (401/403), ação confirmada com CSRF, recusa do último Super Admin, catálogo da API e `/suporte` real (protocolo, 429, FAQ acessível).
 - `frontend/tests/account-signin.test.tsx`: mensagens de `/entrar?erro=...` e destino local após o login.

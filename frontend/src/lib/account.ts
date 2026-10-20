@@ -138,7 +138,8 @@ export interface CreatedApiKey {
   secret: string;
 }
 
-async function accountFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** Chamada à API com o cookie da sessão (conta e administração). Erro HTTP vira {@link ApiError} com o corpo. */
+export async function accountFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",

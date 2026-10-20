@@ -74,7 +74,12 @@ export function AccountHub({ children }: Readonly<{ children: ReactNode }>) {
         </div>
         <p className="text-body-sm text-fg-muted">
           Plano <strong className="font-semibold text-fg">{PLAN_NAME[me.plan]}</strong>
-          {me.role === "superadmin" && <span className="text-fg-muted"> · Super Admin</span>}
+          {me.role === "superadmin" && (
+            <>
+              {" · "}
+              <TransitionLink href="/admin" className="focus-ring mi-underline rounded text-accent-text">Administração</TransitionLink>
+            </>
+          )}
           {" · "}
           <TransitionLink href="/planos" className="focus-ring mi-underline rounded text-accent-text">
             comparar planos
