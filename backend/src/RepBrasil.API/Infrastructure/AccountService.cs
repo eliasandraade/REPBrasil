@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using RepBrasil.API.Accounts;
 using RepBrasil.Infrastructure.Persistence;
 
 namespace RepBrasil.API.Infrastructure;
@@ -17,7 +19,7 @@ public sealed record AccountSession(
     DateTimeOffset ExpiresAt);
 
 public sealed record MagicLinkChallenge(string Email, string Token, string ReturnTo, DateTimeOffset ExpiresAt);
-public sealed record SavedItemDto(Guid Id, string Collection, string ResourceType, string ResourceKey, string? Label, string? Href, JsonElement Metadata, DateTimeOffset CreatedAt);
+public sealed record SavedItemDto(Guid Id, string Collection, string ResourceType, string ResourceKey, string? Label, string? Href, JsonElement Metadata, DateTimeOffset CreatedAt, string? Folder);
 public sealed record AlertSubscriptionDto(Guid Id, string ResourceType, string ResourceKey, string EventKind, string Delivery, bool Enabled, DateTimeOffset CreatedAt);
 public sealed record NotificationDto(Guid Id, string EventKey, string ResourceType, string ResourceKey, string Title, string? Body, string? Href, JsonElement Payload, DateTimeOffset CreatedAt, DateTimeOffset? ReadAt);
 public sealed record ApiKeyDto(Guid Id, string Name, string Prefix, string[] Scopes, int DailyQuota, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, DateTimeOffset? ExpiresAt, bool Revoked);
@@ -48,7 +50,10 @@ public sealed class AccountService(ApplicationDbContext db)
         return new(email, token, safeReturnTo, expiresAt);
     }
 
-    public async Task<(AccountSession Session, string SessionToken, string ReturnTo)?> ConsumeMagicLinkAsync(string token, string? userAgent, string? ipAddress, CancellationToken cancellationToken)
+    public Task<(AccountSession Session, string SessionToken, string ReturnTo)?> ConsumeMagicLinkAsync(string token, string? userAgent, string? ipAddress, CancellationToken cancellationToken) =>
+        RetrySerializableAsync(() => ConsumeMagicLinkOnceAsync(token, userAgent, ipAddress, cancellationToken), cancellationToken);
+
+    private async Task<(AccountSession Session, string SessionToken, string ReturnTo)?> ConsumeMagicLinkOnceAsync(string token, string? userAgent, string? ipAddress, CancellationToken cancellationToken)
     {
         var hash = Hash(token);
         await OpenAsync(cancellationToken);
@@ -103,7 +108,10 @@ public sealed class AccountService(ApplicationDbContext db)
         return state;
     }
 
-    public async Task<string?> ConsumeGoogleStateAsync(string state, CancellationToken cancellationToken)
+    public Task<string?> ConsumeGoogleStateAsync(string state, CancellationToken cancellationToken) =>
+        RetrySerializableAsync(() => ConsumeGoogleStateOnceAsync(state, cancellationToken), cancellationToken);
+
+    private async Task<string?> ConsumeGoogleStateOnceAsync(string state, CancellationToken cancellationToken)
     {
         await OpenAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -130,7 +138,7 @@ public sealed class AccountService(ApplicationDbContext db)
         }
     }
 
-    public async Task<(AccountSession Session, string Token)> SignInGoogleAsync(
+    public Task<(AccountSession Session, string Token)> SignInGoogleAsync(
         string subject,
         string email,
         string? displayName,
@@ -141,6 +149,21 @@ public sealed class AccountService(ApplicationDbContext db)
         CancellationToken cancellationToken)
     {
         email = NormalizeEmail(email);
+        return RetrySerializableAsync(
+            () => SignInGoogleOnceAsync(subject, email, displayName, avatarUrl, emailVerified, userAgent, ipAddress, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<(AccountSession Session, string Token)> SignInGoogleOnceAsync(
+        string subject,
+        string email,
+        string? displayName,
+        string? avatarUrl,
+        bool emailVerified,
+        string? userAgent,
+        string? ipAddress,
+        CancellationToken cancellationToken)
+    {
         await OpenAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
@@ -163,7 +186,7 @@ public sealed class AccountService(ApplicationDbContext db)
         try
         {
             await using var command = Command("""
-                SELECT u.id, u.email, u.display_name, u.avatar_url, s.csrf_token, s.expires_at
+                SELECT u.id, u.email, u.display_name, CASE WHEN u.avatar_hidden THEN NULL ELSE u.avatar_url END, s.csrf_token, s.expires_at
                 FROM account.session s
                 JOIN account.user_account u ON u.id = s.user_id
                 WHERE s.token_hash = @hash AND s.revoked_at IS NULL AND s.expires_at > now() AND u.disabled_at IS NULL
@@ -172,7 +195,7 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) return null;
             var session = new AccountSession(
-                reader.GetGuid(0), reader.GetString(1), NullString(reader, 2), NullString(reader, 3), reader.GetString(4), reader.GetFieldValue<DateTimeOffset>(5));
+                reader.GetGuid(0), reader.GetString(1), reader.NullableString(2), reader.NullableString(3), reader.GetString(4), reader.GetFieldValue<DateTimeOffset>(5));
             await reader.DisposeAsync();
             await using var touch = Command("UPDATE account.session SET last_seen_at = now() WHERE token_hash = @hash", ("hash", Hash(token)));
             await touch.ExecuteNonQueryAsync(cancellationToken);
@@ -194,7 +217,7 @@ public sealed class AccountService(ApplicationDbContext db)
         try
         {
             await using var command = Command("""
-                SELECT id, collection, resource_type, resource_key, label, href, metadata::text, created_at
+                SELECT id, collection, resource_type, resource_key, label, href, metadata::text, created_at, folder
                 FROM account.saved_item
                 WHERE user_id = @user_id AND collection = @collection
                 ORDER BY created_at DESC, id
@@ -202,13 +225,18 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var result = new List<SavedItemDto>();
             while (await reader.ReadAsync(cancellationToken))
-                result.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), NullString(reader, 4), NullString(reader, 5), Json(reader.GetString(6)), reader.GetFieldValue<DateTimeOffset>(7)));
+                result.Add(ReadSavedItem(reader));
             return result;
         }
         finally { await db.Database.CloseConnectionAsync(); }
     }
 
-    public async Task<SavedItemDto> SaveItemAsync(Guid userId, string collection, string resourceType, string resourceKey, string? label, string? href, JsonElement? metadata, CancellationToken cancellationToken)
+    /// <summary>
+    /// Salva (ou atualiza) um item. Item novo além de <paramref name="limit"/> é recusado com
+    /// <see cref="PlanLimitReachedException"/>; a contagem é feita com a conta travada, então dois pedidos
+    /// simultâneos não passam juntos do limite. Itens que já existem nunca são apagados.
+    /// </summary>
+    public async Task<SavedItemDto> SaveItemAsync(Guid userId, string collection, string resourceType, string resourceKey, string? label, string? href, JsonElement? metadata, int limit, CancellationToken cancellationToken)
     {
         ValidateCollection(collection);
         ValidateResource(resourceType, resourceKey);
@@ -216,18 +244,57 @@ public sealed class AccountService(ApplicationDbContext db)
         await OpenAsync(cancellationToken);
         try
         {
-            await using var command = Command("""
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await LockUserAsync(userId, cancellationToken);
+            await using (var count = Command("""
+                SELECT count(*) FILTER (WHERE resource_type = @resource_type AND resource_key = @resource_key) > 0, count(*)
+                FROM account.saved_item WHERE user_id = @user_id AND collection = @collection
+                """, ("user_id", userId), ("collection", collection), ("resource_type", resourceType), ("resource_key", resourceKey)))
+            await using (var existing = await count.ExecuteReaderAsync(cancellationToken))
+            {
+                await existing.ReadAsync(cancellationToken);
+                if (!existing.GetBoolean(0) && existing.GetInt64(1) >= limit)
+                    throw new PlanLimitReachedException(collection == "favorite" ? PlanCatalog.FavoritesLimit : PlanCatalog.WatchlistLimit, limit);
+            }
+
+            SavedItemDto saved;
+            await using (var command = Command("""
                 INSERT INTO account.saved_item (id, user_id, collection, resource_type, resource_key, label, href, metadata)
                 VALUES (@id, @user_id, @collection, @resource_type, @resource_key, @label, @href, CAST(@metadata AS jsonb))
                 ON CONFLICT (user_id, collection, resource_type, resource_key)
                 DO UPDATE SET label = EXCLUDED.label, href = EXCLUDED.href, metadata = EXCLUDED.metadata, updated_at = now()
-                RETURNING id, collection, resource_type, resource_key, label, href, metadata::text, created_at
+                RETURNING id, collection, resource_type, resource_key, label, href, metadata::text, created_at, folder
                 """,
                 ("id", Guid.NewGuid()), ("user_id", userId), ("collection", collection), ("resource_type", resourceType),
-                ("resource_key", resourceKey), ("label", label), ("href", href), ("metadata", metadataJson));
+                ("resource_key", resourceKey), ("label", label), ("href", href), ("metadata", metadataJson)))
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                await reader.ReadAsync(cancellationToken);
+                saved = ReadSavedItem(reader);
+            }
+            await transaction.CommitAsync(cancellationToken);
+            return saved;
+        }
+        finally { await db.Database.CloseConnectionAsync(); }
+    }
+
+    /// <summary>Move um item salvo para uma pasta (nulo tira da pasta). Nulo se o item não existe.</summary>
+    public async Task<SavedItemDto?> SetSavedItemFolderAsync(Guid userId, string collection, string resourceType, string resourceKey, string? folder, CancellationToken cancellationToken)
+    {
+        ValidateCollection(collection);
+        ValidateResource(resourceType, resourceKey);
+        var name = string.IsNullOrWhiteSpace(folder) ? null : folder.Trim();
+        if (name is not null && (name.Length > 60 || name.Any(char.IsControl))) throw new ArgumentException("Nome da pasta: até 60 caracteres, sem caracteres de controle.");
+        await OpenAsync(cancellationToken);
+        try
+        {
+            await using var command = Command("""
+                UPDATE account.saved_item SET folder = @folder, updated_at = now()
+                WHERE user_id = @user_id AND collection = @collection AND resource_type = @resource_type AND resource_key = @resource_key
+                RETURNING id, collection, resource_type, resource_key, label, href, metadata::text, created_at, folder
+                """, ("folder", name), ("user_id", userId), ("collection", collection), ("resource_type", resourceType), ("resource_key", resourceKey));
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            await reader.ReadAsync(cancellationToken);
-            return new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), NullString(reader, 4), NullString(reader, 5), Json(reader.GetString(6)), reader.GetFieldValue<DateTimeOffset>(7));
+            return await reader.ReadAsync(cancellationToken) ? ReadSavedItem(reader) : null;
         }
         finally { await db.Database.CloseConnectionAsync(); }
     }
@@ -258,25 +325,45 @@ public sealed class AccountService(ApplicationDbContext db)
         finally { await db.Database.CloseConnectionAsync(); }
     }
 
-    public async Task<AlertSubscriptionDto> UpsertAlertAsync(Guid userId, string resourceType, string resourceKey, string eventKind, string delivery, bool enabled, CancellationToken cancellationToken)
+    /// <summary>
+    /// Cria ou atualiza uma assinatura de alerta do catálogo (<see cref="AlertCatalog"/>). Assinatura nova além de
+    /// <paramref name="limit"/> é recusada com <see cref="PlanLimitReachedException"/>; pausar ou retomar uma que já
+    /// existe é sempre permitido.
+    /// </summary>
+    public async Task<AlertSubscriptionDto> UpsertAlertAsync(Guid userId, string resourceType, string resourceKey, string eventKind, string delivery, bool enabled, int limit, CancellationToken cancellationToken)
     {
-        ValidateResource(resourceType, resourceKey);
-        if (string.IsNullOrWhiteSpace(eventKind) || eventKind.Length > 80) throw new ArgumentException("Evento de alerta inválido.");
-        if (delivery is not ("in_app" or "email")) throw new ArgumentException("Canal de entrega inválido.");
+        AlertCatalog.Validate(resourceType, resourceKey, eventKind, delivery);
         await OpenAsync(cancellationToken);
         try
         {
-            await using var command = Command("""
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await LockUserAsync(userId, cancellationToken);
+            await using (var count = Command("""
+                SELECT count(*) FILTER (WHERE resource_type = @resource_type AND resource_key = @resource_key AND event_kind = @event_kind AND delivery = @delivery) > 0, count(*)
+                FROM account.alert_subscription WHERE user_id = @user_id
+                """, ("user_id", userId), ("resource_type", resourceType), ("resource_key", resourceKey), ("event_kind", eventKind), ("delivery", delivery)))
+            await using (var existing = await count.ExecuteReaderAsync(cancellationToken))
+            {
+                await existing.ReadAsync(cancellationToken);
+                if (!existing.GetBoolean(0) && existing.GetInt64(1) >= limit) throw new PlanLimitReachedException(PlanCatalog.AlertsLimit, limit);
+            }
+
+            AlertSubscriptionDto alert;
+            await using (var command = Command("""
                 INSERT INTO account.alert_subscription (id, user_id, resource_type, resource_key, event_kind, delivery, enabled)
                 VALUES (@id, @user_id, @resource_type, @resource_key, @event_kind, @delivery, @enabled)
                 ON CONFLICT (user_id, resource_type, resource_key, event_kind, delivery)
                 DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()
                 RETURNING id, resource_type, resource_key, event_kind, delivery, enabled, created_at
                 """, ("id", Guid.NewGuid()), ("user_id", userId), ("resource_type", resourceType), ("resource_key", resourceKey),
-                ("event_kind", eventKind), ("delivery", delivery), ("enabled", enabled));
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            await reader.ReadAsync(cancellationToken);
-            return new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5), reader.GetFieldValue<DateTimeOffset>(6));
+                ("event_kind", eventKind), ("delivery", delivery), ("enabled", enabled)))
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                await reader.ReadAsync(cancellationToken);
+                alert = new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5), reader.GetFieldValue<DateTimeOffset>(6));
+            }
+            await transaction.CommitAsync(cancellationToken);
+            return alert;
         }
         finally { await db.Database.CloseConnectionAsync(); }
     }
@@ -296,7 +383,7 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var items = new List<NotificationDto>();
             while (await reader.ReadAsync(cancellationToken))
-                items.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), NullString(reader, 5), NullString(reader, 6), Json(reader.GetString(7)), reader.GetFieldValue<DateTimeOffset>(8), reader.IsDBNull(9) ? null : reader.GetFieldValue<DateTimeOffset>(9)));
+                items.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.NullableString(5), reader.NullableString(6), Json(reader.GetString(7)), reader.GetFieldValue<DateTimeOffset>(8), reader.NullableTime(9)));
             return items;
         }
         finally { await db.Database.CloseConnectionAsync(); }
@@ -304,6 +391,9 @@ public sealed class AccountService(ApplicationDbContext db)
 
     public Task MarkNotificationReadAsync(Guid userId, Guid id, CancellationToken cancellationToken) =>
         ExecuteAsync("UPDATE account.notification SET read_at = COALESCE(read_at, now()) WHERE user_id = @user_id AND id = @id", cancellationToken, ("user_id", userId), ("id", id));
+
+    public Task<int> MarkAllNotificationsReadAsync(Guid userId, CancellationToken cancellationToken) =>
+        ExecuteAsync("UPDATE account.notification SET read_at = now() WHERE user_id = @user_id AND read_at IS NULL", cancellationToken, ("user_id", userId));
 
     public async Task<int> PublishAlertAsync(string eventKey, string resourceType, string resourceKey, string eventKind, string title, string? body, string? href, JsonElement? payload, CancellationToken cancellationToken)
     {
@@ -335,8 +425,42 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var items = new List<EntitlementDto>();
             while (await reader.ReadAsync(cancellationToken))
-                items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3), reader.IsDBNull(4) ? null : reader.GetFieldValue<DateTimeOffset>(4)));
+                items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3), reader.NullableTime(4)));
             return items;
+        }
+        finally { await db.Database.CloseConnectionAsync(); }
+    }
+
+    /// <summary>Fatos de acesso da conta: assinaturas e entitlements em vigor (ver <see cref="EntitlementResolver"/>).</summary>
+    public async Task<(IReadOnlyList<SubscriptionFact> Subscriptions, IReadOnlyList<EntitlementFact> Entitlements)> LoadAccessFactsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        await OpenAsync(cancellationToken);
+        try
+        {
+            var subscriptions = new List<SubscriptionFact>();
+            await using (var command = Command("""
+                SELECT id, plan, status, provider, current_period_end, cancel_at_period_end, created_at
+                FROM account.subscription WHERE user_id = @user_id
+                ORDER BY created_at DESC LIMIT 20
+                """, ("user_id", userId)))
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                    subscriptions.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.NullableTime(4), reader.GetBoolean(5), reader.GetFieldValue<DateTimeOffset>(6)));
+            }
+
+            var entitlements = new List<EntitlementFact>();
+            await using (var command = Command("""
+                SELECT entitlement_key, entitlement_value, source, starts_at, expires_at
+                FROM account.entitlement
+                WHERE user_id = @user_id AND starts_at <= now() AND (expires_at IS NULL OR expires_at > now())
+                """, ("user_id", userId)))
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                    entitlements.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3), reader.NullableTime(4)));
+            }
+            return (subscriptions, entitlements);
         }
         finally { await db.Database.CloseConnectionAsync(); }
     }
@@ -354,7 +478,7 @@ public sealed class AccountService(ApplicationDbContext db)
             var items = new List<ApiKeyDto>();
             while (await reader.ReadAsync(cancellationToken))
                 items.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3), reader.GetInt32(4), reader.GetFieldValue<DateTimeOffset>(5),
-                    reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTimeOffset>(6), reader.IsDBNull(7) ? null : reader.GetFieldValue<DateTimeOffset>(7), reader.GetBoolean(8)));
+                    reader.NullableTime(6), reader.NullableTime(7), reader.GetBoolean(8)));
             return items;
         }
         finally { await db.Database.CloseConnectionAsync(); }
@@ -414,7 +538,8 @@ public sealed class AccountService(ApplicationDbContext db)
         else if (provider == "google")
         {
             await using var update = Command("""
-                UPDATE account.user_account SET display_name = COALESCE(@display_name, display_name), avatar_url = COALESCE(@avatar_url, avatar_url),
+                UPDATE account.user_account SET display_name = CASE WHEN profile_customized_at IS NULL THEN COALESCE(@display_name, display_name) ELSE display_name END,
+                    avatar_url = COALESCE(@avatar_url, avatar_url),
                     email_verified_at = CASE WHEN @verified THEN COALESCE(email_verified_at, now()) ELSE email_verified_at END, updated_at = now()
                 WHERE id = @id
                 """, ("display_name", displayName), ("avatar_url", avatarUrl), ("verified", verified), ("id", userId));
@@ -441,10 +566,10 @@ public sealed class AccountService(ApplicationDbContext db)
             """, ("id", Guid.NewGuid()), ("user_id", userId), ("token_hash", Hash(token)), ("csrf", csrf), ("expires_at", expires),
             ("ua", HashOptional(userAgent)), ("ip", HashOptional(IpPrefix(ipAddress))));
         await command.ExecuteNonQueryAsync(cancellationToken);
-        await using var user = Command("SELECT email, display_name, avatar_url FROM account.user_account WHERE id = @id", ("id", userId));
+        await using var user = Command("SELECT email, display_name, CASE WHEN avatar_hidden THEN NULL ELSE avatar_url END FROM account.user_account WHERE id = @id", ("id", userId));
         await using var reader = await user.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
-        return (new(userId, reader.GetString(0), NullString(reader, 1), NullString(reader, 2), csrf, expires), token);
+        return (new(userId, reader.GetString(0), reader.NullableString(1), reader.NullableString(2), csrf, expires), token);
     }
 
     private async Task<int> ResolveApiQuotaAsync(Guid userId, CancellationToken cancellationToken)
@@ -474,20 +599,48 @@ public sealed class AccountService(ApplicationDbContext db)
         finally { await db.Database.CloseConnectionAsync(); }
     }
 
-    private DbCommand Command(string sql, params (string Name, object? Value)[] args)
+    private DbCommand Command(string sql, params (string Name, object? Value)[] args) => db.Command(sql, args);
+
+    /// <summary>
+    /// Login em transação Serializable: logins simultâneos podem colidir (SQLSTATE 40001, ou 40P01 quando a colisão
+    /// vira impasse) sem erro de ninguém. A tentativa que colide é desfeita por inteiro (o desafio continua sem uso),
+    /// então repetir é seguro. A espera dobra a cada rodada, com teto e variação aleatória para os concorrentes não se
+    /// reencontrarem: sob contenção alta, as oito rodadas somam pouco mais de um segundo no pior caso.
+    /// </summary>
+    private static async Task<T> RetrySerializableAsync<T>(Func<Task<T>> attempt, CancellationToken cancellationToken)
     {
-        var command = db.Database.GetDbConnection().CreateCommand();
-        command.CommandText = sql;
-        command.Transaction = db.Database.CurrentTransaction?.GetDbTransaction();
-        foreach (var (name, value) in args)
+        const int attempts = 8;
+        for (var round = 1; ; round++)
         {
-            var parameter = command.CreateParameter();
-            parameter.ParameterName = name;
-            parameter.Value = value ?? DBNull.Value;
-            command.Parameters.Add(parameter);
+            try
+            {
+                return await attempt();
+            }
+            catch (PostgresException ex) when (IsSerializationConflict(ex) && round < attempts)
+            {
+                await Task.Delay(RetryDelay(round), cancellationToken);
+            }
         }
-        return command;
     }
+
+    /// <summary>Colisão que a própria transação resolve sendo repetida: falha de serialização ou impasse.</summary>
+    public static bool IsSerializationConflict(PostgresException exception) =>
+        exception.SqlState is PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected;
+
+    /// <summary>Espera antes da próxima rodada: 15 ms dobrando a cada rodada, até 400 ms, mais até 25 ms de variação.</summary>
+    public static TimeSpan RetryDelay(int round) =>
+        TimeSpan.FromMilliseconds(Math.Min(400, 15 * (1 << Math.Clamp(round - 1, 0, 5))) + Random.Shared.Next(0, 25));
+
+    /// <summary>Trava a linha da conta até o fim da transação: serializa contagem + inserção contra o limite do plano.</summary>
+    private async Task LockUserAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        await using var command = Command("SELECT 1 FROM account.user_account WHERE id = @id FOR UPDATE", ("id", userId));
+        await command.ExecuteScalarAsync(cancellationToken);
+    }
+
+    private static SavedItemDto ReadSavedItem(DbDataReader reader) =>
+        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.NullableString(4), reader.NullableString(5),
+            Json(reader.GetString(6)), reader.GetFieldValue<DateTimeOffset>(7), reader.NullableString(8));
 
     private Task OpenAsync(CancellationToken cancellationToken) => db.Database.OpenConnectionAsync(cancellationToken);
 
@@ -530,6 +683,5 @@ public sealed class AccountService(ApplicationDbContext db)
         var parts = ip.Split('.');
         return parts.Length == 4 ? string.Join('.', parts.Take(3)) : ip.Split(':').Take(4).Aggregate(new StringBuilder(), (b, part) => b.Length == 0 ? b.Append(part) : b.Append(':').Append(part)).ToString();
     }
-    private static string? NullString(DbDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement.Clone();
 }

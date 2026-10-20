@@ -48,6 +48,9 @@ Auth__MagicLink__From=REPBrasil <acesso@SEU_DOMINIO>  # remetente de domínio ve
 Auth__MagicLink__TimeoutSeconds=10                # opcional: prazo do envio, de 1 a 15 s
 Auth__SuperadminEmails=pessoa@exemplo.com          # lista separada por vírgulas
 Alerts__PublishToken=...
+Alerts__Publisher__Enabled=true                    # opcional: publicador de alertas (padrão: ligado)
+Alerts__Publisher__IntervalSeconds=300             # opcional: intervalo entre ciclos, de 30 a 86400 s
+Alerts__Publisher__InitialDelaySeconds=60          # opcional: espera antes do primeiro ciclo
 ```
 
 As antigas `Auth__MagicLink__Smtp__*` não são mais lidas e podem ser removidas depois do deploy.
@@ -58,7 +61,7 @@ O frontend continua usando `NEXT_PUBLIC_API_URL` e envia `credentials: include` 
 
 Schema `account`:
 
-- `user_account`: identidade mínima da conta;
+- `user_account`: identidade mínima da conta e perfil (nome, nome de exibição, UF, município, tipo de uso, preferência de avatar);
 - `identity`: provedores `magic_link` e `google`;
 - `login_challenge`: desafios temporários por hash;
 - `session`: sessões revogáveis;
@@ -67,35 +70,110 @@ Schema `account`:
 - `notification`: caixa de entrada idempotente por `event_key`/usuário;
 - `entitlement`: capacidade concedida, sem preço hard-coded;
 - `api_key`: chave comercial por hash, prefixo visível, scopes, quota e revogação;
-- `api_usage_daily`: contador diário por chave.
+- `api_usage_daily`: contador diário por chave;
+- `subscription`: vínculo da conta com um plano pago (`manual` enquanto não houver cobrança online), status e fim do período;
+- `alert_edition`: edições oficiais já vistas pelo publicador de alertas (uma linha por edição, com o instante em que apareceu);
+- `alert_publisher_state`: marca a linha de base do publicador (primeiro ciclo).
+
+O perfil nunca coleta CPF, partido, candidato, ideologia, religião ou intenção de voto. UF e município servem só à personalização territorial; o tipo de uso (eleitor, estudante/pesquisador, jornalista, assessor político, profissional do setor público, outro) é opcional.
 
 Favoritos/watchlist usam `resource_type + resource_key` para não acoplar a conta à modelagem interna do TSE/IBGE. Rotas filtradas e drill-downs eleitorais preservam o caminho/query reproduzível na identidade salva. As entidades oficiais continuam sendo a fonte de verdade.
 
 ## Alertas
 
-O produto permite inscrição em eventos determinísticos. A emissão é separada da apresentação:
+Só existem os alertas que o sistema sabe disparar (`AlertCatalog`, listado em `GET /api/v1/account/alert-kinds`). Cada tipo tem um produtor que observa uma tabela de edições oficiais:
 
-`POST /api/v1/internal/alerts/publish`
+| Recurso | Evento | Chave | Dispara quando |
+|---|---|---|---|
+| `indicator` | `new_edition` | código do indicador (`ibge.population`) | uma nova fonte do indicador é gravada em `socioeconomic_source` |
+| `state` | `amendments_update` | UF (`CE`) | uma nova versão da base oficial de emendas da UF é gravada em `parliament_source` (UF de `metadata.uf`) |
+| `election` | `polls_update` | `ano:cargo:UF` ou `ano:cargo:BR` | uma fonte de pesquisas traz registro que nenhuma fonte anterior tinha para o escopo |
+| `election` | `live_count_update` | `ano:cargo:UF` ou `ano:cargo:BR` | a totalização oficial começa, passa de 25%, 50% e 75% das seções e termina |
+| `municipality` | `live_count_update` | código IBGE (7 dígitos) | o mesmo, para a apuração do município |
 
-Cabeçalho obrigatório: `X-Alerts-Token`.
+O publicador (`DataEditionAlertPublisher`) roda dentro da API em intervalo fixo. A cada ciclo:
+1. registra as edições novas em `account.alert_edition`, uma vez por edição (chave estável, ex.: `socioeconomic_source:<id>`);
+2. entrega cada edição a quem **já assinava** quando ela apareceu (assinar hoje não traz aviso de edição antiga), no máximo uma vez por pessoa;
+3. não entrega a conta suspensa.
 
-O publicador fornece `eventKey`, recurso, tipo de evento, título e payload. O banco cria no máximo uma notificação por `eventKey`/usuário. O endpoint interno não inventa fatos: ele somente distribui um evento já produzido por uma rotina auditável.
+No primeiro ciclo de todos (`account.alert_publisher_state` vazio), o histórico existente vira linha de base, sem aviso: ligar o publicador depois do deploy não dispara notificações de edições antigas.
 
-Entrega `in_app` é nativa. O campo `email` já faz parte do contrato de assinatura, mas **o envio de notificações por e-mail ainda não está implementado**: assinaturas `email` são guardadas e as notificações aparecem na caixa `in_app`. Quando existir, o envio usará a mesma integração HTTPS de e-mail do magic link e não alterará o fato armazenado.
+Uma trava consultiva no banco garante um só publicador por vez. Falha num ciclo vai para o log e espera o próximo; valor malformado nas variáveis `Alerts__Publisher__*` vira o padrão com aviso no log. Nada disso derruba a API.
+
+Os links das notificações abrem o recorte certo: `/parlamento?uf=`, `/pesquisas?ano=&turno=&cargo=&uf=` (`uf=BR` é o Brasil) e `/dados?x=&periodo=`; essas páginas guardam o recorte na URL.
+
+O endpoint interno continua disponível para rotinas auditáveis externas:
+
+`POST /api/v1/internal/alerts/publish` (cabeçalho obrigatório: `X-Alerts-Token`)
+
+Ele recebe `eventKey`, recurso, tipo de evento, título e payload, e cria no máximo uma notificação por `eventKey`/usuário. Não inventa fatos: só distribui um evento já produzido.
+
+A entrega é na conta (`in_app`). **O envio de alertas por e-mail não existe**, então assinatura nova com `delivery = email` é recusada com mensagem explicativa (as antigas continuam recebendo na conta).
+
+## Planos
+
+O catálogo de planos, capabilities e limites é código (`PlanCatalog`) e é servido em `GET /api/v1/plans`, junto com a base pública (o que é de todos, em qualquer plano) e a disponibilidade do pagamento online. O frontend nunca decide acesso sozinho: lê `capabilities` e `limits` de `GET /api/v1/account/me`.
+
+| Capability | Gratuito | Avançado | Profissional |
+|---|---|---|---|
+| `limit.favorites` | 10 | 200 | 1000 |
+| `limit.watchlist` | 5 | 100 | 500 |
+| `limit.alerts` | 3 | 50 | 200 |
+| `account.saved_folders` | — | — | ✓ |
+| `limit.compare_candidacies` | 5 | 5 | 10 |
+
+Preços mensais: Gratuito R$ 0; Avançado R$ 24,90 (recomendado); Profissional R$ 69,90. Não há plano anual.
+
+Consulta, mapas, fontes, metodologia, proveniência e data de atualização nunca são pagos: o dado público essencial não fica atrás de paywall.
+
+### Plano efetivo
+
+O plano efetivo é o maior entre:
+- Gratuito;
+- a assinatura viva: `active`/`past_due` dentro do período, ou `canceled` até o fim do período pago (`expired` nunca conta);
+- o entitlement `plan` (concessão manual);
+- Profissional para Super Admin.
+
+`/account/me` informa também a origem (`planSource`: `default`, `subscription`, `manual` ou `role`).
+
+### Limites
+
+Item novo além do limite responde `403 {"error":"plan_limit_reached","limit":…,"max":…,"requiredPlan":…}`. Recurso fora do plano responde `403 {"error":"plan_required","capability":…,"requiredPlan":…}`. Sem sessão, `401`.
+
+A contagem é feita com a conta travada até o fim da transação, então pedidos simultâneos não passam juntos do limite. Itens que já existem nunca são apagados quando o limite diminui; só a criação de itens novos para.
+
+A comparação acima de 5 candidaturas usa `GET /api/v1/elections/compare/extended` (sessão + limite do plano). A resposta depende da conta e nunca passa pelo cache compartilhado. O teste de contrato `Protected_actions_never_use_the_shared_output_cache` impede que uma ação protegida ganhe cache compartilhado.
+
+## Cobrança
+
+Não há provedor de pagamento contratado. A implementação atual de `IBillingProvider` é `NoBillingProvider`:
+- `POST /api/v1/billing/checkout` responde `503 billing_unavailable`;
+- nada é cobrado nem simulado;
+- a interface mostra "Pagamento online ainda não disponível".
+
+Assinaturas existem como registro `manual` (ex.: concessão do Super Admin). Nenhum dado de cartão passa pelo REPBrasil nem é guardado.
+
+Para ativar a cobrança, é preciso:
+1. contratar um provedor;
+2. implementar o `IBillingProvider` dele (checkout + webhook que grava `account.subscription`);
+3. configurar os segredos do provedor no backend.
 
 ## Entitlements
 
-Entitlements são pares `key/value` temporais. Não há tabela de preços, nome de plano ou inferência de cobrança no código.
+Entitlements são pares `key/value` temporais (`starts_at`/`expires_at`). Chaves reconhecidas:
 
-Exemplo operacional:
+- `plan = ADVANCED | PROFESSIONAL`: plano manual;
+- `account.role = superadmin`: papel de Super Admin;
+- uma capability do catálogo (ex.: `account.saved_folders = true|false`, `limit.favorites = 500`): sobrepõe o plano para a conta; havendo mais de uma para a mesma chave, vale a de início mais recente;
+- `api.daily_quota = 10000`: quota da API comercial legada.
 
-- `api.daily_quota = 10000`
+Chaves fora dessa lista são ignoradas pela resolução de acesso.
 
 Na ausência desse entitlement, a quota técnica padrão é de 1000 requisições/dia. A quota é **da conta**: o uso diário de todas as chaves do usuário é somado, então criar ou rotacionar chaves não multiplica a cota. Alterar quota comercial é operação administrativa explícita, não conclusão do produto.
 
 ## Superadmin
 
-`GET /api/v1/admin/me` decide no servidor: a conta precisa estar em `Auth:SuperadminEmails` ou ter o entitlement ativo `account.role = superadmin`. Sem sessão → 401; sessão de conta comum → 403 (`{"error":"forbidden"}`); superadmin → 200 com `role: "superadmin"`. Nada no estado da conta comum concede o papel.
+`GET /api/v1/admin/me` decide no servidor, pela mesma resolução de acesso dos planos (`AccountAccessService`): a conta precisa estar em `Auth:SuperadminEmails` ou ter o entitlement ativo `account.role = superadmin`. Sem sessão → 401; sessão de conta comum → 403 (`{"error":"forbidden"}`); superadmin → 200 com `role: "superadmin"`. Nada no estado da conta comum concede o papel.
 
 ## API comercial
 
@@ -125,9 +203,16 @@ Novos endpoints comerciais devem entrar atrás do mesmo gate, sem criar uma segu
 
 ## UX
 
-- `/entrar`: Google ou magic link;
-- `/conta`: favoritos, watchlist, alertas, notificações, entitlements e chaves de API;
-- dock global: login/conta e ações contextuais de favorito/watchlist em políticos, partidos, municípios, estados, eleições, rankings e dados.
+- `/entrar`: Google ou magic link.
+- `/conta`: hub autenticado, uma rota por seção (link direto):
+  - `/conta` (visão geral: plano e uso, território, notificações recentes);
+  - `/conta/perfil`, `/conta/plano`, `/conta/favoritos`, `/conta/watchlist`, `/conta/alertas`, `/conta/notificacoes`;
+  - `/conta/seguranca` (sessão, saída e o acesso programático legado, recolhido).
+  Sem sessão, qualquer seção volta a `/entrar?returnTo=<seção>`.
+- `/planos`: comparação lida de `GET /api/v1/plans`, com a base pública gratuita e o estado real da cobrança.
+- Dock global: login/conta e ações contextuais de favorito/watchlist em políticos, partidos, municípios, estados, eleições, rankings e dados. O limite do plano aparece como mensagem com caminho para `/planos`.
+
+O frontend lê a sessão em `GET /api/v1/account/session` (200 `{"authenticated":false}` sem sessão, para a checagem de toda página não virar erro no console). `GET /api/v1/account/me` continua respondendo 401 sem sessão; se o frontend for publicado antes da API, ele usa `/account/me` enquanto `/account/session` não existir. Um único hook (`useAccount`) guarda a conta no cliente; recursos e limites vêm sempre da API.
 
 O conteúdo público existente continua navegável sem autenticação.
 
@@ -141,7 +226,8 @@ O conteúdo público existente continua navegável sem autenticação.
 - OAuth state é validado no banco e contra cookie de correlação do navegador;
 - CORS de conta aceita credenciais somente para `AllowedOrigins` explícitos;
 - endpoint de publicação de alertas responde 404 quando o segredo interno não confere;
-- `returnTo` não permite open redirect.
+- `returnTo` não permite open redirect;
+- logins simultâneos que colidem na transação `Serializable` (SQLSTATE 40001) são repetidos (até 4 tentativas) em vez de virar 503; o desafio só é consumido na tentativa que conclui.
 
 ## Smoke após deploy
 
@@ -166,4 +252,7 @@ O conteúdo público existente continua navegável sem autenticação.
 - `backend/tests/RepBrasil.Tests/Api/AccountSecurityTests.cs` (sem banco): `returnTo`, comparação em tempo constante, link nunca no log fora de desenvolvimento.
 - `backend/tests/RepBrasil.Tests/Api/MagicLinkCorrelationTests.cs` (sem banco): link sem correlação falha antes de tocar o banco.
 - `backend/tests/RepBrasil.Tests/Api/AccountFlowTests.cs` (banco de teste do CI, Google simulado por stub HTTP, nenhum e-mail enviado): magic link só no navegador que pediu e uma única vez, cookies `HttpOnly`/`Secure`/`SameSite=Lax`, só hashes no banco, CSRF da própria sessão, logout revoga, `state` do Google ligado ao navegador e one-shot, `email_verified` obrigatório, superadmin 401/403/200, quota somada entre chaves (200/429), chave revogada/desconhecida 401, scope 403, publicação de alertas com token interno e idempotente.
+- `backend/tests/RepBrasil.Tests/Api/PlanCatalogTests.cs` (sem banco): catálogo e preços, plano maior contém o menor, resolução do plano efetivo (assinatura viva, cancelada no período, vencida, manual, Super Admin), concessões e expirações, catálogo de alertas, ação protegida sem cache compartilhado.
+- `backend/tests/RepBrasil.Tests/Api/AccountFlowPlansTests.cs` (banco de teste): `/account/me` com plano e limites decididos no servidor, catálogo público e checkout 503 sem cobrança, perfil validado e persistido (e mantido após login Google), limites de favoritos/watchlist com concorrência e sem apagar itens, pastas só no Profissional, alertas do catálogo com limite, comparação ampliada 401/403/404 sem cache compartilhado, catálogo territorial.
+- `backend/tests/RepBrasil.Tests/Api/AccountFlowAlertPublisherTests.cs` (banco de teste): edição nova notifica uma vez quem já assinava; quem assina depois e conta suspensa não recebem; emendas pela UF da ingestão.
 - `frontend/tests/account-signin.test.tsx`: mensagens de `/entrar?erro=...` e destino local após o login.

@@ -108,6 +108,10 @@ function client() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
 }
 
+/** URL da chamada de comparação (a conta é consultada antes, para o limite do plano). */
+const compareCall = (fn: ReturnType<typeof stubFetch>) =>
+  fn.mock.calls.map((call) => String(call[0])).find((url) => url.includes("/elections/compare")) ?? "";
+
 function stubFetch(handler: (url: string) => unknown) {
   const fn = vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify(handler(url)), { status: 200 })));
   vi.stubGlobal("fetch", fn);
@@ -136,7 +140,11 @@ describe("Raio X do perfil", () => {
   }
 
   it("histórico: candidaturas da mais recente à mais antiga, com estados explícitos — nunca zero inventado", () => {
-    render(<XrayTimeline data={XRAY} onOpen={() => {}} />);
+    render(
+      <QueryClientProvider client={client()}>
+        <XrayTimeline data={XRAY} onOpen={() => {}} />
+      </QueryClientProvider>,
+    );
     const cards = screen.getAllByTestId("xray-candidacy");
     expect(cards).toHaveLength(4);
     expect(within(cards[0]).getByTestId("xray-votes").textContent).toBe("45.000");
@@ -209,7 +217,11 @@ describe("Raio X do perfil", () => {
 
   it("seleção de comparação respeita o máximo de 5 candidaturas", () => {
     const many = { ...XRAY, candidacies: [1, 2, 5, 6, 7, 8].map((n) => candidacy(n)) };
-    render(<XrayTimeline data={many} onOpen={() => {}} />);
+    render(
+      <QueryClientProvider client={client()}>
+        <XrayTimeline data={many} onOpen={() => {}} />
+      </QueryClientProvider>,
+    );
     const boxes = screen.getAllByRole("checkbox", { name: "comparar" }) as HTMLInputElement[];
     expect(boxes.filter((b) => b.checked)).toHaveLength(MAX_COMPARE);
     fireEvent.click(boxes[5]);
@@ -492,7 +504,7 @@ describe("comparação", () => {
       </QueryClientProvider>,
     );
     const matrix = await screen.findByTestId("compare-matrix");
-    expect(String(fetchFn.mock.calls[0][0])).toContain("level=section");
+    expect(compareCall(fetchFn)).toContain("level=section");
     expect(matrix.textContent).toContain("+10 (+100%)");
     expect(matrix.textContent).toContain("−5 (−25%)");
     expect(matrix.textContent).toContain("composição da seção mudou");
@@ -566,8 +578,9 @@ describe("comparação", () => {
       </QueryClientProvider>,
     );
     expect((await screen.findByRole("alert")).textContent).toContain("Limite de 5");
-    await waitFor(() => expect(fetchFn).toHaveBeenCalled());
-    expect(String(fetchFn.mock.calls[0][0]).match(/candidacy=/g)).toHaveLength(5);
+    await waitFor(() => expect(compareCall(fetchFn)).not.toBe(""));
+    expect(compareCall(fetchFn).match(/candidacy=/g)).toHaveLength(5);
+    expect(compareCall(fetchFn)).not.toContain("/extended");
   });
 });
 

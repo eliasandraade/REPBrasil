@@ -1,6 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ParliamentHub } from "@/components/parliament/ParliamentHub";
+import { nav } from "./support/next";
 
 vi.mock("@/components/elections/TerritoryMap", () => ({ TerritoryMap: () => null }));
 
@@ -86,5 +87,30 @@ describe("/parlamento — totais e anos não vêm da listagem limitada", () => {
 
     const total = requested.find((url) => url.pathname.endsWith("/parliament/activities/count"));
     expect(total?.searchParams.get("uf")).toBe("CE");
+  });
+});
+
+describe("/parlamento — o recorte vive na URL", () => {
+  afterEach(() => {
+    nav.search = "";
+    nav.replace.mockReset();
+  });
+
+  it("UF, parlamentar e ano da URL (links das notificações) chegam à API e aos filtros", async () => {
+    nav.search = "uf=pe&membro=7&ano=2024";
+    render(<ParliamentHub />);
+    await waitFor(() => expect(requested.some((url) => url.pathname.endsWith("/parliament/amendments"))).toBe(true));
+    const amendments = requested.find((url) => url.pathname.endsWith("/parliament/amendments"));
+    expect([amendments?.searchParams.get("uf"), amendments?.searchParams.get("year")]).toEqual(["PE", "2024"]);
+    const activities = requested.find((url) => url.pathname.endsWith("/parliament/activities"));
+    expect([activities?.searchParams.get("uf"), activities?.searchParams.get("memberId")]).toEqual(["PE", "7"]);
+    expect((screen.getByLabelText("UF") as HTMLSelectElement).value).toBe("PE");
+  });
+
+  it("trocar a UF grava a URL e limpa parlamentar e ano", () => {
+    nav.search = "uf=CE&ano=2025";
+    render(<ParliamentHub />);
+    fireEvent.change(screen.getByLabelText("UF"), { target: { value: "SP" } });
+    expect(nav.replace).toHaveBeenLastCalledWith("/?uf=SP", { scroll: false });
   });
 });

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TerritoryMap } from "@/components/elections/TerritoryMap";
 import { useResolvedTheme } from "@/components/theme/theme";
 import { mix, SEQUENTIAL } from "@/lib/dataviz/palette";
+import { MUNICIPALITY_MESHES } from "@/lib/elections/geo";
 import type { MapLayerView } from "@/lib/elections/map-layers";
 import {
   describeAmendmentMunicipality,
@@ -21,6 +23,8 @@ import {
   type ParliamentMember,
 } from "@/lib/parliament";
 import { useReducedMotion } from "@/motion/reduced-motion";
+import { ufName, UF_NAMES, UFS } from "@/lib/site";
+import { ibgeCodeOfUf } from "@/lib/territories";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
 const count = new Intl.NumberFormat("pt-BR");
@@ -48,7 +52,7 @@ function listingNote(shown: number, total: number | null) {
   return ` Exibindo os ${count.format(shown)} mais recentes de ${count.format(total)}.`;
 }
 
-function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; year: number | null }>) {
+function AmendmentMap({ rows, year, uf }: Readonly<{ rows: AmendmentMunicipality[]; year: number | null; uf: string }>) {
   const theme = useResolvedTheme();
   const reduced = useReducedMotion();
 
@@ -86,22 +90,30 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
   if (rows.length === 0) {
     return <div className="rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">Nenhuma emenda com município identificado por código IBGE oficial foi observada neste recorte.</div>;
   }
+  const stateCode = ibgeCodeOfUf(uf);
+  if (!stateCode || !MUNICIPALITY_MESHES[stateCode]) {
+    return (
+      <div className="rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">
+        A malha municipal de {ufName(uf)} ainda não foi publicada no REPBrasil, então o mapa não é desenhado. As emendas do recorte estão na lista abaixo.
+      </div>
+    );
+  }
 
   return (
     <section className="space-y-3" data-testid="amendment-map">
       <div>
         <h2 className="font-semibold text-fg">Emendas por município</h2>
-        <p className="mt-1 text-sm text-fg-muted">Destino no Ceará{year ? ` · ${year}` : " · todos os anos carregados"}. O mapa só aceita identidade territorial oficial.</p>
+        <p className="mt-1 text-sm text-fg-muted">Destino em {ufName(uf)}{year ? ` · ${year}` : " · todos os anos carregados"}. O mapa só aceita identidade territorial oficial.</p>
       </div>
       <div className="min-h-[420px] sm:min-h-[520px]">
         <TerritoryMap
           level="state"
-          routeKey={`parlamento:${year ?? "all"}`}
+          routeKey={`parlamento:${uf}:${year ?? "all"}`}
           scope={{
-            state: "23",
+            state: stateCode,
             municipality: null,
             interactiveStates: [],
-            highlightStates: ["23"],
+            highlightStates: [stateCode],
             interactiveMunicipalities: [],
             highlightMunicipalities: rows.map((row) => row.municipalityIbgeCode),
           }}
@@ -117,45 +129,68 @@ function AmendmentMap({ rows, year }: Readonly<{ rows: AmendmentMunicipality[]; 
   );
 }
 
+/** Recorte na URL (`?uf=&membro=&ano=`): link direto, voltar do navegador e links das notificações abrem o mesmo recorte. */
+function useParliamentQuery() {
+  const search = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname() ?? "/parlamento";
+  const rawUf = (search.get("uf") ?? "").toUpperCase();
+  const uf = UFS.includes(rawUf) ? rawUf : "CE";
+  const memberId = Number(search.get("membro")) || null;
+  const year = Number(search.get("ano")) || null;
+  const set = useCallback(
+    (updates: Record<string, string | null>) => {
+      const next = new URLSearchParams(search.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, { scroll: false });
+    },
+    [pathname, router, search],
+  );
+  return { uf, memberId, year, set };
+}
+
 export function ParliamentHub() {
+  const { uf, memberId, year, set } = useParliamentQuery();
   const [members, setMembers] = useState<ParliamentMember[]>([]);
   const [activities, setActivities] = useState<ParliamentActivity[]>([]);
   const [activityTotal, setActivityTotal] = useState<number | null>(null);
   const [years, setYears] = useState<number[]>([]);
   const [amendments, setAmendments] = useState<ParliamentAmendment[]>([]);
   const [mapRows, setMapRows] = useState<AmendmentMunicipality[]>([]);
-  const [memberId, setMemberId] = useState<number | null>(null);
-  const [year, setYear] = useState<number | null>(null);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    getParliamentMembers("CE")
+    setLoadingMembers(true);
+    getParliamentMembers(uf)
       .then((rows) => active && setMembers(rows))
       .catch(() => active && setError("Não foi possível carregar o cadastro parlamentar."))
       .finally(() => active && setLoadingMembers(false));
     return () => { active = false; };
-  }, []);
+  }, [uf]);
 
   useEffect(() => {
     let active = true;
-    getAmendmentYears("CE")
+    getAmendmentYears(uf)
       .then((rows) => active && setYears(rows))
       .catch(() => active && setError("Não foi possível carregar os anos das emendas."));
     return () => { active = false; };
-  }, []);
+  }, [uf]);
 
   useEffect(() => {
     let active = true;
     setLoadingData(true);
     setError(null);
     Promise.all([
-      getParliamentActivities({ memberId, uf: "CE", limit: 100 }),
-      getParliamentActivityTotal({ memberId, uf: "CE" }),
-      getParliamentAmendments({ year, uf: "CE", limit: 200 }),
-      getAmendmentMap(year, "CE"),
+      getParliamentActivities({ memberId, uf, limit: 100 }),
+      getParliamentActivityTotal({ memberId, uf }),
+      getParliamentAmendments({ year, uf, limit: 200 }),
+      getAmendmentMap(year, uf),
     ])
       .then(([activityRows, activityCount, amendmentRows, municipalityRows]) => {
         if (!active) return;
@@ -167,7 +202,7 @@ export function ParliamentHub() {
       .catch(() => active && setError("Não foi possível carregar o recorte parlamentar."))
       .finally(() => active && setLoadingData(false));
     return () => { active = false; };
-  }, [memberId, year]);
+  }, [memberId, year, uf]);
 
   const memberById = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
 
@@ -183,23 +218,29 @@ export function ParliamentHub() {
       </header>
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo parlamentar">
-        <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Parlamentares do CE carregados</p><p className="mt-1 text-2xl font-semibold text-fg">{loadingMembers ? "…" : count.format(members.length)}</p></article>
+        <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Parlamentares de {uf} carregados</p><p className="mt-1 text-2xl font-semibold text-fg">{loadingMembers ? "…" : count.format(members.length)}</p></article>
         <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Atos no recorte</p><p className="mt-1 text-2xl font-semibold text-fg">{totalText(loadingData, activityTotal)}</p></article>
         <article className="rounded-xl border border-line bg-surface p-4"><p className="text-xs text-fg-muted">Municípios com emenda mapeável</p><p className="mt-1 text-2xl font-semibold text-fg">{loadingData ? "…" : count.format(mapRows.length)}</p></article>
       </section>
 
       <section className="rounded-xl border border-line bg-surface p-4" aria-label="Filtros parlamentares">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="space-y-1 text-sm text-fg-muted">
+            <span>UF</span>
+            <select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={uf} onChange={(event) => set({ uf: event.target.value, membro: null, ano: null })}>
+              {UFS.map((code) => <option key={code} value={code}>{UF_NAMES[code]}</option>)}
+            </select>
+          </label>
           <label className="space-y-1 text-sm text-fg-muted">
             <span>Parlamentar — atos</span>
-            <select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={memberId ?? ""} onChange={(event) => setMemberId(event.target.value ? Number(event.target.value) : null)}>
-              <option value="">Todos do Ceará</option>
+            <select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={memberId ?? ""} onChange={(event) => set({ membro: event.target.value || null })}>
+              <option value="">Todos de {ufName(uf)}</option>
               {members.map((member) => <option key={member.id} value={member.id}>{member.parliamentaryName ?? member.name}{member.partyAcronym ? ` · ${member.partyAcronym}` : ""} · {institutionLabel[member.institution] ?? member.institution}</option>)}
             </select>
           </label>
           <label className="space-y-1 text-sm text-fg-muted">
             <span>Ano — emendas</span>
-            <select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={year ?? ""} onChange={(event) => setYear(event.target.value ? Number(event.target.value) : null)}>
+            <select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={year ?? ""} onChange={(event) => set({ ano: event.target.value || null })}>
               <option value="">Todos os anos carregados</option>
               {years.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
@@ -209,12 +250,12 @@ export function ParliamentHub() {
 
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-500">{error}</div>}
 
-      <AmendmentMap rows={mapRows} year={year} />
+      <AmendmentMap rows={mapRows} year={year} uf={uf} />
 
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="border-b border-line px-4 py-3">
           <h2 className="font-semibold text-fg">Atos parlamentares</h2>
-          <p className="text-xs text-fg-muted">{memberId ? `Recorte de ${memberById.get(memberId)?.parliamentaryName ?? memberById.get(memberId)?.name ?? "parlamentar selecionado"}.` : "Parlamentares do Ceará."} Dados ausentes não são convertidos em atividade zero.{listingNote(activities.length, activityTotal)}</p>
+          <p className="text-xs text-fg-muted">{memberId ? `Recorte de ${memberById.get(memberId)?.parliamentaryName ?? memberById.get(memberId)?.name ?? "parlamentar selecionado"}.` : `Parlamentares de ${ufName(uf)}.`} Dados ausentes não são convertidos em atividade zero.{listingNote(activities.length, activityTotal)}</p>
         </div>
         {activities.length === 0 && !loadingData ? <p className="p-5 text-sm text-fg-muted">Nenhum ato oficial carregado para este recorte.</p> : (
           <div className="divide-y divide-line">

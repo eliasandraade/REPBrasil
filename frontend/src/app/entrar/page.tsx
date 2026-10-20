@@ -13,6 +13,7 @@ const SIGN_IN_FAILURES = new Map([
   ["google-cancelado", "O login com o Google foi cancelado."],
   ["google-falhou", "O Google não confirmou o acesso. É preciso uma conta Google com e-mail verificado; tente novamente."],
   ["google-indisponivel", "O login com o Google está indisponível no momento. Use o link por e-mail ou tente mais tarde."],
+  ["conta-suspensa", "Esta conta está suspensa. Se você acredita que é um engano, fale com a equipe pela página de suporte."],
 ]);
 
 function isLocalPath(value: string | null): value is string {
@@ -50,7 +51,7 @@ export default function SignInPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent-text">Conta REPBrasil</p>
         <h1 className="mt-2 text-2xl font-semibold text-fg">Entre sem senha</h1>
         <p className="mt-2 text-sm leading-6 text-fg-muted">
-          Sua conta guarda favoritos, watchlist, alertas e credenciais da API. O conteúdo público continua acessível sem login.
+          Sua conta guarda seu perfil, favoritos, watchlist e alertas. O conteúdo público continua acessível sem login.
         </p>
 
         {failure && (
@@ -85,7 +86,7 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={state === "sending"}
-            className="focus-ring w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+            className="focus-ring mi-press w-full rounded-lg bg-action px-4 py-3 text-sm font-semibold text-action-fg disabled:cursor-wait disabled:opacity-60"
           >
             {state === "sending" ? "Enviando…" : "Receber link de acesso"}
           </button>
@@ -101,7 +102,7 @@ export default function SignInPage() {
         )}
 
         <p className="mt-6 text-xs leading-5 text-fg-muted">
-          O REPBrasil não usa senha local. Sessões podem ser revogadas e chaves de API nunca são armazenadas em texto aberto.
+          O REPBrasil não usa senha local. Você pode sair desta sessão a qualquer momento, em Conta › Segurança.
         </p>
       </section>
     </main>

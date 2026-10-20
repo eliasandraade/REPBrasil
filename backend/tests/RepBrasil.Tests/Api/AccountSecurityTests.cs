@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using RepBrasil.API.Infrastructure;
 
 namespace RepBrasil.Tests.Api;
@@ -22,6 +23,24 @@ public sealed class AccountSecurityTests
     public void NormalizeReturnTo_AllowsOnlyLocalAbsolutePaths(string? value, string expected)
     {
         Assert.Equal(expected, AccountService.NormalizeReturnTo(value));
+    }
+
+    [Theory]
+    [InlineData("40001", true)]
+    [InlineData("40P01", true)]
+    [InlineData("23505", false)]
+    [InlineData("57014", false)]
+    public void Login_retries_only_collisions_that_a_repeated_transaction_resolves(string sqlState, bool retried) =>
+        Assert.Equal(retried, AccountService.IsSerializationConflict(new PostgresException("colisão", "ERROR", "ERROR", sqlState)));
+
+    [Fact]
+    public void Login_retry_waits_longer_each_round_up_to_a_ceiling()
+    {
+        var waits = Enumerable.Range(1, 7).Select(round => AccountService.RetryDelay(round).TotalMilliseconds).ToArray();
+        Assert.InRange(waits[0], 15, 40);
+        Assert.InRange(waits[3], 120, 145);
+        Assert.All(waits[5..], wait => Assert.InRange(wait, 400, 425));
+        Assert.True(waits.Sum() < 1500, $"pior caso {waits.Sum()} ms");
     }
 
     private sealed class FixedEnvironment(string name) : IHostEnvironment

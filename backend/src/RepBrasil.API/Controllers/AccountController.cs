@@ -1,14 +1,20 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using RepBrasil.API.Accounts;
 using RepBrasil.API.Infrastructure;
 
 namespace RepBrasil.API.Controllers;
 
 [ApiController]
 [Route("api/v1")]
-public sealed class AccountController(AccountService accounts, AuthExternalService external, IConfiguration configuration) : ControllerBase
+public sealed class AccountController(
+    AccountService accounts,
+    AccountAccessService access,
+    ProfileService profiles,
+    AuthExternalService external,
+    IConfiguration configuration) : ControllerBase
 {
-    private const string SessionCookie = "repbrasil_session";
+    private const string SessionCookie = AccountAccessService.SessionCookie;
     private const string GoogleCorrelationCookie = "repbrasil_google_state";
     private const string MagicLinkCorrelationCookie = "repbrasil_magic_link";
 
@@ -100,20 +106,88 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         }
     }
 
+    /// <summary>
+    /// Conta da sessão: identidade, papel, plano efetivo (com a origem), recursos e limites decididos pelo servidor,
+    /// assinatura, perfil e uso frente aos limites. Nenhum segredo além do token CSRF da própria sessão.
+    /// </summary>
     [HttpGet("account/me")]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
         var session = await CurrentSession(cancellationToken);
         if (session is null) return Unauthorized();
-        return Ok(new
+        Response.Headers.CacheControl = "no-store";
+        return Ok(await AccountPayloadAsync(session, cancellationToken));
+    }
+
+    /// <summary>
+    /// Mesmo conteúdo de <c>/account/me</c>, mas sem erro para quem não entrou (<c>{"authenticated":false}</c>):
+    /// a interface consulta o estado da sessão em toda página e um 401 esperado não deve virar erro no console.
+    /// </summary>
+    [HttpGet("account/session")]
+    public async Task<IActionResult> SessionState(CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var session = await CurrentSession(cancellationToken);
+        return Ok(session is null ? new { authenticated = false } : await AccountPayloadAsync(session, cancellationToken));
+    }
+
+    private async Task<object> AccountPayloadAsync(AccountSession session, CancellationToken cancellationToken)
+    {
+        var effective = await access.AccessAsync(HttpContext, cancellationToken);
+        var profile = await profiles.GetAsync(session.UserId, cancellationToken);
+        var usage = await profiles.UsageAsync(session.UserId, cancellationToken);
+        return new
         {
+            authenticated = true,
             id = session.UserId,
             email = session.Email,
             displayName = session.DisplayName,
             avatarUrl = session.AvatarUrl,
             csrfToken = session.CsrfToken,
-            sessionExpiresAt = session.ExpiresAt
-        });
+            sessionExpiresAt = session.ExpiresAt,
+            role = effective.Role,
+            plan = effective.Plan,
+            planSource = effective.PlanSource,
+            capabilities = effective.Features,
+            limits = effective.Limits,
+            subscription = effective.Subscription is { } current
+                ? new
+                {
+                    plan = current.Plan,
+                    status = current.Status,
+                    provider = current.Provider,
+                    currentPeriodEnd = current.CurrentPeriodEnd,
+                    cancelAtPeriodEnd = current.CancelAtPeriodEnd,
+                    active = EntitlementResolver.Counts(current, DateTimeOffset.UtcNow),
+                }
+                : null,
+            profile = new
+            {
+                fullName = profile.FullName,
+                stateCode = profile.StateCode,
+                municipalityIbgeCode = profile.MunicipalityIbgeCode,
+                municipalityName = profile.MunicipalityName,
+                usageType = profile.UsageType,
+                avatarHidden = profile.AvatarHidden,
+            },
+            usage,
+        };
+    }
+
+    [HttpGet("account/profile")]
+    public async Task<IActionResult> Profile(CancellationToken cancellationToken)
+    {
+        var session = await CurrentSession(cancellationToken);
+        return session is null ? Unauthorized() : Ok(await profiles.GetAsync(session.UserId, cancellationToken));
+    }
+
+    [HttpPost("account/profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] ProfileUpdate request, CancellationToken cancellationToken)
+    {
+        var session = await RequireMutationSession(cancellationToken);
+        if (session is null) return Unauthorized();
+        try { return Ok(await profiles.UpdateAsync(session.UserId, request, cancellationToken)); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     [HttpPost("auth/logout")]
@@ -140,9 +214,26 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
     {
         var session = await RequireMutationSession(cancellationToken);
         if (session is null) return Unauthorized();
+        var effective = await access.AccessAsync(HttpContext, cancellationToken);
+        var limit = effective.Limit(request.Collection == "watchlist" ? PlanCatalog.WatchlistLimit : PlanCatalog.FavoritesLimit);
         try
         {
-            return Ok(await accounts.SaveItemAsync(session.UserId, request.Collection, request.ResourceType, request.ResourceKey, request.Label, request.Href, request.Metadata, cancellationToken));
+            return Ok(await accounts.SaveItemAsync(session.UserId, request.Collection, request.ResourceType, request.ResourceKey, request.Label, request.Href, request.Metadata, limit, cancellationToken));
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (PlanLimitReachedException ex) { return PlanResults.LimitReached(ex.Limit, ex.Max); }
+    }
+
+    /// <summary>Move um item salvo para uma pasta (pasta vazia tira da pasta). Recurso do plano Profissional.</summary>
+    [HttpPost("account/saved/folder")]
+    [RequiresCapability(PlanCatalog.SavedFolders)]
+    public async Task<IActionResult> MoveSaved([FromBody] MoveSavedRequest request, CancellationToken cancellationToken)
+    {
+        var session = await CurrentSession(cancellationToken);
+        try
+        {
+            var item = await accounts.SetSavedItemFolderAsync(session!.UserId, request.Collection, request.ResourceType, request.ResourceKey, request.Folder, cancellationToken);
+            return item is null ? NotFound() : Ok(item);
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
@@ -167,13 +258,19 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         return session is null ? Unauthorized() : Ok(await accounts.GetAlertsAsync(session.UserId, cancellationToken));
     }
 
+    /// <summary>Tipos de alerta que o sistema dispara de verdade (cada um tem um produtor de edições oficiais).</summary>
+    [HttpGet("account/alert-kinds")]
+    public IActionResult AlertKinds() => Ok(AlertCatalog.Kinds);
+
     [HttpPost("account/alerts")]
     public async Task<IActionResult> UpsertAlert([FromBody] AlertRequest request, CancellationToken cancellationToken)
     {
         var session = await RequireMutationSession(cancellationToken);
         if (session is null) return Unauthorized();
-        try { return Ok(await accounts.UpsertAlertAsync(session.UserId, request.ResourceType, request.ResourceKey, request.EventKind, request.Delivery, request.Enabled, cancellationToken)); }
+        var limit = (await access.AccessAsync(HttpContext, cancellationToken)).Limit(PlanCatalog.AlertsLimit);
+        try { return Ok(await accounts.UpsertAlertAsync(session.UserId, request.ResourceType, request.ResourceKey, request.EventKind, request.Delivery, request.Enabled, limit, cancellationToken)); }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (PlanLimitReachedException ex) { return PlanResults.LimitReached(ex.Limit, ex.Max); }
     }
 
     [HttpDelete("account/alerts/{id:guid}")]
@@ -198,6 +295,15 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         var session = await RequireMutationSession(cancellationToken);
         if (session is null) return Unauthorized();
         await accounts.MarkNotificationReadAsync(session.UserId, id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("account/notifications/read-all")]
+    public async Task<IActionResult> ReadAllNotifications(CancellationToken cancellationToken)
+    {
+        var session = await RequireMutationSession(cancellationToken);
+        if (session is null) return Unauthorized();
+        await accounts.MarkAllNotificationsReadAsync(session.UserId, cancellationToken);
         return NoContent();
     }
 
@@ -245,14 +351,12 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
-    private async Task<AccountSession?> CurrentSession(CancellationToken cancellationToken) =>
-        Request.Cookies.TryGetValue(SessionCookie, out var token) ? await accounts.GetSessionAsync(token, cancellationToken) : null;
+    private Task<AccountSession?> CurrentSession(CancellationToken cancellationToken) => access.SessionAsync(HttpContext, cancellationToken);
 
     private async Task<AccountSession?> RequireMutationSession(CancellationToken cancellationToken)
     {
         var session = await CurrentSession(cancellationToken);
-        if (session is null) return null;
-        return AccountService.SecureEquals(Request.Headers["X-RepBrasil-CSRF"].ToString(), session.CsrfToken) ? session : null;
+        return session is not null && AccountAccessService.CsrfMatches(HttpContext, session) ? session : null;
     }
 
     private void SetSessionCookie(string token, DateTimeOffset expiresAt)
@@ -301,6 +405,7 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
 
     public sealed record MagicLinkRequest(string Email, string? ReturnTo);
     public sealed record SaveItemRequest(string Collection, string ResourceType, string ResourceKey, string? Label, string? Href, JsonElement? Metadata);
+    public sealed record MoveSavedRequest(string Collection, string ResourceType, string ResourceKey, string? Folder);
     public sealed record AlertRequest(string ResourceType, string ResourceKey, string EventKind, string Delivery = "in_app", bool Enabled = true);
     public sealed record CreateApiKeyRequest(string Name, string[]? Scopes);
     public sealed record PublishAlertRequest(string EventKey, string ResourceType, string ResourceKey, string EventKind, string Title, string? Body, string? Href, JsonElement? Payload);

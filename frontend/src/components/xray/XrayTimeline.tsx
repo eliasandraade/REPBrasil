@@ -20,6 +20,7 @@ import { SourceBadge } from "@/components/ui/SourceBadge";
 import { Term } from "@/components/ui/Term";
 import { outcomeTerm } from "@/lib/glossary";
 import { byRecency } from "./useXray";
+import { useCompareMax } from "@/lib/elections/useCompareMax";
 
 const ROLE_LABEL = { vice: "Vice", first_substitute: "1º suplente", second_substitute: "2º suplente" } as const;
 
@@ -216,6 +217,7 @@ export function EvolutionList({ data }: Readonly<{ data: XrayResponse }>) {
 export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; onOpen: (candidacyId: string) => void }>) {
   const [compare, setCompare] = useState<string[] | null>(null);
   const [limitHit, setLimitHit] = useState(false);
+  const { max } = useCompareMax();
   const candidacies = useMemo(() => byRecency(data.candidacies), [data]);
   const own = candidacies.filter((c) => !c.ticket && c.totals.votes !== null);
   const selection = compare ?? own.slice(0, MAX_COMPARE).map((c) => c.candidacyId);
@@ -235,7 +237,7 @@ export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; on
             compared={selection.includes(c.candidacyId)}
             onOpen={() => onOpen(c.candidacyId)}
             onCompare={() => {
-              const r = toggleSelection(selection, c.candidacyId);
+              const r = toggleSelection(selection, c.candidacyId, max);
               setLimitHit(r.rejected);
               setCompare(r.ids);
             }}
@@ -243,9 +245,9 @@ export function XrayTimeline({ data, onOpen }: Readonly<{ data: XrayResponse; on
         ))}
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-xs">
           <span className="text-fg-muted">
-            {selection.length} de {MAX_COMPARE} candidaturas para comparar
+            {selection.length} de {max} candidaturas para comparar
           </span>
-          {limitHit && <span className="text-warn">Limite de {MAX_COMPARE} candidaturas.</span>}
+          {limitHit && <span className="text-warn">Limite de {max} candidaturas.</span>}
           {selection.length > 0 && (
             <Link
               href={`/eleicoes/comparar?c=${serializeSelection(selection)}&uf=${uf}&nivel=municipality`}

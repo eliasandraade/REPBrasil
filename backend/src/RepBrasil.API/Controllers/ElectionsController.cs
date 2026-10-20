@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using RepBrasil.API.Accounts;
 using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Electoral;
 using RepBrasil.Application.Parties;
@@ -26,6 +27,7 @@ namespace RepBrasil.API.Controllers;
 ///   GET /api/v1/elections/{year}/{round}/states/{uf}/map?layer=intensity|share|winner|growth|decline|ab|base&amp;office=&amp;candidacy=&amp;base=&amp;a=&amp;b=&amp;municipality=
 ///   GET /api/v1/elections/candidacies/{id}/base?level=municipality|zone|section|place&amp;uf=&amp;municipality=&amp;zone=&amp;compareTo=
 ///   GET /api/v1/elections/compare?candidacy=…(máx. 5)&amp;uf=CE&amp;level=state|municipality|zone|section|place&amp;municipality=&amp;zone=
+///   GET /api/v1/elections/compare/extended?…   mesma comparação acima de 5, com sessão e conforme o limite do plano
 ///
 /// <c>{municipality}</c> aceita slug, código TSE (5 dígitos) ou IBGE (7 dígitos).
 /// Território sem cadastro responde <c>status: "cadaster_missing"</c> (200), não 404.
@@ -41,7 +43,8 @@ public class ElectionsController(
     TerritoryService territory,
     ComparisonService comparison,
     ElectoralBaseService electoralBase,
-    PartyService parties) : ControllerBase
+    PartyService parties,
+    AccountAccessService access) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(ElectionsResponse), StatusCodes.Status200OK)]
@@ -175,6 +178,29 @@ public class ElectionsController(
         [FromQuery] int? zone,
         CancellationToken ct) =>
         comparison.CompareAsync(new ComparisonService.Request(candidacyIds, uf, level, municipality, zone), ct);
+
+    /// <summary>
+    /// Comparação com mais candidaturas do que o caminho público, até <c>limit.compare_candidacies</c> do plano efetivo
+    /// (403 <c>plan_limit_reached</c> acima dele). A resposta depende da conta: nunca passa pelo cache compartilhado.
+    /// </summary>
+    [HttpGet("compare/extended")]
+    [EnableRateLimiting(ApiRateLimits.Heavy)]
+    [OutputCache(NoStore = true)]
+    [RequiresSession]
+    [ProducesResponseType(typeof(ElectoralComparisonResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CompareExtended(
+        [FromQuery(Name = "candidacy")] Guid[] candidacyIds,
+        [FromQuery] string? uf,
+        [FromQuery] string? level,
+        [FromQuery] string? municipality,
+        [FromQuery] int? zone,
+        CancellationToken ct)
+    {
+        var max = (await access.AccessAsync(HttpContext, ct)).Limit(PlanCatalog.CompareLimit);
+        if (candidacyIds.Distinct().Count() > max) return PlanResults.LimitReached(PlanCatalog.CompareLimit, max);
+        Response.Headers.CacheControl = "private, no-store";
+        return Ok(await comparison.CompareAsync(new ComparisonService.Request(candidacyIds, uf, level, municipality, zone), ct, max));
+    }
 }
 
 /// <summary>Erros eleitorais → HTTP. Integridade nunca vira resposta "vazia": 500 explícito.</summary>

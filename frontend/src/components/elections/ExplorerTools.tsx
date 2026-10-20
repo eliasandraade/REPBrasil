@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { buildLayerView, LAYER_LABEL, type MapLayerView } from "@/lib/elections/map-layers";
 import { displayName } from "@/lib/elections/format";
-import { electionLabel, MAX_COMPARE, serializeSelection, xrayApi, type MapLayerParams } from "@/lib/elections/xray";
+import { electionLabel, serializeSelection, xrayApi, type MapLayerParams } from "@/lib/elections/xray";
+import { useCompareMax } from "@/lib/elections/useCompareMax";
 import type { MapLayerKind } from "@/lib/elections/xray-types";
 
 export interface LayerState {
@@ -23,9 +24,10 @@ const LAYERS: MapLayerKind[] = ["intensity", "share", "base", "winner", "party",
 
 /** Nomes das candidaturas selecionadas (a URL guarda só os ids). */
 export function useSelectionNames(ids: string[], uf: string | null) {
+  const { max } = useCompareMax();
   const q = useQuery({
     queryKey: ["selection-names", ids.join(","), uf],
-    queryFn: () => xrayApi.compare(ids, { uf: uf!, level: "state" }),
+    queryFn: () => xrayApi.compare(ids, { uf: uf!, level: "state" }, max),
     enabled: ids.length > 0 && !!uf,
     staleTime: 5 * 60_000,
   });
@@ -180,11 +182,12 @@ export function CompareTray({
   onRemove: (id: string) => void;
   onClear: () => void;
 }>) {
+  const { max } = useCompareMax();
   if (selection.length === 0) return null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-accent/20 bg-surface px-3 py-2 text-xs" data-testid="compare-tray">
       <span className="font-semibold text-fg-soft">
-        Comparar ({selection.length}/{MAX_COMPARE})
+        Comparar ({selection.length}/{max})
       </span>
       {selection.map((id) => (
         <span key={id} className="flex items-center gap-1 rounded border border-line bg-fg/5 px-1.5 py-0.5 text-fg-soft">

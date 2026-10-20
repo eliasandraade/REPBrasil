@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ElectoralLiveHub } from "@/components/elections/ElectoralLiveHub";
+import { nav } from "./support/next";
 
 const json = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
 
@@ -65,7 +66,10 @@ beforeEach(() => {
   }));
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  nav.search = "";
+});
 
 describe("Pesquisas e apuração", () => {
   it("keeps metadata-only polls visible and distinguishes a not-started official snapshot", async () => {
@@ -80,5 +84,17 @@ describe("Pesquisas e apuração", () => {
     expect(screen.getByText("Candidata Exemplo")).toBeTruthy();
     expect(screen.queryByText("0 votos")).toBeNull();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+});
+
+describe("Pesquisas e apuração — o recorte vive na URL", () => {
+  it("ano, turno, cargo e Brasil (uf=BR) da URL chegam às duas consultas", async () => {
+    nav.search = "ano=2026&turno=2&cargo=1&uf=BR";
+    render(<ElectoralLiveHub />);
+    await screen.findByText("CE-00001/2026");
+    const calls = (fetch as unknown as { mock: { calls: [string][] } }).mock.calls.map(([raw]) => new URL(raw));
+    const polls = calls.find((url) => url.pathname.endsWith("/polls"));
+    expect([polls?.searchParams.get("year"), polls?.searchParams.get("round"), polls?.searchParams.get("office"), polls?.searchParams.get("uf")]).toEqual(["2026", "2", "1", null]);
+    expect(screen.getByText("Eleições 2026")).toBeTruthy();
   });
 });
