@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="repbrasil-offline" content="factual-safe">
+<title>Sem conexão · REPBrasil</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --canvas: #f5f8fb;
+    --surface: #ffffff;
+    --text: #0b1f33;
+    --muted: #5f7184;
+    --border: #dce5ed;
+    --accent-text: #00756a;
+    --action: #0b2d5b;
+    --on-action: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --canvas: #071a2e;
+      --surface: #0d2744;
+      --text: #f7fafc;
+      --muted: #a9bbcb;
+      --border: #1d3a56;
+      --accent-text: #23d6c2;
+      --action: #00baa6;
+      --on-action: #071a2e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: var(--canvas);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  main {
+    width: 100%;
+    max-width: 40rem;
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+  }
+  img { display: block; width: 48px; height: 48px; border-radius: 12px; }
+  .eyebrow {
+    margin: 16px 0 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+  }
+  h1 { margin: 8px 0 0; font-size: 1.5rem; line-height: 1.25; }
+  p { margin: 12px 0 0; color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+  a {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  a.primary { background: var(--action); color: var(--on-action); }
+  a.secondary { border: 1px solid var(--border); color: var(--text); }
+  a:focus-visible { outline: 3px solid var(--accent-text); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/brand/icon-192.png" alt="" width="48" height="48">
+  <p class="eyebrow">REPBrasil offline</p>
+  <h1>Você está sem conexão</h1>
+  <p>
+    Para proteger a integridade das informações, resultados eleitorais, apuração, pesquisas,
+    atividade parlamentar, emendas e indicadores não são servidos de um cache antigo.
+    Nenhum dado factual é exibido nesta página.
+  </p>
+  <p>Reconecte-se e tente novamente para consultar a versão atual.</p>
+  <div class="actions">
+    <a class="primary" href="">Tentar novamente</a>
+    <a class="secondary" href="/">Ir para o início</a>
+  </div>
+</main>
+</body>
+</html>

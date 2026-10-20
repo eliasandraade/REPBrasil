@@ -137,6 +137,60 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:5000
         run: npm run build
 
+  pwa:
+    name: PWA offline (production build + Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+      - name: Production build of this revision
+        working-directory: frontend
+        env:
+          # Nenhuma API factual neste job: só o shell, o service worker e o fallback offline.
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+          REPBRASIL_REVISION: ${{ github.sha }}
+        run: npm run build
+      - name: Install isolated Playwright runtime (same as the production smoke)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/repbrasil-smoke
+          cd /tmp/repbrasil-smoke
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund --save-exact playwright@1.55.0
+          ln -s /tmp/repbrasil-smoke/node_modules "$GITHUB_WORKSPACE/node_modules"
+          ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Start the production server
+        working-directory: frontend
+        run: |
+          nohup npx next start -p 3100 > "$RUNNER_TEMP/next.log" 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3100/offline.html; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/next.log"
+          exit 1
+      - name: Verify factual-safe offline behaviour
+        env:
+          REPBRASIL_WEB_URL: http://127.0.0.1:3100
+          REPBRASIL_EXPECTED_SHA: ${{ github.sha }}
+        run: node .github/scripts/pwa-local.mjs
+      - name: Upload PWA evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: repbrasil-pwa-local
+          path: artifacts/pwa-local
+          if-no-files-found: warn
+          retention-days: 14
+
   etl:
     name: ETL (Python 3.12)
     runs-on: ubuntu-latest
