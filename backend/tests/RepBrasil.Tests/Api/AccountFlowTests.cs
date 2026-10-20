@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -58,7 +59,20 @@ public sealed class AccountFlowTests
         }
     }
 
-    private static WebApplicationFactory<Program> Api(StubGoogle? google = null) =>
+    /// <summary>Resend simulado: aceita o e-mail ou não responde até o envio ser cancelado.</summary>
+    private sealed class StubResend(bool stall) : HttpMessageHandler
+    {
+        public string? LastBody { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            LastBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            if (stall) await Task.Delay(Timeout.Infinite, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"id":"stub"}""", Encoding.UTF8, "application/json") };
+        }
+    }
+
+    private static WebApplicationFactory<Program> Api(StubGoogle? google = null, StubResend? resend = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Production");
@@ -75,6 +89,15 @@ public sealed class AccountFlowTests
             builder.UseSetting("Alerts:PublishToken", AlertsToken);
             if (google is not null)
                 builder.ConfigureTestServices(services => services.AddHttpClient("google-auth").ConfigurePrimaryHttpMessageHandler(() => google));
+            if (resend is not null)
+            {
+                builder.UseSetting("Auth:MagicLink:Delivery", "resend");
+                builder.UseSetting("Auth:MagicLink:Resend:ApiKey", "re_test_only_key");
+                builder.UseSetting("Auth:MagicLink:From", "REPBrasil <acesso@example.test>");
+                builder.UseSetting("Auth:MagicLink:TimeoutSeconds", "1");
+                builder.ConfigureTestServices(services =>
+                    services.AddHttpClient(AuthExternalService.ResendClient).ConfigurePrimaryHttpMessageHandler(() => resend));
+            }
         });
 
     private static HttpClient Browser(WebApplicationFactory<Program> api) => api.CreateClient(new WebApplicationFactoryClientOptions
@@ -216,6 +239,51 @@ public sealed class AccountFlowTests
             Assert.Contains("httponly", correlation);
             Assert.Contains("samesite=lax", correlation);
             Assert.Contains("path=/api/v1/auth/magic-link", correlation);
+        }
+        finally
+        {
+            await Scalar("DELETE FROM account.login_challenge WHERE email = @email", ("email", email));
+        }
+    }
+
+    [ElectoralSchemaFact]
+    public async Task Magic_link_goes_through_the_Resend_https_api_and_the_request_is_accepted()
+    {
+        var resend = new StubResend(stall: false);
+        using var api = Api(resend: resend);
+        using var browser = Browser(api);
+        var email = UniqueEmail("resend");
+        try
+        {
+            using var response = await browser.PostAsJsonAsync("/api/v1/auth/magic-link", new { email, returnTo = "/conta" }, Ct);
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+            Assert.NotNull(SetCookie(response, "repbrasil_magic_link"));
+            Assert.Contains(email, resend.LastBody);
+            Assert.Contains("https://api.apprepbrasil.com.br/api/v1/auth/magic-link/consume?token=", resend.LastBody);
+        }
+        finally
+        {
+            await Scalar("DELETE FROM account.login_challenge WHERE email = @email", ("email", email));
+        }
+    }
+
+    [ElectoralSchemaFact]
+    public async Task Magic_link_answers_503_within_the_deadline_when_the_provider_does_not_respond()
+    {
+        using var api = Api(resend: new StubResend(stall: true));
+        using var browser = Browser(api);
+        var email = UniqueEmail("resend-timeout");
+        try
+        {
+            var clock = Stopwatch.StartNew();
+            using var response = await browser.PostAsJsonAsync("/api/v1/auth/magic-link", new { email, returnTo = "/conta" }, Ct);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            Assert.InRange(clock.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(10));
+            var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+            Assert.Equal("O login por e-mail está temporariamente indisponível.", problem.GetProperty("detail").GetString());
+            // O cookie de correlação é apagado: nenhum link pendente fica associado a este navegador.
+            var correlation = response.Headers.GetValues("Set-Cookie").Last(value => value.StartsWith("repbrasil_magic_link=", StringComparison.Ordinal));
+            Assert.Contains("expires=thu, 01 jan 1970", correlation.ToLowerInvariant());
         }
         finally
         {

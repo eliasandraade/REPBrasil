@@ -30,6 +30,8 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         }
         catch (InvalidOperationException)
         {
+            // Entrega não configurada ou recusada pelo provedor (MagicLinkDeliveryException: tempo esgotado,
+            // rede ou erro HTTP): resposta controlada, sem deixar o navegador esperando.
             Response.Cookies.Delete(MagicLinkCorrelationCookie, MagicLinkCorrelationCookieOptions());
             return Problem("O login por e-mail está temporariamente indisponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }

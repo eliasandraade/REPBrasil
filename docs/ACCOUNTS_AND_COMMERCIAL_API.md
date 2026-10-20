@@ -7,7 +7,7 @@ Adicionar identidade e recursos pessoais ao REPBrasil sem transformar dados púb
 ## Autenticação
 
 - Google OAuth/OIDC direto com o Google.
-- Magic link por SMTP configurável.
+- Magic link por e-mail, enviado pela API HTTPS do Resend (ver "Entrega do magic link").
 - Nenhuma senha local.
 - Sessão aleatória em cookie `HttpOnly`; somente SHA-256 do token fica no Postgres.
 - `SameSite=Lax` é o padrão para frontend/API no mesmo site; deployments cross-site usam `Auth__CookieSameSite=None`, sempre com `Secure`.
@@ -18,6 +18,16 @@ Adicionar identidade e recursos pessoais ao REPBrasil sem transformar dados púb
 - Links usados, expirados ou recusados sempre voltam para `/entrar?erro=...`, que explica o motivo (`link-invalido`, `estado-invalido`, `google-cancelado`, `google-falhou`, `google-indisponivel`).
 - `returnTo` aceita apenas caminho local iniciado por uma única `/`, sem `\` e sem caracteres de controle; `//`, `/\` e URLs externas voltam para `/`.
 - `Auth__MagicLink__Delivery=log` (link no log) só funciona em `Development`; em qualquer outro ambiente o pedido é recusado com 503, porque o link é uma credencial de login.
+
+## Entrega do magic link
+
+- Fora de desenvolvimento, a única entrega é `Auth__MagicLink__Delivery=resend`: `POST https://api.resend.com/emails` (HTTPS, porta 443) com a chave da API no cabeçalho `Authorization`. Não há SMTP no fluxo: o Railway bloqueia SMTP de saída fora do plano Pro, e foi isso que travou o login por e-mail no smoke humano de 20/10/2026 (conexões a `smtp.resend.com:587` descartadas, pedido preso por até 269 s).
+- O envio tem prazo próprio de 10 s (`Auth__MagicLink__TimeoutSeconds`, de 1 a 30). Ao fim do prazo a chamada ao provedor é cancelada.
+- Tempo esgotado, falha de rede ou resposta de erro do Resend terminam em **503** ("O login por e-mail está temporariamente indisponível."), e o cookie de correlação é apagado. A mesma resposta vale para entrega ausente, não suportada (inclusive o antigo `smtp`) ou sem chave/remetente.
+- Se o próprio pedido for cancelado (o navegador desistiu), o cancelamento é propagado e não vira 503.
+- O frontend aborta o pedido em 20 s, mais que o prazo da API para o 503 chegar antes. A tela sempre sai de "Enviando…": confirmação em caso de sucesso, mensagem de indisponibilidade em caso de falha.
+- Logs do envio: só provedor, motivo (`timeout`, `network`, `http_status`), status HTTP, código de erro do Resend (ex.: `validation_error`; a mensagem de erro, que pode citar o destinatário, é descartada) e duração. Nunca e-mail (destinatário ou remetente), token, link ou chave; configuração ausente é registrada só pelo nome da variável.
+- O remetente precisa ser de um domínio verificado no Resend.
 
 ## Variáveis do backend
 
@@ -30,16 +40,15 @@ Auth__CookieSameSite=Lax                         # use None quando frontend/API 
 Auth__Google__ClientId=...
 Auth__Google__ClientSecret=...
 Auth__Google__RedirectUri=https://SEU_BACKEND/api/v1/auth/google/callback
-Auth__MagicLink__Delivery=smtp                    # `log` somente em desenvolvimento
-Auth__MagicLink__Smtp__Host=...
-Auth__MagicLink__Smtp__Port=587
-Auth__MagicLink__Smtp__EnableSsl=true
-Auth__MagicLink__Smtp__From=...
-Auth__MagicLink__Smtp__Username=...               # opcional, conforme relay
-Auth__MagicLink__Smtp__Password=...               # opcional, conforme relay
+Auth__MagicLink__Delivery=resend                  # `log` somente em desenvolvimento
+Auth__MagicLink__Resend__ApiKey=...               # segredo: chave da API do Resend
+Auth__MagicLink__From=REPBrasil <acesso@SEU_DOMINIO>  # remetente de domínio verificado no Resend
+Auth__MagicLink__TimeoutSeconds=10                # opcional: prazo do envio, de 1 a 30 s
 Auth__SuperadminEmails=pessoa@exemplo.com          # lista separada por vírgulas
 Alerts__PublishToken=...
 ```
+
+As antigas `Auth__MagicLink__Smtp__*` não são mais lidas e podem ser removidas depois do deploy.
 
 O frontend continua usando `NEXT_PUBLIC_API_URL` e envia `credentials: include` apenas nos endpoints de conta. Se frontend e API forem cross-site, `AllowedOrigins` precisa conter a origem exata do frontend e `Auth__CookieSameSite=None` deve ser configurado no backend.
 
@@ -70,7 +79,7 @@ Cabeçalho obrigatório: `X-Alerts-Token`.
 
 O publicador fornece `eventKey`, recurso, tipo de evento, título e payload. O banco cria no máximo uma notificação por `eventKey`/usuário. O endpoint interno não inventa fatos: ele somente distribui um evento já produzido por uma rotina auditável.
 
-Entrega `in_app` é nativa. O campo `email` já faz parte do contrato de assinatura, mas **o envio de notificações por e-mail ainda não está implementado**: assinaturas `email` são guardadas e as notificações aparecem na caixa `in_app`. Quando existir, o envio usará a mesma infraestrutura SMTP e não alterará o fato armazenado.
+Entrega `in_app` é nativa. O campo `email` já faz parte do contrato de assinatura, mas **o envio de notificações por e-mail ainda não está implementado**: assinaturas `email` são guardadas e as notificações aparecem na caixa `in_app`. Quando existir, o envio usará a mesma integração HTTPS de e-mail do magic link e não alterará o fato armazenado.
 
 ## Entitlements
 

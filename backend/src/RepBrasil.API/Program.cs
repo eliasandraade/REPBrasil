@@ -83,6 +83,8 @@ builder.Services.AddScoped<OverviewService>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<AuthExternalService>();
 builder.Services.AddHttpClient("google-auth", client => client.Timeout = TimeSpan.FromSeconds(15));
+// O prazo do envio (~10 s) é aplicado no AuthExternalService; este é só o limite de segurança do cliente.
+builder.Services.AddHttpClient(AuthExternalService.ResendClient, client => client.Timeout = TimeSpan.FromSeconds(30));
 
 builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
     ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier);
