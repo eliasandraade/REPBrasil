@@ -64,6 +64,9 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await select.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken))
             {
+                // O reader precisa ser fechado antes do rollback: com ele aberto o Npgsql lança e o
+                // link usado/expirado virava 500 em vez de "link inválido".
+                await reader.DisposeAsync();
                 await transaction.RollbackAsync(cancellationToken);
                 return null;
             }
@@ -378,44 +381,6 @@ public sealed class AccountService(ApplicationDbContext db)
     public Task RevokeApiKeyAsync(Guid userId, Guid id, CancellationToken cancellationToken) =>
         ExecuteAsync("UPDATE account.api_key SET revoked_at = COALESCE(revoked_at, now()) WHERE user_id = @user_id AND id = @id", cancellationToken, ("user_id", userId), ("id", id));
 
-    public async Task<bool> ValidateApiKeyAndConsumeAsync(string secret, string requiredScope, CancellationToken cancellationToken)
-    {
-        if (!secret.StartsWith("rep_live_", StringComparison.Ordinal) || secret.Length < 30) return false;
-        await OpenAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-        try
-        {
-            await using var command = Command("""
-                SELECT id, scopes, daily_quota
-                FROM account.api_key
-                WHERE key_hash = @hash AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
-                FOR UPDATE
-                """, ("hash", Hash(secret)));
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            if (!await reader.ReadAsync(cancellationToken)) { await transaction.RollbackAsync(cancellationToken); return false; }
-            var id = reader.GetGuid(0);
-            var scopes = reader.GetFieldValue<string[]>(1);
-            var quota = reader.GetInt32(2);
-            await reader.DisposeAsync();
-            if (!scopes.Contains(requiredScope, StringComparer.Ordinal)) { await transaction.RollbackAsync(cancellationToken); return false; }
-
-            await using var usage = Command("""
-                INSERT INTO account.api_usage_daily (api_key_id, usage_date, request_count)
-                VALUES (@id, current_date, 1)
-                ON CONFLICT (api_key_id, usage_date)
-                DO UPDATE SET request_count = account.api_usage_daily.request_count + 1, updated_at = now()
-                RETURNING request_count
-                """, ("id", id));
-            var count = Convert.ToInt32(await usage.ExecuteScalarAsync(cancellationToken));
-            if (count > quota) { await transaction.RollbackAsync(cancellationToken); return false; }
-            await using var touch = Command("UPDATE account.api_key SET last_used_at = now() WHERE id = @id", ("id", id));
-            await touch.ExecuteNonQueryAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return true;
-        }
-        finally { await db.Database.CloseConnectionAsync(); }
-    }
-
     public static bool SecureEquals(string? a, string? b)
     {
         if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
@@ -533,10 +498,15 @@ public sealed class AccountService(ApplicationDbContext db)
         return email;
     }
 
+    /// <summary>
+    /// Só caminho local: começa com uma única "/", sem "\" (que navegadores tratam como "/") e sem
+    /// caracteres de controle. Qualquer outra coisa volta para "/" (sem open redirect).
+    /// </summary>
     public static string NormalizeReturnTo(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return "/";
-        return value.StartsWith('/') && !value.StartsWith("//", StringComparison.Ordinal) && value.Length <= 512 ? value : "/";
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 512) return "/";
+        if (!value.StartsWith('/') || value.StartsWith("//", StringComparison.Ordinal)) return "/";
+        return value.Contains('\\') || value.Any(char.IsControl) ? "/" : value;
     }
 
     private static void ValidateCollection(string collection)

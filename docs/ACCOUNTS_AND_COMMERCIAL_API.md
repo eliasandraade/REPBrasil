@@ -14,7 +14,10 @@ Adicionar identidade e recursos pessoais ao REPBrasil sem transformar dados púb
 - Mutações autenticadas exigem `X-RepBrasil-CSRF`, cujo valor é vinculado à sessão.
 - Magic links e `state` do Google são one-shot, expiram e são persistidos somente por hash.
 - O `state` OAuth também é vinculado ao navegador que iniciou o login por um cookie de correlação `HttpOnly`; o callback exige correspondência e apaga o cookie antes de prosseguir.
-- `returnTo` aceita apenas caminho local iniciado por `/`; `//` e URLs externas voltam para `/`.
+- O magic link é vinculado da mesma forma ao navegador que o pediu (`repbrasil_magic_link`, `HttpOnly`, `SameSite=Lax`, caminho `/api/v1/auth/magic-link`): aberto em outro navegador, em outro aplicativo ou depois de pedido um link mais novo, ele falha fechado com `/entrar?erro=link-invalido`, sem consumir o desafio.
+- Links usados, expirados ou recusados sempre voltam para `/entrar?erro=...`, que explica o motivo (`link-invalido`, `estado-invalido`, `google-cancelado`, `google-falhou`, `google-indisponivel`).
+- `returnTo` aceita apenas caminho local iniciado por uma única `/`, sem `\` e sem caracteres de controle; `//`, `/\` e URLs externas voltam para `/`.
+- `Auth__MagicLink__Delivery=log` (link no log) só funciona em `Development`; em qualquer outro ambiente o pedido é recusado com 503, porque o link é uma credencial de login.
 
 ## Variáveis do backend
 
@@ -34,6 +37,7 @@ Auth__MagicLink__Smtp__EnableSsl=true
 Auth__MagicLink__Smtp__From=...
 Auth__MagicLink__Smtp__Username=...               # opcional, conforme relay
 Auth__MagicLink__Smtp__Password=...               # opcional, conforme relay
+Auth__SuperadminEmails=pessoa@exemplo.com          # lista separada por vírgulas
 Alerts__PublishToken=...
 ```
 
@@ -66,7 +70,7 @@ Cabeçalho obrigatório: `X-Alerts-Token`.
 
 O publicador fornece `eventKey`, recurso, tipo de evento, título e payload. O banco cria no máximo uma notificação por `eventKey`/usuário. O endpoint interno não inventa fatos: ele somente distribui um evento já produzido por uma rotina auditável.
 
-Entrega `in_app` é nativa. O campo `email` já faz parte do contrato de assinatura; o envio assíncrono de notificações por e-mail deve usar a mesma infraestrutura SMTP e não altera o fato armazenado.
+Entrega `in_app` é nativa. O campo `email` já faz parte do contrato de assinatura, mas **o envio de notificações por e-mail ainda não está implementado**: assinaturas `email` são guardadas e as notificações aparecem na caixa `in_app`. Quando existir, o envio usará a mesma infraestrutura SMTP e não alterará o fato armazenado.
 
 ## Entitlements
 
@@ -76,7 +80,11 @@ Exemplo operacional:
 
 - `api.daily_quota = 10000`
 
-Na ausência desse entitlement, uma nova chave recebe quota técnica padrão de 1000 requisições/dia. Alterar quota comercial é operação administrativa explícita, não conclusão do produto.
+Na ausência desse entitlement, a quota técnica padrão é de 1000 requisições/dia. A quota é **da conta**: o uso diário de todas as chaves do usuário é somado, então criar ou rotacionar chaves não multiplica a cota. Alterar quota comercial é operação administrativa explícita, não conclusão do produto.
+
+## Superadmin
+
+`GET /api/v1/admin/me` decide no servidor: a conta precisa estar em `Auth:SuperadminEmails` ou ter o entitlement ativo `account.role = superadmin`. Sem sessão → 401; sessão de conta comum → 403 (`{"error":"forbidden"}`); superadmin → 200 com `role: "superadmin"`. Nada no estado da conta comum concede o papel.
 
 ## API comercial
 
@@ -87,7 +95,16 @@ Scopes iniciais:
 - `read:public`
 - `read:account`
 
-O primeiro gate é `GET /api/v1/commercial/ping`, que valida chave, scope, expiração/revogação e quota diária antes de responder. O contrato público reafirma:
+O primeiro gate é `GET /api/v1/commercial/ping`, que valida chave, scope, expiração/revogação e quota diária antes de responder:
+
+| Situação | Resposta |
+|---|---|
+| chave válida, com scope e quota | 200 |
+| chave ausente, desconhecida, revogada, expirada ou de conta desativada | 401 `invalid_api_key` |
+| chave sem o scope exigido | 403 `insufficient_scope` |
+| quota diária da conta esgotada | 429 `daily_quota_exhausted` |
+
+O contrato público reafirma:
 
 - ausência de dado não é zero;
 - proveniência é obrigatória;
@@ -120,15 +137,22 @@ O conteúdo público existente continua navegável sem autenticação.
 1. aplicar migration `AddAccountsAndCommercialApi`;
 2. entrar por Google e confirmar retorno ao caminho original;
 3. copiar um callback OAuth iniciado em outro navegador e confirmar rejeição por correlação inválida;
-4. entrar por magic link e confirmar expiração/one-shot;
+4. entrar por magic link; reabrir o mesmo link e abri-lo em outro navegador → `/entrar` explica "link inválido" (nunca erro 500);
 5. `/account/me` sem cookie → 401;
 6. mutação sem CSRF → 401; com CSRF → sucesso;
 7. em deployment cross-site, confirmar `SameSite=None; Secure` e chamadas `credentials: include` funcionando;
 8. favoritar e adicionar à watchlist uma página; recarregar e validar persistência;
 9. salvar duas variantes filtradas de `/rankings`, `/dados` ou drill-down eleitoral e confirmar itens distintos;
-10. criar chave de API, copiar segredo e validar `/api/v1/commercial/ping`;
-11. repetir até a quota configurada em ambiente de teste e confirmar bloqueio sem contador negativo;
-12. revogar a chave e confirmar recusa;
+10. criar chave de API, copiar segredo e validar `/api/v1/commercial/ping` (200);
+11. repetir até a quota configurada em ambiente de teste e confirmar 429, inclusive com outra chave da mesma conta;
+12. revogar a chave e confirmar 401;
 13. publicar duas vezes o mesmo `eventKey` e confirmar uma única notificação por usuário;
 14. desktop/mobile e light/dark em `/entrar`, `/conta` e dock global;
 15. Console/Network sem 500 inesperado e sem token em URL depois do callback.
+
+## Testes automatizados
+
+- `backend/tests/RepBrasil.Tests/Api/AccountSecurityTests.cs` (sem banco): `returnTo`, comparação em tempo constante, link nunca no log fora de desenvolvimento.
+- `backend/tests/RepBrasil.Tests/Api/MagicLinkCorrelationTests.cs` (sem banco): link sem correlação falha antes de tocar o banco.
+- `backend/tests/RepBrasil.Tests/Api/AccountFlowTests.cs` (banco de teste do CI, Google simulado por stub HTTP, nenhum e-mail enviado): magic link só no navegador que pediu e uma única vez, cookies `HttpOnly`/`Secure`/`SameSite=Lax`, só hashes no banco, CSRF da própria sessão, logout revoga, `state` do Google ligado ao navegador e one-shot, `email_verified` obrigatório, superadmin 401/403/200, quota somada entre chaves (200/429), chave revogada/desconhecida 401, scope 403, publicação de alertas com token interno e idempotente.
+- `frontend/tests/account-signin.test.tsx`: mensagens de `/entrar?erro=...` e destino local após o login.

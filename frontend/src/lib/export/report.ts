@@ -44,8 +44,19 @@ function text(value: ReportValue): string {
   return value === null ? "—" : String(value);
 }
 
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+const SIGNED_NUMBER = /^[+-][\d.,]+%?$/;
+
+/**
+ * Texto que uma planilha interpretaria como fórmula (=, +, -, @, tab, CR no início) ganha um
+ * apóstrofo e é exibido literalmente; números com sinal e valores numéricos seguem intactos.
+ */
+function spreadsheetSafe(raw: string): string {
+  return FORMULA_TRIGGER.test(raw) && !SIGNED_NUMBER.test(raw) ? `'${raw}` : raw;
+}
+
 function csvCell(value: ReportValue): string {
-  const raw = text(value);
+  const raw = typeof value === "string" ? spreadsheetSafe(value) : text(value);
   return /[;"\n\r]/.test(raw) ? `"${raw.replaceAll('"', '""')}"` : raw;
 }
 
