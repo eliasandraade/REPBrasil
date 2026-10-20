@@ -54,10 +54,10 @@ Para regenerar: `node frontend/scripts/fetch-ibge-geo.mjs`. O teste `tests/terri
   - candidatura mais votada em cada município, em paleta neutra pela ordem da legenda, nunca cor de partido;
   - empate na primeira colocação aparece como empate, nunca como candidatura, e fica fora da contagem das mais votadas;
   - antes/depois: o lado "antes" é sempre um pleito anterior (por padrão, o mais próximo); no pleito mais antigo carregado, a tela explica que não há anterior;
-  - o *perfil socioeleitoral* cruza a parcela de votos válidos de duas candidaturas com um indicador do mesmo ano ("nos municípios com maior taxa de analfabetismo, A tende a ter parcela maior dos votos válidos") e compara as duas pontas (20% dos municípios em cada);
+  - o *perfil socioeleitoral* cruza a parcela de votos válidos de duas candidaturas com um indicador do mesmo ano ("nos municípios com maior taxa de analfabetismo, A teve, em média, parcela maior dos votos válidos") e compara as duas pontas (20% dos municípios em cada);
   - é leitura por município, nunca por pessoa, e a tela diz isso;
   - cargos municipais não entram no cruzamento (cada município tem a própria disputa);
-  - regras, limites e alternativas: [ADR-008](adrs/ADR-008-leitura-simples-e-cruzamento-territorial.md) (proposto, aguardando decisão do mantenedor).
+  - regras, limites e alternativas: [ADR-008](adrs/ADR-008-leitura-simples-e-cruzamento-territorial.md) (aceito).
 - **Emendas:**
   - valor empenhado, valor pago ou quantidade por município e ano;
   - soma parcial (emenda sem valor publicado) fica sem cor e é dita no detalhe;

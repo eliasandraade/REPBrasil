@@ -7,8 +7,8 @@ import { getCandidacyCorrelation, getIndicators, type StateCoverage } from "@/li
 import { displayName } from "@/lib/elections/format";
 import { xrayApi } from "@/lib/elections/xray";
 import { loadedIndicators } from "@/lib/territory/coverage";
-import { formatCoefficient, formatInteger, formatValue } from "@/lib/territory/format";
-import { MIN_ASSOCIATION_N, STRENGTH_LABEL, extremeGroups, strengthOf } from "@/lib/territory/insights";
+import { formatInteger, formatValue } from "@/lib/territory/format";
+import { crossingSentence, extremeGroups } from "@/lib/territory/insights";
 import { CausalityNote } from "./Insights";
 import { Scatter } from "./Scatter";
 import { SELECT } from "./modes/shared";
@@ -153,20 +153,9 @@ export function SocioElectoralCrossing({
       {ready && (
         <>
           <ul className="space-y-1.5 text-body leading-7 text-fg" data-testid="crossing-sentences">
-            {pair.map((c, index) => {
-              const r = results[index]!;
-              if (r.n < MIN_ASSOCIATION_N)
-                return <li key={c.candidacyId}>Para {name(c.ballotName)}, só {formatInteger(r.n)} municípios têm os dois dados: poucos para descrever uma associação.</li>;
-              const strength = strengthOf(r.spearman);
-              if (!strength || strength === "sem_associacao")
-                return <li key={c.candidacyId}>Para {name(c.ballotName)}, não há associação clara entre {indicator.name} e a parcela de votos válidos (ρ = {formatCoefficient(r.spearman)}).</li>;
-              const direction = (r.spearman ?? 0) > 0 ? "maior" : "menor";
-              return (
-                <li key={c.candidacyId}>
-                  Nos municípios com maior {indicator.name}, {name(c.ballotName)} tende a ter parcela {direction} dos votos válidos ({STRENGTH_LABEL[strength]}, ρ = {formatCoefficient(r.spearman)}, {formatInteger(r.n)} municípios).
-                </li>
-              );
-            })}
+            {pair.map((c, index) => (
+              <li key={c.candidacyId}>{crossingSentence(name(c.ballotName), indicator.name, results[index]!, groups[index])}</li>
+            ))}
           </ul>
           {groups.every(Boolean) && (
             <div className="overflow-x-auto">

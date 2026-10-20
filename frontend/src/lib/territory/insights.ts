@@ -105,3 +105,28 @@ export function extremeGroups(
   });
   return { low: group(sorted.slice(0, size)), high: group(sorted.slice(-size)) };
 }
+
+/**
+ * Frase do perfil socioeleitoral (ADR-008): só descritiva, no passado, sobre o resultado observado — nunca preditiva.
+ * A força vem do |ρ|; a direção vem do sinal de ρ e só é afirmada quando as médias das pontas (a tabela ao lado)
+ * vão no mesmo sentido. Quando não vão, a frase diz que não houve diferença consistente.
+ */
+export function crossingSentence(
+  candidate: string,
+  indicator: string,
+  result: { spearman: number | null; n: number },
+  groups: { low: ExtremeGroup; high: ExtremeGroup } | null,
+): string {
+  const { spearman, n } = result;
+  if (n < MIN_ASSOCIATION_N)
+    return `Para ${candidate}, só ${formatInteger(n)} ${n === 1 ? "município tem" : "municípios têm"} os dois dados: poucos para descrever uma associação.`;
+  const strength = strengthOf(spearman);
+  const rho = `ρ = ${formatCoefficient(spearman)}`;
+  if (spearman === null || strength === null || strength === "sem_associacao")
+    return `Para ${candidate}, não houve associação clara entre ${indicator} e a parcela de votos válidos (${rho}).`;
+  const towards = Math.sign(spearman);
+  if (groups && Math.sign(groups.high.meanY - groups.low.meanY) !== towards)
+    return `Para ${candidate}, não houve diferença consistente entre os municípios com maior e com menor ${indicator} (${rho}, ${formatInteger(n)} municípios).`;
+  const direction = towards > 0 ? "maior" : "menor";
+  return `Nos municípios com maior ${indicator}, ${candidate} teve, em média, parcela ${direction} dos votos válidos (${STRENGTH_LABEL[strength]}, ${rho}, ${formatInteger(n)} municípios).`;
+}

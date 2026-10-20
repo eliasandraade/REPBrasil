@@ -1,9 +1,9 @@
 # ADR-008 — Leitura simples e cruzamento candidatura × perfil territorial no `/dados`
 
-**Status:** Proposto — aguarda decisão do mantenedor (Elias)
-**Data:** 2026-10-20
+**Status:** Aceito
+**Data:** 2026-10-20 (proposto e aceito pelo mantenedor, Elias, no mesmo dia)
 
-Implementado no PR 3 (`feat/dados-territorial`). Aceitar este ADR é a condição para o merge desse PR com o cruzamento; rejeitá-lo tira o cruzamento do `/dados` antes do merge (ver Consequências).
+Implementado no #51 (`feat/dados-territorial`), mantendo o `SocioElectoralCrossing`. Na aceitação, as frases do cruzamento passaram a descrever só o resultado observado, sem tom preditivo (Decisão 2).
 
 ## Contexto
 
@@ -39,7 +39,8 @@ Implementado no PR 3 (`feat/dados-territorial`). Aceitar este ADR é a condiçã
    - "Pontas": 20% dos municípios com menor e 20% com maior valor do indicador (desempate pelo código IBGE), comparadas pela média simples.
    - O modo técnico continua disponível como detalhe: coeficientes, N, dispersão, tabela e metodologia.
 2. **Cruzamento só territorial.**
-   - Toda frase fala de municípios, nunca de pessoas. Exemplo: "nos municípios com maior taxa de analfabetismo, A tende a ter parcela maior dos votos válidos".
+   - Toda frase fala de municípios, nunca de pessoas, e descreve o resultado observado, no passado, sem tom preditivo. Exemplo: "nos municípios com maior taxa de analfabetismo, A teve, em média, parcela maior dos votos válidos".
+   - A direção ("maior" ou "menor") vem do sinal de ρ e só é afirmada quando as médias das pontas (a tabela ao lado) vão no mesmo sentido. Quando não vão, a frase diz que não houve diferença consistente.
    - A tela traz "Correlação não implica causalidade" e "leitura por município, não por pessoa".
 3. **Simetria.**
    - Por padrão aparecem as duas candidaturas mais votadas no recorte, lado a lado, com a mesma métrica, a mesma frase e a mesma tabela.
@@ -65,11 +66,10 @@ Implementado no PR 3 (`feat/dados-territorial`). Aceitar este ADR é a condiçã
 
 ## Consequências
 
-- **Se aceito:**
-  - o PR 3 entra como está;
-  - qualquer mudança nas regras (limiares, pontas, textos das frases) atualiza este ADR.
-- **Se rejeitado:**
-  - antes do merge do PR 3, sai o `SocioElectoralCrossing` do modo eleitoral (um import e um bloco em `frontend/src/components/data/modes/useElectoralMode.tsx`) e o trecho correspondente de `docs/DADOS_EXPLORADOR.md`;
+- O #51 entra com o cruzamento.
+- Qualquer mudança nas regras (limiares, pontas, textos das frases) atualiza este ADR.
+- **Para reverter no futuro:**
+  - sai o `SocioElectoralCrossing` do modo eleitoral (um import e um bloco em `frontend/src/components/data/modes/useElectoralMode.tsx`) e o trecho correspondente de `docs/DADOS_EXPLORADOR.md`;
   - o resto do explorador não depende dele;
   - a aba do perfil do político continua como estava.
 - **Pendência de dado.**

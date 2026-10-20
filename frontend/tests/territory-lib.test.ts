@@ -4,7 +4,7 @@ import { ORDINAL_5 } from "@/lib/dataviz/palette";
 import { insidePoint, inPolygon } from "@/lib/territory/centroid";
 import { amendmentYears, availabilityText, hasData, loadedIndicators } from "@/lib/territory/coverage";
 import { formatCoefficient, formatShort, formatValue } from "@/lib/territory/format";
-import { associationSentence, distribution, extremeGroups, rankOf, strengthOf } from "@/lib/territory/insights";
+import { associationSentence, crossingSentence, distribution, extremeGroups, rankOf, strengthOf } from "@/lib/territory/insights";
 import { canvasSignature, coverageLayer, valueLayer, viewNote } from "@/lib/territory/layers";
 import { inUf, ofUf, ufOfPreposition } from "@/lib/territory/places";
 import { classedScale, isExtensive, magnitudes, quantileBreaks } from "@/lib/territory/scale";
@@ -171,6 +171,21 @@ describe("leituras em linguagem simples", () => {
     // abaixo de 10 municípios a força não é rotulada: um ou dois mudam o coeficiente inteiro
     expect(associationSentence("A", "B", 1, 3)).toBe("Só 3 municípios têm os dois dados: poucos para descrever uma associação entre A e B.");
     expect(associationSentence("A", "B", 1, 1)).toBe("Só 1 município tem os dois dados: poucos para descrever uma associação entre A e B.");
+  });
+
+  it("frase do cruzamento: descritiva e no passado; a direção só quando as médias das pontas confirmam o ρ", () => {
+    const group = (meanY: number) => ({ n: 36, xFrom: 0, xTo: 1, meanY });
+    expect(crossingSentence("Ana", "Taxa de analfabetismo", { spearman: 0.45, n: 184 }, { low: group(40), high: group(55) })).toBe(
+      "Nos municípios com maior Taxa de analfabetismo, Ana teve, em média, parcela maior dos votos válidos (associação moderada, ρ = 0,45, 184 municípios).",
+    );
+    expect(crossingSentence("Ana", "X", { spearman: -0.6, n: 184 }, { low: group(60), high: group(30) })).toContain("Ana teve, em média, parcela menor");
+    // ρ e médias das pontas em sentidos opostos: nenhuma direção é afirmada
+    expect(crossingSentence("Ana", "X", { spearman: 0.15, n: 184 }, { low: group(50), high: group(48) })).toBe(
+      "Para Ana, não houve diferença consistente entre os municípios com maior e com menor X (ρ = 0,15, 184 municípios).",
+    );
+    expect(crossingSentence("Ana", "X", { spearman: 0.05, n: 184 }, null)).toBe("Para Ana, não houve associação clara entre X e a parcela de votos válidos (ρ = 0,05).");
+    expect(crossingSentence("Ana", "X", { spearman: 0.9, n: 4 }, null)).toBe("Para Ana, só 4 municípios têm os dois dados: poucos para descrever uma associação.");
+    expect(crossingSentence("Ana", "X", { spearman: 0.45, n: 184 }, null)).not.toMatch(/tende/);
   });
 
   it("compara os municípios das duas pontas de X pela média de Y", () => {
