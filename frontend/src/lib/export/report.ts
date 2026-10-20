@@ -333,8 +333,12 @@ function wrapText(value: string, maxWidth: number, charWidth: (char: string) => 
   const lines: string[] = [];
   let line = "";
   let lineWidth = 0;
-  // Cada palavra vem com o espaço original que a precede (ex.: "  |  " nas linhas do PNG).
-  for (const [, gap, word] of value.matchAll(/(\s*)(\S+)/g)) {
+  // Cada palavra leva o espaço original que a precede (ex.: "  |  " nas linhas do PNG). `\S+` não retrocede.
+  let previousEnd = 0;
+  for (const match of value.matchAll(/\S+/g)) {
+    const word = match[0];
+    const gap = value.slice(previousEnd, match.index);
+    previousEnd = match.index + word.length;
     const chars = Array.from(word);
     const widths = chars.map(charWidth);
     const wordWidth = widths.reduce((sum, width) => sum + width, 0);

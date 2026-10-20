@@ -80,6 +80,13 @@ describe("exports mantêm a URL reproduzível inteira", () => {
     expect(layout.lines.filter((line) => line.text.includes("apprepbrasil"))).toHaveLength(1);
   });
 
+  it("espaço em excesso no fim de uma linha longa não trava a quebra", () => {
+    const started = performance.now();
+    const lines = pdfLines(reportPdf({ ...REPORT, methodology: [`${"palavra ".repeat(30)}${" ".repeat(200_000)}`] }));
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(lines.join(" ")).toContain("palavra palavra");
+  });
+
   it("linhas quebradas mantêm o espaçamento original entre palavras", () => {
     const cell = "Município com nome muito longo".repeat(8);
     const layout = layoutPng({ ...REPORT, rows: [[cell, "%", 1, null]] }, measureChar);
