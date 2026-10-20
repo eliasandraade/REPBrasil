@@ -478,6 +478,43 @@ describe("modo emendas", () => {
   });
 });
 
+describe("meu território", () => {
+  const withProfile = (capabilities: Record<string, boolean> = {}) => ({
+    ...ADVANCED_SESSION,
+    capabilities: { ...ADVANCED_SESSION.capabilities, ...capabilities },
+    profile: { fullName: null, stateCode: "CE", municipalityIbgeCode: null, municipalityName: null, usageType: null, avatarHidden: false },
+  });
+
+  afterEach(() => sessionStorage.clear());
+
+  it("quem tem UF no perfil ganha o atalho para ela, que empilha no histórico", async () => {
+    session = withProfile();
+    renderExplorer("");
+    const shortcut = await screen.findByTestId("home-territory");
+    await waitFor(() => expect(shortcut.textContent).toBe("Meu estado: Ceará"));
+    fireEvent.click(shortcut);
+    expect(nav.push).toHaveBeenLastCalledWith("/dados?uf=CE", { scroll: false });
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("com o plano, a primeira visita da sessão abre no território do perfil; depois, Brasil continua Brasil", async () => {
+    session = withProfile({ "account.territorial_default": true });
+    renderExplorer("");
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/dados?uf=CE", { scroll: false }));
+    nav.replace.mockReset();
+    renderExplorer("");
+    await screen.findAllByTestId("home-territory");
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("sem o plano, nunca muda o território sozinho", async () => {
+    session = withProfile();
+    renderExplorer("");
+    await screen.findByTestId("home-territory");
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+});
+
 describe("lista de territórios (equivalente ao mapa pelo teclado)", () => {
   const rows: TableRow[] = [
     { code: "1", name: "Água Branca", cells: { v: "10" }, sort: { v: 10 } },

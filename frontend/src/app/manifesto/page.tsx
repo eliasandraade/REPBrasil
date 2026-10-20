@@ -208,6 +208,13 @@ export default function ManifestoPage() {
           O juízo de valor pertence ao cidadão.
         </p>
 
+        {/* Sustentabilidade: o compromisso público que os planos pagos não podem quebrar */}
+        <Section title="Sustentabilidade">
+          <p className="text-sm leading-relaxed text-fg-muted" data-testid="manifesto-sustentabilidade">
+            O dado público essencial e a informação necessária para fiscalização democrática não devem ser artificialmente escondidos atrás de um paywall. Os planos pagos monetizam profundidade analítica, conveniência, produtividade, personalização, comparação, histórico, exportação e ferramentas profissionais — não o direito do cidadão de acessar informação pública básica.
+          </p>
+        </Section>
+
         {/* Assinatura filosófica */}
         <div className="rounded-xl border border-accent/20 bg-accent/5 p-6 sm:p-8 text-center">
           <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-accent-text/60">

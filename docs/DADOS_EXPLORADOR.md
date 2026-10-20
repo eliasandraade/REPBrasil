@@ -17,6 +17,8 @@ O mapa é o protagonista: uma instância persistente de Brasil → UF → munic�
 
 Trocar de território empilha no histórico (o "voltar" do navegador sobe um nível); trocar de recorte substitui. Links antigos (`/dados?x=&periodo=`, usados pelos alertas de indicador) continuam abrindo o modo socioeconômico.
 
+Território do perfil: toda conta com UF no perfil ganha o atalho "Meu estado" (ou "Meu município"). Com `account.territorial_default` (Avançado), a primeira visita da sessão sem território na URL abre no território do perfil; depois disso, "Brasil" na trilha continua no Brasil. Nenhuma preferência política é usada ou inferida: só a UF e o município que a pessoa escolheu no perfil.
+
 ## Disponibilidade
 
 `GET /api/v1/data/coverage` (público, em cache) devolve, por UF:

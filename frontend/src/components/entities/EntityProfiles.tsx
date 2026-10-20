@@ -152,7 +152,7 @@ export function StateEntityProfile({ data }: Readonly<{ data: StateProfileData }
               </p>
             </div>
             <div className="flex flex-wrap gap-3 text-sm">
-              <Link href={explorer} className="focus-ring rounded-lg bg-accent px-4 py-2 font-medium text-accent-contrast">
+              <Link href={explorer} className="focus-ring rounded-lg bg-action px-4 py-2 font-medium text-action-fg">
                 Explorar eleição
               </Link>
               <Link href={`/comparar?tipo=eleicao&uf=${data.uf}`} className="focus-ring rounded-lg border border-line px-4 py-2 text-fg-soft hover:border-accent/30">
@@ -239,7 +239,7 @@ export function MunicipalityEntityProfile({ data }: Readonly<{ data: Municipalit
               </p>
             </div>
             <div className="flex flex-wrap gap-3 text-sm">
-              <Link href={explorer} className="focus-ring rounded-lg bg-accent px-4 py-2 font-medium text-accent-contrast">Explorar zonas e seções</Link>
+              <Link href={explorer} className="focus-ring rounded-lg bg-action px-4 py-2 font-medium text-action-fg">Explorar zonas e seções</Link>
               <Link href={`/comparar?tipo=municipio&uf=${data.uf}&itens=${data.ibgeCode ?? ""}`} className="focus-ring rounded-lg border border-line px-4 py-2 text-fg-soft hover:border-accent/30">Comparar município</Link>
             </div>
           </div>
@@ -312,7 +312,7 @@ export function ElectionEntitySummary({ data }: Readonly<{ data: ElectionProfile
             <p className="mt-1 text-sm text-fg-muted">{data.description ?? "Pleito oficial"} · {data.electionDate}</p>
           </div>
           <div className="flex flex-wrap gap-3 text-sm">
-            <a href="#explorador" className="focus-ring rounded-lg bg-accent px-4 py-2 font-medium text-accent-contrast">Explorar território</a>
+            <a href="#explorador" className="focus-ring rounded-lg bg-action px-4 py-2 font-medium text-action-fg">Explorar território</a>
             <Link href={`/comparar?tipo=eleicao${primary ? `&uf=${primary.uf}` : ""}`} className="focus-ring rounded-lg border border-line px-4 py-2 text-fg-soft hover:border-accent/30">Comparar pleitos</Link>
           </div>
         </header>

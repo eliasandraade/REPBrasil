@@ -23,7 +23,10 @@ function targetFromLocation(pathname: string, query: string): Target | null {
   return null;
 }
 
-/** Ações de conta na página atual: favoritar e acompanhar. O limite do plano é decidido pela API. */
+/**
+ * Salvar a página atual: favoritar e acompanhar (a conta e o "Entrar" ficam na navegação). Só aparece onde há o
+ * que salvar; sem sessão, leva ao login e volta para a mesma página. O limite do plano é decidido pela API.
+ */
 export function SaveCurrentPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -44,11 +47,11 @@ export function SaveCurrentPage() {
   const favorite = isSaved(favorites.data);
   const watching = isSaved(watchlist.data);
 
-  if (me === undefined) return null;
+  if (me === undefined || !target) return null;
   if (!me) {
     return (
       <TransitionLink href={`/entrar?returnTo=${encodeURIComponent(returnTo)}`} className="focus-ring rounded-full border border-line bg-surface/95 px-4 py-2 text-xs font-semibold text-fg shadow-lg backdrop-blur hover:bg-canvas">
-        Entrar
+        ☆ Entrar para salvar
       </TransitionLink>
     );
   }
@@ -93,18 +96,13 @@ export function SaveCurrentPage() {
           )}
         </p>
       )}
-      <div className="flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1.5 shadow-lg backdrop-blur">
-        {target && (
-          <>
-            <button type="button" disabled={busy !== null} aria-pressed={favorite} onClick={() => void toggle("favorite")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
-              {favorite ? "★" : "☆"} <span className="hidden sm:inline">Favorito</span>
-            </button>
-            <button type="button" disabled={busy !== null} aria-pressed={watching} onClick={() => void toggle("watchlist")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
-              {watching ? "✓" : "+"} <span className="hidden sm:inline">Watchlist</span>
-            </button>
-          </>
-        )}
-        <TransitionLink href="/conta" className="focus-ring rounded-full bg-action px-3 py-1.5 text-xs font-semibold text-action-fg">Conta</TransitionLink>
+      <div role="group" aria-label="Salvar esta página" className="flex items-center gap-1 rounded-full border border-line bg-surface/95 p-1.5 shadow-lg backdrop-blur">
+        <button type="button" aria-label="Favorito" disabled={busy !== null} aria-pressed={favorite} onClick={() => void toggle("favorite")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
+          {favorite ? "★" : "☆"} <span className="hidden sm:inline">Favorito</span>
+        </button>
+        <button type="button" aria-label="Watchlist" disabled={busy !== null} aria-pressed={watching} onClick={() => void toggle("watchlist")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
+          {watching ? "✓" : "+"} <span className="hidden sm:inline">Watchlist</span>
+        </button>
       </div>
     </div>
   );

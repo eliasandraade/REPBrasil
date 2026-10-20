@@ -1,9 +1,12 @@
+import { DataState, RetryButton } from "@/components/ui/DataState";
 import type { DataSourceItem, PoliticianDetail } from "@/lib/types";
 import { Row, formatDate } from "../utils";
 
 interface MetadataTabProps {
   politician: PoliticianDetail;
   sources: DataSourceItem[];
+  sourcesState?: "pending" | "ready" | "error";
+  onRetrySources?: () => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -88,7 +91,7 @@ function SourceCard({ source }: { source: DataSourceItem }) {
   );
 }
 
-export function MetadataTab({ politician, sources }: MetadataTabProps) {
+export function MetadataTab({ politician, sources, sourcesState = "ready", onRetrySources }: MetadataTabProps) {
   return (
     <div className="space-y-6">
       {/* Rastreabilidade note */}
@@ -125,19 +128,24 @@ export function MetadataTab({ politician, sources }: MetadataTabProps) {
       <div>
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-            Fontes vinculadas
+            Fontes do sistema
           </p>
-          <span className="text-xs text-fg-muted">{sources.length} fonte{sources.length !== 1 ? "s" : ""}</span>
+          {sourcesState === "ready" && <span className="text-xs text-fg-muted">{sources.length} fonte{sources.length !== 1 ? "s" : ""}</span>}
         </div>
+        <p className="mb-3 text-xs text-fg-muted">Bases oficiais usadas pelo REPBrasil. A lista não é filtrada por político.</p>
 
-        {sources.length === 0 ? (
+        {sourcesState === "pending" && <DataState kind="loading" title="Carregando as fontes" height="h-24" />}
+        {sourcesState === "error" && (
+          <DataState kind="error" title="Não foi possível carregar as fontes." action={onRetrySources ? <RetryButton onRetry={onRetrySources} /> : undefined}>
+            Falha de comunicação não é ausência de fonte.
+          </DataState>
+        )}
+        {sourcesState === "ready" && sources.length === 0 && (
           <div className="rounded-lg border border-line bg-subtle px-4 py-5 text-center">
-            <p className="text-xs text-fg-muted">
-              Dados atualmente baseados em datasets eleitorais públicos do TSE.
-              Fontes detalhadas serão vinculadas na próxima importação.
-            </p>
+            <p className="text-xs text-fg-muted">Nenhuma fonte de dados cadastrada no sistema até agora.</p>
           </div>
-        ) : (
+        )}
+        {sourcesState === "ready" && sources.length > 0 && (
           <div className="space-y-3">
             {sources.map((source) => (
               <SourceCard key={source.name} source={source} />

@@ -46,6 +46,8 @@ export const MAP_SERIES = "data.map_series";
 export const CORRELATION_MATRIX = "data.correlation_matrix";
 export const EXPORT_CSV = "data.export_csv";
 export const EXPORT_BULK = "data.export_bulk";
+/** Abrir as análises territoriais no território do perfil (o atalho "Meu estado" é de todos). */
+export const TERRITORIAL_DEFAULT = "account.territorial_default";
 
 export const PLAN_NAME: Record<PlanCode, string> = { FREE: "Gratuito", ADVANCED: "Avançado", PROFESSIONAL: "Profissional" };
 

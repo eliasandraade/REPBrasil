@@ -72,6 +72,10 @@ Jamais:
 
 O juízo de valor pertence ao cidadão.
 
+## Sustentabilidade
+
+O dado público essencial e a informação necessária para fiscalização democrática não devem ser artificialmente escondidos atrás de um paywall. Os planos pagos monetizam profundidade analítica, conveniência, produtividade, personalização, comparação, histórico, exportação e ferramentas profissionais — não o direito do cidadão de acessar informação pública básica.
+
 ## Assinatura filosófica
 
-**Sem medo. Sem lados. Sem joelhos no chão.**
+**Sem medo. Sem lados. Sem se ajoelhar para ninguém.**
