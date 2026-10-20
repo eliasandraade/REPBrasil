@@ -24,9 +24,10 @@ Contrato da camada parlamentar (`electoral.parliament_*`, `/api/v1/parliament/*`
 - Cada `(provider, dataset)` de `parliament_source` é uma edição **completa** do seu recorte,
   identificada pelo SHA-256 dos bytes oficiais.
 - Reobservar exatamente os mesmos bytes é idempotente: a mesma linha de `parliament_source` é
-  reutilizada, sem criar uma edição duplicada. Como a observação é nova, `retrieved_at`, URL,
-  metadados e versão do parser são atualizados; assim, numa sequência A → B → A, a edição A volta a
-  ser corretamente a vigente sem apagar a B do histórico.
+  reutilizada, sem criar uma edição duplicada. Como a observação é nova, `retrieved_at`, URL e
+  metadados são atualizados; assim, numa sequência A → B → A, a edição A volta a ser corretamente a
+  vigente sem apagar a B do histórico. A `parser_version` permanece a da edição originalmente
+  registrada.
 - As leituras de emendas (`/amendments`, `/amendments/map`, `/amendments/years`) usam somente a
   edição mais recente de cada dataset, decidida em `parliament_source` **antes** de olhar as emendas.
   Uma edição vigente sem nenhuma emenda é ausência oficial no recorte: nada da edição anterior

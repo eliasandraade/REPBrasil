@@ -57,7 +57,6 @@ def ensure_source(conn: Any, source: ParliamentSource) -> int:
                 electoral.parliament_source.published_at
             ),
             retrieved_at = now(),
-            parser_version = EXCLUDED.parser_version,
             metadata = EXCLUDED.metadata
         RETURNING id
         """,

@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-import src.pipeline.parliament as parliament
 from src.pipeline.parliament import ParliamentSource, ensure_source
 
 psycopg = pytest.importorskip("psycopg")
@@ -31,7 +30,7 @@ def conn():
 
 
 @db
-def test_identical_bytes_seen_again_become_the_current_edition(conn, monkeypatch) -> None:
+def test_identical_bytes_seen_again_become_the_current_edition(conn) -> None:
     first_id = ensure_source(
         conn,
         ParliamentSource(
@@ -62,7 +61,6 @@ def test_identical_bytes_seen_again_become_the_current_edition(conn, monkeypatch
         (datetime(2026, 2, 1, tzinfo=UTC), second_id),
     )
 
-    monkeypatch.setattr(parliament, "PARSER_VERSION", "parliament-v2")
     same_first_id = ensure_source(
         conn,
         ParliamentSource(
@@ -81,7 +79,7 @@ def test_identical_bytes_seen_again_become_the_current_edition(conn, monkeypatch
 
     current = conn.execute(
         """
-        SELECT id, source_url, parser_version, metadata
+        SELECT id, source_url, metadata
         FROM parliament_source
         WHERE provider = 'transparencia' AND dataset = 'emendas-parlamentares:CE'
         ORDER BY retrieved_at DESC, id DESC
@@ -90,5 +88,4 @@ def test_identical_bytes_seen_again_become_the_current_edition(conn, monkeypatch
     ).fetchone()
     assert current[0] == first_id
     assert current[1] == "https://example.test/first-returned.zip"
-    assert current[2] == "parliament-v2"
-    assert current[3]["edition"] == "first-returned"
+    assert current[2]["edition"] == "first-returned"
