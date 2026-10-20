@@ -3,7 +3,8 @@ using RepBrasil.Application.Interfaces;
 namespace RepBrasil.Application.Electoral;
 
 /// <summary>
-/// Comparação descritiva de até 5 candidaturas — do mesmo pleito ou de eleições diferentes.
+/// Comparação descritiva de até 5 candidaturas (até 10 no caminho ampliado da API, conforme o plano) — do mesmo
+/// pleito ou de eleições diferentes.
 /// Candidaturas da mesma pessoa formam um "sujeito"; a evolução é calculada por sujeito entre
 /// eleições consecutivas, e só com disputa comparável (mesmo cargo e unidade) e território
 /// comparável (seção com a mesma composição). Ausência nunca vira zero.
@@ -11,6 +12,9 @@ namespace RepBrasil.Application.Electoral;
 public class ComparisonService(IElectoralXrayRepository repo)
 {
     public const int MaxCandidacies = 5;
+
+    /// <summary>Teto técnico da comparação ampliada, qualquer que seja o plano.</summary>
+    public const int MaxExtendedCandidacies = 10;
 
     public static readonly IReadOnlyDictionary<string, string> Definitions = new Dictionary<string, string>
     {
@@ -31,11 +35,12 @@ public class ComparisonService(IElectoralXrayRepository repo)
     private sealed record TerritoryKey(
         string Key, string Uf, string? Municipality, string? MunicipalityName, int? Zone, int? Section, string? PlaceCode, string? PlaceName);
 
-    public async Task<ElectoralComparisonResponse> CompareAsync(Request request, CancellationToken ct)
+    public async Task<ElectoralComparisonResponse> CompareAsync(Request request, CancellationToken ct, int maxCandidacies = MaxCandidacies)
     {
+        var max = Math.Clamp(maxCandidacies, 1, MaxExtendedCandidacies);
         var ids = request.CandidacyIds.Distinct().ToList();
-        if (ids.Count == 0 || ids.Count > MaxCandidacies)
-            throw new ElectoralBadRequestException($"Selecione de 1 a {MaxCandidacies} candidaturas.");
+        if (ids.Count == 0 || ids.Count > max)
+            throw new ElectoralBadRequestException($"Selecione de 1 a {max} candidaturas.");
         if (ids.Count != request.CandidacyIds.Count)
             throw new ElectoralBadRequestException("A mesma candidatura não pode ser selecionada mais de uma vez.");
         var level = TerritoryService.ParseLevel(request.Level, "municipality", "state", "zone", "section", "place");

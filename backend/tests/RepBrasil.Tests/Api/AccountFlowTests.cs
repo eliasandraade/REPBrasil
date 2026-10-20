@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 using RepBrasil.API.Infrastructure;
 using RepBrasil.Tests.Electoral;
+using static RepBrasil.Tests.Api.AccountTestKit;
 
 namespace RepBrasil.Tests.Api;
 
@@ -21,15 +21,6 @@ namespace RepBrasil.Tests.Api;
 /// </summary>
 public sealed class AccountFlowTests
 {
-    private const string Frontend = "https://www.apprepbrasil.com.br";
-    private const string Superadmin = "superadmin-flow@example.test";
-    private const string AlertsToken = "test-only-alerts-token";
-    private static readonly CancellationToken Ct = CancellationToken.None;
-
-    private static string Connection => Environment.GetEnvironmentVariable(ElectoralSchemaFactAttribute.Variable)!;
-
-    private static string UniqueEmail(string label) => $"flow-{label}-{Guid.NewGuid():N}@example.test";
-
     private static string Sha256(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
@@ -74,20 +65,8 @@ public sealed class AccountFlowTests
     }
 
     private static WebApplicationFactory<Program> Api(StubGoogle? google = null, StubResend? resend = null) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        CreateApi(builder =>
         {
-            builder.UseEnvironment("Production");
-            builder.UseSetting("ConnectionStrings:Postgres", Connection);
-            builder.UseSetting("Migrate:SkipStartupApply", "true");
-            builder.UseSetting("AllowedOrigins", Frontend);
-            builder.UseSetting("Auth:FrontendBaseUrl", Frontend);
-            builder.UseSetting("Auth:PublicBaseUrl", "https://api.apprepbrasil.com.br");
-            builder.UseSetting("Auth:CookieSameSite", "Lax");
-            builder.UseSetting("Auth:Google:ClientId", "test-only-client-id");
-            builder.UseSetting("Auth:Google:ClientSecret", "test-only-client-secret");
-            builder.UseSetting("Auth:Google:RedirectUri", "https://api.apprepbrasil.com.br/api/v1/auth/google/callback");
-            builder.UseSetting("Auth:SuperadminEmails", Superadmin);
-            builder.UseSetting("Alerts:PublishToken", AlertsToken);
             if (google is not null)
                 builder.ConfigureTestServices(services => services.AddHttpClient("google-auth").ConfigurePrimaryHttpMessageHandler(() => google));
             if (resend is not null)
@@ -101,24 +80,6 @@ public sealed class AccountFlowTests
             }
         });
 
-    private static HttpClient Browser(WebApplicationFactory<Program> api) => api.CreateClient(new WebApplicationFactoryClientOptions
-    {
-        AllowAutoRedirect = false,
-        HandleCookies = false,
-        BaseAddress = new Uri("https://localhost"),
-    });
-
-    private static string? SetCookie(HttpResponseMessage response, string name) =>
-        response.Headers.TryGetValues("Set-Cookie", out var values)
-            ? values.FirstOrDefault(value => value.StartsWith(name + "=", StringComparison.Ordinal))
-            : null;
-
-    private static string CookieValue(string setCookie)
-    {
-        var start = setCookie.IndexOf('=') + 1;
-        return setCookie[start..setCookie.IndexOf(';')];
-    }
-
     private static void AssertHardened(string setCookie, string path)
     {
         var attributes = setCookie.ToLowerInvariant();
@@ -126,50 +87,6 @@ public sealed class AccountFlowTests
         Assert.Contains("secure", attributes);
         Assert.Contains("samesite=lax", attributes);
         Assert.Contains($"path={path}", attributes);
-    }
-
-    private static async Task<T> WithAccounts<T>(WebApplicationFactory<Program> api, Func<AccountService, Task<T>> action)
-    {
-        using var scope = api.Services.CreateScope();
-        return await action(scope.ServiceProvider.GetRequiredService<AccountService>());
-    }
-
-    private static async Task<object?> Scalar(string sql, params (string Name, object Value)[] args)
-    {
-        await using var connection = new NpgsqlConnection(Connection);
-        await connection.OpenAsync(Ct);
-        await using var command = new NpgsqlCommand(sql, connection);
-        foreach (var (name, value) in args) command.Parameters.AddWithValue(name, value);
-        return await command.ExecuteScalarAsync(Ct);
-    }
-
-    private static Task<object?> Cleanup(params string[] emails) =>
-        Scalar("DELETE FROM account.user_account WHERE email = ANY(@emails)", ("emails", emails));
-
-    private static HttpRequestMessage Request(HttpMethod method, string path, string? session = null, string? csrf = null, object? json = null)
-    {
-        var request = new HttpRequestMessage(method, path);
-        if (session is not null) request.Headers.Add("Cookie", $"repbrasil_session={session}");
-        if (csrf is not null) request.Headers.Add("X-RepBrasil-CSRF", csrf);
-        if (json is not null) request.Content = JsonContent.Create(json);
-        return request;
-    }
-
-    private sealed record SignedIn(string Session, string Csrf, Guid UserId);
-
-    private static async Task<SignedIn> SignInByMagicLink(WebApplicationFactory<Program> api, HttpClient browser, string email, string returnTo = "/conta")
-    {
-        var challenge = await WithAccounts(api, accounts => accounts.CreateMagicLinkChallengeAsync(email, returnTo, Ct));
-        using var consume = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/auth/magic-link/consume?token={Uri.EscapeDataString(challenge.Token)}");
-        consume.Headers.Add("Cookie", $"repbrasil_magic_link={challenge.Token}");
-        using var response = await browser.SendAsync(consume, Ct);
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var session = CookieValue(SetCookie(response, "repbrasil_session")!);
-
-        using var me = await browser.SendAsync(Request(HttpMethod.Get, "/api/v1/account/me", session), Ct);
-        Assert.Equal(HttpStatusCode.OK, me.StatusCode);
-        using var json = JsonDocument.Parse(await me.Content.ReadAsStringAsync(Ct));
-        return new(session, json.RootElement.GetProperty("csrfToken").GetString()!, json.RootElement.GetProperty("id").GetGuid());
     }
 
     [ElectoralSchemaFact]
@@ -511,7 +428,7 @@ public sealed class AccountFlowTests
     public async Task Alert_publication_needs_the_internal_token_and_notifies_each_user_once()
     {
         var email = UniqueEmail("alerts");
-        var resourceKey = $"ce/flow-{Guid.NewGuid():N}";
+        var resourceKey = $"9{Random.Shared.Next(0, 1_000_000):D6}";
         using var api = Api();
         using var browser = Browser(api);
         try
@@ -521,7 +438,7 @@ public sealed class AccountFlowTests
             using (var subscribed = await browser.SendAsync(Request(HttpMethod.Post, "/api/v1/account/alerts", me.Session, me.Csrf, subscription), Ct))
                 Assert.Equal(HttpStatusCode.OK, subscribed.StatusCode);
 
-            var publication = new { eventKey = $"flow-{resourceKey}-1", resourceType = "municipality", resourceKey, eventKind = "live_count_update", title = "Nova totalização oficial", body = (string?)null, href = "/pesquisas", payload = new { } };
+            var publication = new { eventKey = $"flow-{Guid.NewGuid():N}", resourceType = "municipality", resourceKey, eventKind = "live_count_update", title = "Nova totalização oficial", body = (string?)null, href = "/pesquisas", payload = new { } };
             async Task<HttpResponseMessage> Publish(string? token)
             {
                 var request = Request(HttpMethod.Post, "/api/v1/internal/alerts/publish", json: publication);

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using RepBrasil.API.Accounts;
 using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.DataIntelligence;
@@ -15,6 +16,7 @@ using RepBrasil.Application.Rankings;
 using RepBrasil.Application.Score.Queries;
 using RepBrasil.Application.Search;
 using RepBrasil.Application.Sources.Queries;
+using RepBrasil.Application.Territories;
 using RepBrasil.Infrastructure.Persistence;
 using RepBrasil.Infrastructure.Repositories;
 
@@ -79,8 +81,16 @@ builder.Services.AddScoped<ISearchRepository, SearchRepository>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<IOverviewRepository, OverviewRepository>();
 builder.Services.AddScoped<OverviewService>();
+builder.Services.AddScoped<ITerritoryCatalogRepository, TerritoryCatalogRepository>();
+builder.Services.AddScoped<TerritoryCatalogService>();
 
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<AccountAccessService>();
+builder.Services.AddScoped<ProfileService>();
+builder.Services.AddScoped<AlertEditionService>();
+builder.Services.AddHostedService<DataEditionAlertPublisher>();
+// Sem provedor de pagamento contratado: nada é cobrado nem simulado (ver docs/ACCOUNTS_AND_COMMERCIAL_API.md).
+builder.Services.AddSingleton<IBillingProvider, NoBillingProvider>();
 builder.Services.AddScoped<AuthExternalService>();
 builder.Services.AddHttpClient("google-auth", client => client.Timeout = TimeSpan.FromSeconds(15));
 // O prazo do envio (~10 s) é aplicado no AuthExternalService; este é só o limite de segurança do cliente.
