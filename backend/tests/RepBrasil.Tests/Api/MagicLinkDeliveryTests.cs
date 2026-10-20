@@ -96,9 +96,12 @@ public sealed class MagicLinkDeliveryTests
     /// <summary>Nenhuma linha de log pode carregar destinatário, remetente, token, link ou chave.</summary>
     private static void AssertNoSecrets(CapturingLogger logger)
     {
+        string[] secrets = [Email, SenderAddress, Token, ApiKey, "magic-link/consume"];
         foreach (var line in logger.Lines)
-        foreach (var secret in new[] { Email, SenderAddress, Token, ApiKey, "magic-link/consume" })
-            Assert.DoesNotContain(secret, line, StringComparison.OrdinalIgnoreCase);
+        {
+            foreach (var secret in secrets)
+                Assert.DoesNotContain(secret, line, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
