@@ -45,7 +45,15 @@ public sealed class AccountFlowPlansTests
         using var browser = Browser(api);
         try
         {
+            var (anonymousStatus, anonymous) = await Send(browser, Request(HttpMethod.Get, "/api/v1/account/session"));
+            Assert.Equal(HttpStatusCode.OK, anonymousStatus);
+            Assert.False(anonymous!.Value.GetProperty("authenticated").GetBoolean());
+            Assert.Equal(HttpStatusCode.Unauthorized, (await Send(browser, Request(HttpMethod.Get, "/api/v1/account/me"))).Status);
+
             var user = await SignInByMagicLink(api, browser, email);
+            var (_, session) = await Send(browser, Request(HttpMethod.Get, "/api/v1/account/session", user.Session));
+            Assert.True(session!.Value.GetProperty("authenticated").GetBoolean());
+            Assert.Equal("FREE", session.Value.GetProperty("plan").GetString());
             var free = await Me(browser, user);
             Assert.Equal("FREE", free.GetProperty("plan").GetString());
             Assert.Equal("default", free.GetProperty("planSource").GetString());

@@ -27,12 +27,31 @@ import { compareTerritoryLabel } from "@/lib/elections/compare-csv";
 import { DataState, RetryButton } from "@/components/ui/DataState";
 import { Term } from "@/components/ui/Term";
 import { AddCandidacy, CompareActions } from "./CompareTools";
+import { useCompareMax } from "@/lib/elections/useCompareMax";
+import { TransitionLink } from "@/motion/navigation";
 import { useResolvedTheme } from "@/components/theme/theme";
 import { CATEGORICAL, type DataTheme } from "@/lib/dataviz/palette";
 
 const LEVELS: TerritoryLevel[] = ["state", "municipality", "zone", "section", "place"];
-/** Cor da candidatura comparada = slot categórico pela ORDEM na comparação (≤ 5, pares adjacentes validados). */
+/** Cor da candidatura comparada = slot categórico pela ORDEM na comparação (pares adjacentes validados). */
 const subjectColor = (subject: number, theme: DataTheme) => CATEGORICAL[theme][subject % CATEGORICAL[theme].length];
+
+/**
+ * Marcador do sujeito ao lado do nome (o nome é sempre a identificação; a cor só ajuda a ligar colunas).
+ * Além dos slots da paleta (comparação ampliada), a cor se repete em anel vazado, para não confundir com o
+ * marcador cheio de mesma cor.
+ */
+function SubjectDot({ subject, theme, className }: Readonly<{ subject: number; theme: DataTheme; className: string }>) {
+  const color = subjectColor(subject, theme);
+  const ring = subject >= CATEGORICAL[theme].length;
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block rounded-full ${className}`}
+      style={ring ? { boxShadow: `inset 0 0 0 1.5px ${color}` } : { background: color }}
+    />
+  );
+}
 
 const territoryLabel = compareTerritoryLabel;
 
@@ -79,7 +98,8 @@ export function ComparisonView() {
   const router = useRouter();
   const pathname = usePathname() ?? "/eleicoes/comparar";
   const rawIds = (search.get("c") ?? "").split(",").filter(Boolean);
-  const ids = parseSelection(search.get("c"));
+  const { max, resolved } = useCompareMax();
+  const ids = parseSelection(search.get("c"), max);
   const uf = (search.get("uf") ?? "CE").toUpperCase();
   const level = (LEVELS.includes(search.get("nivel") as TerritoryLevel) ? search.get("nivel") : "municipality") as TerritoryLevel;
   const municipality = search.get("municipio");
@@ -100,8 +120,9 @@ export function ComparisonView() {
 
   const q = useQuery({
     queryKey: ["compare", ids.join(","), uf, level, municipality, zone],
-    queryFn: () => xrayApi.compare(ids, { uf, level, municipality, zone }),
-    enabled: ids.length > 0 && !needsMunicipality,
+    queryFn: () => xrayApi.compare(ids, { uf, level, municipality, zone }, max),
+    // Seleção acima do caminho público espera o limite da conta, para não comparar uma seleção cortada.
+    enabled: ids.length > 0 && !needsMunicipality && (resolved || rawIds.length <= MAX_COMPARE),
     staleTime: 60_000,
   });
   const data = q.data;
@@ -137,13 +158,14 @@ export function ComparisonView() {
         </nav>
         <h1 className="text-2xl font-bold text-fg">Comparar candidaturas</h1>
         <p className="mt-1 max-w-3xl text-sm text-fg-muted">
-          Até {MAX_COMPARE} candidaturas, da mesma eleição ou de eleições diferentes. Evolução só entre disputas comparáveis (mesmo cargo e mesma
+          Até {max} candidaturas, da mesma eleição ou de eleições diferentes. Evolução só entre disputas comparáveis (mesmo cargo e mesma
           unidade) e territórios comparáveis (seção com a mesma composição). Ausência de dado nunca vira zero.
         </p>
 
-        {rawIds.length > MAX_COMPARE && (
+        {resolved && rawIds.length > max && (
           <p className="mt-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn" role="alert">
-            Limite de {MAX_COMPARE} candidaturas: apenas as {MAX_COMPARE} primeiras foram consideradas.
+            Limite de {max} candidaturas: apenas as {max} primeiras foram consideradas.{" "}
+            <TransitionLink href="/planos" className="focus-ring rounded underline underline-offset-2">Planos com comparação ampliada</TransitionLink>
           </p>
         )}
 
@@ -208,7 +230,7 @@ export function ComparisonView() {
             />
           </>
         )}
-        {ids.length > 0 && ids.length < MAX_COMPARE && (
+        {ids.length > 0 && ids.length < max && (
           <div className="mt-4 max-w-xl">
             <AddCandidacy selected={ids} onAdd={add} />
           </div>
@@ -253,7 +275,7 @@ function ComparisonBody({
         {columns.map((c) => (
           <div key={c.candidacyId} className="rounded-lg border border-line bg-surface px-3 py-2 text-xs">
             <p className="flex items-center gap-1.5 font-semibold text-fg-soft">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: subjectColor(c.subject, theme) }} />
+              <SubjectDot subject={c.subject} theme={theme} className="h-2 w-2" />
               {displayName(c.ballotName)}
               <button
                 type="button"
@@ -300,7 +322,7 @@ function ComparisonBody({
               <th className="sticky left-0 z-10 bg-surface px-3 py-2">{LEVEL_LABEL[level]}</th>
               {columns.map((c) => (
                 <th key={c.candidacyId} className="px-3 py-2 text-right">
-                  <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: subjectColor(c.subject, theme) }} />
+                  <SubjectDot subject={c.subject} theme={theme} className="mr-1 h-1.5 w-1.5" />
                   {displayName(c.ballotName).split(" ")[0]} {electionLabel(c.contest.year, c.contest.round)}
                 </th>
               ))}
@@ -342,7 +364,7 @@ function ComparisonBody({
                   <td className="px-3 py-1.5">
                     {t.evolution.map((e) => (
                       <span key={`${e.fromCandidacyId}-${e.toCandidacyId}`} className="block whitespace-nowrap">
-                        <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: subjectColor(e.subject, theme) }} />
+                        <SubjectDot subject={e.subject} theme={theme} className="mr-1 h-1.5 w-1.5" />
                         {e.deltaVotes === null ? (
                           <span className="text-[10px] text-fg-muted">{comparabilityLabel(e.comparability)}</span>
                         ) : (

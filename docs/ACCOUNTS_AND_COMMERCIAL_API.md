@@ -198,9 +198,16 @@ Novos endpoints comerciais devem entrar atrás do mesmo gate, sem criar uma segu
 
 ## UX
 
-- `/entrar`: Google ou magic link;
-- `/conta`: favoritos, watchlist, alertas, notificações, entitlements e chaves de API;
-- dock global: login/conta e ações contextuais de favorito/watchlist em políticos, partidos, municípios, estados, eleições, rankings e dados.
+- `/entrar`: Google ou magic link.
+- `/conta`: hub autenticado, uma rota por seção (link direto):
+  - `/conta` (visão geral: plano e uso, território, notificações recentes);
+  - `/conta/perfil`, `/conta/plano`, `/conta/favoritos`, `/conta/watchlist`, `/conta/alertas`, `/conta/notificacoes`;
+  - `/conta/seguranca` (sessão, saída e o acesso programático legado, recolhido).
+  Sem sessão, qualquer seção volta a `/entrar?returnTo=<seção>`.
+- `/planos`: comparação lida de `GET /api/v1/plans`, com a base pública gratuita e o estado real da cobrança.
+- Dock global: login/conta e ações contextuais de favorito/watchlist em políticos, partidos, municípios, estados, eleições, rankings e dados. O limite do plano aparece como mensagem com caminho para `/planos`.
+
+O frontend lê a sessão em `GET /api/v1/account/session` (200 `{"authenticated":false}` sem sessão, para a checagem de toda página não virar erro no console). `GET /api/v1/account/me` continua respondendo 401 sem sessão. Um único hook (`useAccount`) guarda a conta no cliente; recursos e limites vêm sempre da API.
 
 O conteúdo público existente continua navegável sem autenticação.
 

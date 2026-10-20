@@ -34,6 +34,12 @@
 ::view-transition-old(app-topbar),
 ::view-transition-new(app-topbar) { animation: none; }
 
+/* Cabeçalho da conta: mesma identidade entre as seções de /conta; fica parado enquanto a seção troca. */
+.vt-account-header { view-transition-name: account-header; }
+::view-transition-group(account-header),
+::view-transition-old(account-header),
+::view-transition-new(account-header) { animation: none; }
+
 ::view-transition-group(*) {
   animation-duration: var(--motion-traverse);
   animation-timing-function: var(--ease-traverse);

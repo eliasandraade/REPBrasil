@@ -12,6 +12,7 @@ import { useReducedMotion } from "@/motion/reduced-motion";
 import { cssEasing, duration } from "@/motion/tokens";
 import { buildZoneModel } from "@/lib/elections/zone-model";
 import { parseSelection, serializeSelection, toggleSelection, xrayApi } from "@/lib/elections/xray";
+import { useCompareMax } from "@/lib/elections/useCompareMax";
 import type { MapLayerKind } from "@/lib/elections/xray-types";
 import { CountryPanel, MunicipalityPanel, StatePanel, ZonePanel } from "./ExplorerPanels";
 import { partiesApi, resultFor } from "@/lib/parties";
@@ -247,10 +248,11 @@ export function ElectionsExplorer() {
 
   // Painel (território × candidaturas), seleção de comparação (máx. 5) e camada do mapa vivem na URL.
   const panelMode = search.get("painel") === "candidaturas" ? "candidates" : "territory";
-  const selection = parseSelection(search.get("c"));
+  const { max: compareLimit } = useCompareMax();
+  const selection = parseSelection(search.get("c"), compareLimit);
   const [limitHit, setLimitHit] = useState(false);
   const toggleCompare = (id: string) => {
-    const r = toggleSelection(selection, id);
+    const r = toggleSelection(selection, id, compareLimit);
     setLimitHit(r.rejected);
     if (!r.rejected) setParam("c", r.ids.length ? serializeSelection(r.ids) : null);
   };

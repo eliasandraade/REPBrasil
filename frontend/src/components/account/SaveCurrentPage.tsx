@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { getAccount, getSavedItems, removeSavedItem, saveItem, savedPageLabel, type AccountMe } from "@/lib/account";
+import { getSavedItems, planRefusalOf, removeSavedItem, saveItem, savedPageLabel } from "@/lib/account";
+import { accountKeys, useAccount, useRefreshAccount } from "@/lib/useAccount";
 import { TransitionLink } from "@/motion/navigation";
 
 type Target = { resourceType: string; resourceKey: string };
+type Collection = "favorite" | "watchlist";
 
 function targetFromLocation(pathname: string, query: string): Target | null {
   const parts = pathname.split("/").filter(Boolean);
@@ -20,35 +23,25 @@ function targetFromLocation(pathname: string, query: string): Target | null {
   return null;
 }
 
+/** Ações de conta na página atual: favoritar e acompanhar. O limite do plano é decidido pela API. */
 export function SaveCurrentPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const query = searchParams.toString();
   const target = useMemo(() => targetFromLocation(pathname, query), [pathname, query]);
-  const [me, setMe] = useState<AccountMe | null | undefined>(undefined);
-  const [favorite, setFavorite] = useState(false);
-  const [watching, setWatching] = useState(false);
-  const [busy, setBusy] = useState<"favorite" | "watchlist" | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    async function load() {
-      const account = await getAccount().catch(() => null);
-      if (!active) return;
-      setMe(account);
-      setFavorite(false);
-      setWatching(false);
-      if (!account || !target) return;
-      const [favorites, watchlist] = await Promise.all([getSavedItems("favorite"), getSavedItems("watchlist")]);
-      if (!active) return;
-      setFavorite(favorites.some((item) => item.resourceType === target.resourceType && item.resourceKey === target.resourceKey));
-      setWatching(watchlist.some((item) => item.resourceType === target.resourceType && item.resourceKey === target.resourceKey));
-    }
-    void load();
-    return () => { active = false; };
-  }, [target]);
+  const { data: me } = useAccount();
+  const refreshAccount = useRefreshAccount();
+  const signedIn = !!me && !!target;
+  const favorites = useQuery({ queryKey: accountKeys.saved("favorite"), queryFn: () => getSavedItems("favorite"), enabled: signedIn });
+  const watchlist = useQuery({ queryKey: accountKeys.saved("watchlist"), queryFn: () => getSavedItems("watchlist"), enabled: signedIn });
+  const [busy, setBusy] = useState<Collection | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const returnTo = query ? `${pathname}?${query}` : pathname;
+  const isSaved = (items: typeof favorites.data) =>
+    !!target && !!items?.some((item) => item.resourceType === target.resourceType && item.resourceKey === target.resourceKey);
+  const favorite = isSaved(favorites.data);
+  const watching = isSaved(watchlist.data);
 
   if (me === undefined) return null;
   if (!me) {
@@ -59,9 +52,10 @@ export function SaveCurrentPage() {
     );
   }
 
-  async function toggle(collection: "favorite" | "watchlist") {
+  async function toggle(collection: Collection) {
     if (!me || !target) return;
     setBusy(collection);
+    setRefusal(null);
     const selected = collection === "favorite" ? favorite : watching;
     try {
       if (selected) await removeSavedItem(me, collection, target.resourceType, target.resourceKey);
@@ -75,24 +69,35 @@ export function SaveCurrentPage() {
           metadata: {},
         });
       }
-      if (collection === "favorite") setFavorite(!selected);
-      else setWatching(!selected);
-    } finally { setBusy(null); }
+      await refreshAccount();
+    } catch (error) {
+      setRefusal(planRefusalOf(error)?.message ?? "Não foi possível salvar agora. Tente de novo.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1.5 shadow-lg backdrop-blur">
-      {target && (
-        <>
-          <button type="button" disabled={busy !== null} aria-pressed={favorite} onClick={() => void toggle("favorite")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
-            {favorite ? "★" : "☆"} <span className="hidden sm:inline">Favorito</span>
-          </button>
-          <button type="button" disabled={busy !== null} aria-pressed={watching} onClick={() => void toggle("watchlist")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
-            {watching ? "✓" : "+"} <span className="hidden sm:inline">Watchlist</span>
-          </button>
-        </>
+    <div className="flex flex-col items-end gap-2">
+      {refusal && (
+        <p role="alert" className="max-w-xs rounded-lg border border-line bg-surface px-3 py-2 text-xs text-fg shadow-lg">
+          {refusal}{" "}
+          <TransitionLink href="/planos" className="focus-ring rounded font-semibold text-accent-text underline underline-offset-2">Ver planos</TransitionLink>
+        </p>
       )}
-      <TransitionLink href="/conta" className="focus-ring rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white">Conta</TransitionLink>
+      <div className="flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1.5 shadow-lg backdrop-blur">
+        {target && (
+          <>
+            <button type="button" disabled={busy !== null} aria-pressed={favorite} onClick={() => void toggle("favorite")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
+              {favorite ? "★" : "☆"} <span className="hidden sm:inline">Favorito</span>
+            </button>
+            <button type="button" disabled={busy !== null} aria-pressed={watching} onClick={() => void toggle("watchlist")} className="focus-ring rounded-full px-3 py-1.5 text-xs font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg disabled:opacity-60">
+              {watching ? "✓" : "+"} <span className="hidden sm:inline">Watchlist</span>
+            </button>
+          </>
+        )}
+        <TransitionLink href="/conta" className="focus-ring rounded-full bg-action px-3 py-1.5 text-xs font-semibold text-action-fg">Conta</TransitionLink>
+      </div>
     </div>
   );
 }

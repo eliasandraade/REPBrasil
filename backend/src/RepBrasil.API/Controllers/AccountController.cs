@@ -115,11 +115,30 @@ public sealed class AccountController(
     {
         var session = await CurrentSession(cancellationToken);
         if (session is null) return Unauthorized();
+        Response.Headers.CacheControl = "no-store";
+        return Ok(await AccountPayloadAsync(session, cancellationToken));
+    }
+
+    /// <summary>
+    /// Mesmo conteúdo de <c>/account/me</c>, mas sem erro para quem não entrou (<c>{"authenticated":false}</c>):
+    /// a interface consulta o estado da sessão em toda página e um 401 esperado não deve virar erro no console.
+    /// </summary>
+    [HttpGet("account/session")]
+    public async Task<IActionResult> SessionState(CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var session = await CurrentSession(cancellationToken);
+        return Ok(session is null ? new { authenticated = false } : await AccountPayloadAsync(session, cancellationToken));
+    }
+
+    private async Task<object> AccountPayloadAsync(AccountSession session, CancellationToken cancellationToken)
+    {
         var effective = await access.AccessAsync(HttpContext, cancellationToken);
         var profile = await profiles.GetAsync(session.UserId, cancellationToken);
         var usage = await profiles.UsageAsync(session.UserId, cancellationToken);
-        return Ok(new
+        return new
         {
+            authenticated = true,
             id = session.UserId,
             email = session.Email,
             displayName = session.DisplayName,
@@ -152,7 +171,7 @@ public sealed class AccountController(
                 avatarHidden = profile.AvatarHidden,
             },
             usage,
-        });
+        };
     }
 
     [HttpGet("account/profile")]

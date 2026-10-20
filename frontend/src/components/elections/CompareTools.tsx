@@ -7,7 +7,8 @@ import { ExportActions } from "@/components/export/ExportActions";
 import { displayName, formatCount } from "@/lib/elections/format";
 import { buildElectionsPath } from "@/lib/elections/route";
 import { candidacyComparisonReport } from "@/lib/elections/comparison-report";
-import { electionLabel, MAX_COMPARE, xrayApi } from "@/lib/elections/xray";
+import { electionLabel, xrayApi } from "@/lib/elections/xray";
+import { useCompareMax } from "@/lib/elections/useCompareMax";
 import type { ComparisonResponse, TerritoryLevel } from "@/lib/elections/xray-types";
 import { searchAll, searchableQuery, type SearchPolitician } from "@/lib/search";
 import { byRecency } from "@/components/xray/useXray";
@@ -65,7 +66,8 @@ export function AddCandidacy({
   const [text, setText] = useState("");
   const [person, setPerson] = useState<SearchPolitician | null>(null);
   const query = searchableQuery(useDebounced(text, 200));
-  const full = selected.length >= MAX_COMPARE;
+  const { max } = useCompareMax();
+  const full = selected.length >= max;
   const results = useQuery({
     queryKey: ["search", query],
     queryFn: ({ signal }) => searchAll(query as string, signal),
@@ -76,10 +78,10 @@ export function AddCandidacy({
   return (
     <div className="rounded-xl border border-line bg-surface p-4" data-testid="compare-add">
       <label htmlFor={inputId} className="text-sm font-medium text-fg-soft">
-        Adicionar candidatura <span className="font-normal text-fg-muted">({selected.length} de {MAX_COMPARE})</span>
+        Adicionar candidatura <span className="font-normal text-fg-muted">({selected.length} de {max})</span>
       </label>
       {full ? (
-        <p className="mt-2 text-xs text-warn">Limite de {MAX_COMPARE} candidaturas: remova uma para adicionar outra.</p>
+        <p className="mt-2 text-xs text-warn">Limite de {max} candidaturas: remova uma para adicionar outra.</p>
       ) : (
         <>
           <input

@@ -4,7 +4,8 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { displayName, formatCount, formatPercent, outcomeLabel } from "@/lib/elections/format";
-import { CELL_STATE_LABEL, MAX_COMPARE, xrayApi, type CandidatesFilters } from "@/lib/elections/xray";
+import { CELL_STATE_LABEL, xrayApi, type CandidatesFilters } from "@/lib/elections/xray";
+import { useCompareMax } from "@/lib/elections/useCompareMax";
 
 type Sort = NonNullable<CandidatesFilters["sort"]>;
 
@@ -40,6 +41,7 @@ function electedOption(elected: boolean | null): string {
  * municipais do município), com votos NO território. Filtros e ordenação são da API; nenhum número é calculado aqui.
  */
 export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
+  const { max: compareLimit } = useCompareMax();
   const { year, round, uf, municipality, zone } = props;
   const [office, setOffice] = useState<number | null>(null);
   const [party, setParty] = useState<string | null>(null);
@@ -157,7 +159,7 @@ export function TerritoryCandidates(props: Readonly<TerritoryCandidatesProps>) {
       </div>
 
       <p className="mb-2 text-[11px] text-fg-muted">
-        {data ? `${formatCount(data.total)} candidaturas` : "Carregando…"} · seleção para comparar: {props.selection.length}/{MAX_COMPARE}
+        {data ? `${formatCount(data.total)} candidaturas` : "Carregando…"} · seleção para comparar: {props.selection.length}/{compareLimit}
         {props.limitHit && <span className="text-warn"> · limite atingido</span>}
       </p>
       {data?.freshness.stale && <p className="mb-2 text-[11px] text-warn/80">{data.freshness.note}</p>}

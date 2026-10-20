@@ -17,8 +17,15 @@ import type {
 
 const enc = encodeURIComponent;
 
-/** Limite da comparação, imposto aqui e na API (400 acima disso). */
+/** Limite do caminho público da comparação, imposto aqui e na API (400 acima disso). */
 export const MAX_COMPARE = 5;
+
+/** Teto técnico da comparação ampliada (`/compare/extended`, com sessão e conforme o limite do plano). */
+export const MAX_EXTENDED_COMPARE = 10;
+
+/** Limite efetivo: nunca abaixo do público, nunca acima do teto técnico. */
+export const compareMax = (planLimit: number | null | undefined) =>
+  Math.min(Math.max(planLimit ?? MAX_COMPARE, MAX_COMPARE), MAX_EXTENDED_COMPARE);
 
 function query(params: Record<string, string | number | boolean | null | undefined | Array<string>>): string {
   const sp = new URLSearchParams();
@@ -59,8 +66,8 @@ export interface MapLayerParams {
 }
 
 export class CompareLimitError extends Error {
-  constructor() {
-    super(`Compare no máximo ${MAX_COMPARE} candidaturas.`);
+  constructor(max = MAX_COMPARE) {
+    super(`Compare no máximo ${max} candidaturas.`);
     this.name = "CompareLimitError";
   }
 }
@@ -80,30 +87,41 @@ export const xrayApi = {
     ),
   map: (year: number, round: number, uf: string, p: MapLayerParams) =>
     fetchJson<MapLayerResponse>(`/api/v1/elections/${year}/${round}/states/${enc(uf.toUpperCase())}/map${query({ ...p })}`),
-  compare: (candidacyIds: string[], opts: { uf: string; level: TerritoryLevel; municipality?: string | null; zone?: number | null }) => {
+  /**
+   * Até 5 candidaturas pelo caminho público (com cache); acima disso, pelo caminho autenticado, que a API só
+   * aceita até o limite do plano da conta (403 acima dele).
+   */
+  compare: (
+    candidacyIds: string[],
+    opts: { uf: string; level: TerritoryLevel; municipality?: string | null; zone?: number | null },
+    max = MAX_COMPARE,
+  ) => {
     const ids = [...new Set(candidacyIds)];
-    if (ids.length === 0 || ids.length > MAX_COMPARE) return Promise.reject(new CompareLimitError());
+    const limit = compareMax(max);
+    if (ids.length === 0 || ids.length > limit) return Promise.reject(new CompareLimitError(limit));
+    const extended = ids.length > MAX_COMPARE;
     return fetchJson<ComparisonResponse>(
-      `/api/v1/elections/compare${query({ candidacy: ids, uf: opts.uf.toUpperCase(), level: opts.level, municipality: opts.municipality, zone: opts.zone })}`,
+      `/api/v1/elections/compare${extended ? "/extended" : ""}${query({ candidacy: ids, uf: opts.uf.toUpperCase(), level: opts.level, municipality: opts.municipality, zone: opts.zone })}`,
+      extended ? { credentials: "include" } : undefined,
     );
   },
 };
 
 // ── Seleção de comparação (URL: ?c=id1,id2,…) ─────────────────────────────────
 
-export function parseSelection(raw: string | null | undefined): string[] {
+export function parseSelection(raw: string | null | undefined, max = MAX_COMPARE): string[] {
   if (!raw) return [];
-  return [...new Set(raw.split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))].slice(0, MAX_COMPARE);
+  return [...new Set(raw.split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))].slice(0, compareMax(max));
 }
 
 export const serializeSelection = (ids: string[]) => ids.join(",");
 
 export type ToggleResult = { ids: string[]; rejected: boolean };
 
-/** Adiciona/remove da seleção; a 6ª candidatura é recusada (nunca descarta outra em silêncio). */
-export function toggleSelection(ids: string[], id: string): ToggleResult {
+/** Adiciona/remove da seleção; a candidatura além do limite é recusada (nunca descarta outra em silêncio). */
+export function toggleSelection(ids: string[], id: string, max = MAX_COMPARE): ToggleResult {
   if (ids.includes(id)) return { ids: ids.filter((x) => x !== id), rejected: false };
-  if (ids.length >= MAX_COMPARE) return { ids, rejected: true };
+  if (ids.length >= compareMax(max)) return { ids, rejected: true };
   return { ids: [...ids, id], rejected: false };
 }
 
