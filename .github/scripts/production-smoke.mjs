@@ -26,7 +26,8 @@ const apiChecks = [
   ["amendment years API", "/api/v1/parliament/amendments/years?uf=CE"],
 ];
 const webChecks = ["/parlamento", "/dados", "/pesquisas", "/comparar", "/entrar", "/offline", "/offline.html", "/sw.js"];
-const captureTargets = [["parlamento", "/parlamento"], ["dados", "/dados"]];
+// No /dados, a UF com dado carregado exercita catálogo, valores e a comparação X × Y (com o aviso de causalidade).
+const captureTargets = [["parlamento", "/parlamento"], ["dados", "/dados?uf=CE"]];
 
 assert.match(EXPECTED_SHA, /^[0-9a-f]{40}$/i, "REPBRASIL_EXPECTED_SHA must be a full git SHA");
 await mkdir(outputDir, { recursive: true });
@@ -120,9 +121,9 @@ async function assertRenderedData(page, path) {
       undefined,
       { timeout: 30000 },
     );
-  } else if (path === "/dados") {
+  } else if (path.startsWith("/dados")) {
+    // Explorador territorial: o modo socioeconômico da UF só mostra o aviso depois de catálogo, valores e correlação.
     await page.getByTestId("causality-caveat").waitFor({ state: "visible", timeout: 30000 });
-    await page.getByText("Carregando catálogo…", { exact: true }).waitFor({ state: "hidden", timeout: 30000 });
     verifyCatalogState = true;
   }
 
@@ -134,12 +135,8 @@ async function assertRenderedData(page, path) {
   }
 
   if (verifyCatalogState) {
-    const catalogEmpty = await page.getByText("Nenhum indicador cadastrado.", { exact: true }).count();
-    const indicatorOptions = await page.getByLabel("Indicador X").locator("option").count();
-    assert.ok(
-      catalogEmpty > 0 || indicatorOptions > 0,
-      "/dados finished loading without an explicit catalog state",
-    );
+    const indicatorOptions = await page.getByRole("combobox", { name: /^Indicador/ }).first().locator("option").count();
+    assert.ok(indicatorOptions > 0, "/dados finished loading without an explicit catalog state");
   }
 }
 

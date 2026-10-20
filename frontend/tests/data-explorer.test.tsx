@@ -247,6 +247,8 @@ describe("explorador territorial (/dados)", () => {
     const partner = screen.getByLabelText("Comparar com") as HTMLSelectElement;
     expect([...partner.options].map((o) => o.value)).toEqual(["ibge.literacy_rate_15_plus"]);
     expect(screen.getByTestId("causality-caveat").textContent).toContain("Correlação não implica causalidade");
+    // contrato do smoke de produção (.github/scripts/production-smoke.mjs): na UF, catálogo explícito no seletor
+    expect(screen.getByRole("combobox", { name: /^Indicador/ }).querySelectorAll("option").length).toBeGreaterThan(0);
     expect(screen.getByTestId("data-scatter")).toBeTruthy();
     expect(screen.getByTestId("clusters").textContent).toContain("K-means determinístico");
   });
