@@ -28,10 +28,15 @@ public sealed class AccountController(AccountService accounts, AuthExternalServi
         {
             return Accepted(new { status = "accepted" });
         }
+        catch (MagicLinkDeliveryException ex)
+        {
+            // Provedor não confirmou o envio (tempo esgotado, rede ou erro HTTP): 503 sem deixar o navegador esperando.
+            // No tempo esgotado o e-mail pode ter saído, então o cookie fica para o link valer neste navegador.
+            if (!ex.MayHaveBeenSent) Response.Cookies.Delete(MagicLinkCorrelationCookie, MagicLinkCorrelationCookieOptions());
+            return Problem("O login por e-mail está temporariamente indisponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
         catch (InvalidOperationException)
         {
-            // Entrega não configurada ou recusada pelo provedor (MagicLinkDeliveryException: tempo esgotado,
-            // rede ou erro HTTP): resposta controlada, sem deixar o navegador esperando.
             Response.Cookies.Delete(MagicLinkCorrelationCookie, MagicLinkCorrelationCookieOptions());
             return Problem("O login por e-mail está temporariamente indisponível.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }

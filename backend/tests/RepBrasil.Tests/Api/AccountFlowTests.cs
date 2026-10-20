@@ -59,8 +59,8 @@ public sealed class AccountFlowTests
         }
     }
 
-    /// <summary>Resend simulado: aceita o e-mail ou não responde até o envio ser cancelado.</summary>
-    private sealed class StubResend(bool stall) : HttpMessageHandler
+    /// <summary>Resend simulado: responde com <paramref name="status"/> ou, com <paramref name="stall"/>, não responde até o envio ser cancelado.</summary>
+    private sealed class StubResend(HttpStatusCode status = HttpStatusCode.OK, bool stall = false) : HttpMessageHandler
     {
         public string? LastBody { get; private set; }
 
@@ -68,7 +68,8 @@ public sealed class AccountFlowTests
         {
             LastBody = await request.Content!.ReadAsStringAsync(cancellationToken);
             if (stall) await Task.Delay(Timeout.Infinite, cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"id":"stub"}""", Encoding.UTF8, "application/json") };
+            var body = status == HttpStatusCode.OK ? """{"id":"stub"}""" : """{"statusCode":403,"name":"validation_error","message":"stub"}""";
+            return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         }
     }
 
@@ -249,7 +250,7 @@ public sealed class AccountFlowTests
     [ElectoralSchemaFact]
     public async Task Magic_link_goes_through_the_Resend_https_api_and_the_request_is_accepted()
     {
-        var resend = new StubResend(stall: false);
+        var resend = new StubResend();
         using var api = Api(resend: resend);
         using var browser = Browser(api);
         var email = UniqueEmail("resend");
@@ -281,7 +282,28 @@ public sealed class AccountFlowTests
             Assert.InRange(clock.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(10));
             var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
             Assert.Equal("O login por e-mail está temporariamente indisponível.", problem.GetProperty("detail").GetString());
-            // O cookie de correlação é apagado: nenhum link pendente fica associado a este navegador.
+            // Sem resposta no prazo o e-mail pode ter saído: o cookie de correlação fica, para o link valer aqui.
+            var correlation = response.Headers.GetValues("Set-Cookie").Last(value => value.StartsWith("repbrasil_magic_link=", StringComparison.Ordinal));
+            Assert.DoesNotContain("expires=thu, 01 jan 1970", correlation.ToLowerInvariant());
+            Assert.NotEqual("", CookieValue(correlation));
+        }
+        finally
+        {
+            await Scalar("DELETE FROM account.login_challenge WHERE email = @email", ("email", email));
+        }
+    }
+
+    [ElectoralSchemaFact]
+    public async Task Magic_link_answers_503_and_clears_the_correlation_when_the_provider_refuses()
+    {
+        using var api = Api(resend: new StubResend(HttpStatusCode.Forbidden));
+        using var browser = Browser(api);
+        var email = UniqueEmail("resend-refused");
+        try
+        {
+            using var response = await browser.PostAsJsonAsync("/api/v1/auth/magic-link", new { email, returnTo = "/conta" }, Ct);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            // Recusa definitiva: nenhum link pendente fica associado a este navegador.
             var correlation = response.Headers.GetValues("Set-Cookie").Last(value => value.StartsWith("repbrasil_magic_link=", StringComparison.Ordinal));
             Assert.Contains("expires=thu, 01 jan 1970", correlation.ToLowerInvariant());
         }

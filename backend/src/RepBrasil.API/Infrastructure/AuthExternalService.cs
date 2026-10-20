@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,10 +9,15 @@ namespace RepBrasil.API.Infrastructure;
 public sealed record GoogleProfile(string Subject, string Email, string? Name, string? Picture, bool EmailVerified);
 
 /// <summary>
-/// O provedor de e-mail não aceitou o magic link: tempo esgotado, falha de rede ou resposta de erro.
-/// Deriva de <see cref="InvalidOperationException"/> porque o pedido termina em 503, como a falta de configuração.
+/// O provedor de e-mail não confirmou o magic link: tempo esgotado, falha de rede ou resposta de erro. O pedido
+/// termina em 503. <see cref="MayHaveBeenSent"/> marca o tempo esgotado: o provedor pode ter aceitado o e-mail
+/// sem responder a tempo, então o cookie de correlação é mantido para o link continuar válido neste navegador.
 /// </summary>
-public sealed class MagicLinkDeliveryException(string reason) : InvalidOperationException($"Entrega do magic link falhou: {reason}.");
+public sealed class MagicLinkDeliveryException(string reason, bool mayHaveBeenSent = false)
+    : InvalidOperationException($"Entrega do magic link falhou: {reason}.")
+{
+    public bool MayHaveBeenSent { get; } = mayHaveBeenSent;
+}
 
 public sealed class AuthExternalService(
     IConfiguration configuration,
@@ -23,6 +29,8 @@ public sealed class AuthExternalService(
     public const string ResendClient = "resend";
     private static readonly Uri ResendEmails = new("https://api.resend.com/emails");
     private const double DefaultDeliveryTimeoutSeconds = 10;
+    // Abaixo dos 20 s em que o navegador desiste (MAGIC_LINK_TIMEOUT_MS), para o 503 sempre chegar antes.
+    private const double MaxDeliveryTimeoutSeconds = 15;
 
     public async Task SendMagicLinkAsync(MagicLinkChallenge challenge, CancellationToken cancellationToken)
     {
@@ -48,8 +56,9 @@ public sealed class AuthExternalService(
             throw new InvalidOperationException("Entrega de magic link não configurada.");
         }
 
-        var apiKey = configuration["Auth:MagicLink:Resend:ApiKey"];
-        var sender = configuration["Auth:MagicLink:From"];
+        // Segredo colado com espaço ou quebra de linha no fim não pode virar cabeçalho inválido.
+        var apiKey = configuration["Auth:MagicLink:Resend:ApiKey"]?.Trim();
+        var sender = configuration["Auth:MagicLink:From"]?.Trim();
         if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(sender))
         {
             var missing = new List<string>();
@@ -63,14 +72,13 @@ public sealed class AuthExternalService(
     }
 
     /// <summary>
-    /// POST /emails da API do Resend com prazo próprio (~10 s, <c>Auth:MagicLink:TimeoutSeconds</c>). Os logs
+    /// POST /emails da API do Resend com prazo próprio (10 s, <c>Auth:MagicLink:TimeoutSeconds</c>, 1–15). Os logs
     /// trazem só provedor, motivo, status HTTP, código de erro do provedor e duração: nunca e-mail, token, link
     /// nem chave. Cancelamento do próprio pedido (navegador desistiu) é propagado; o resto vira 503.
     /// </summary>
     private async Task SendWithResendAsync(string apiKey, string sender, string recipient, string link, CancellationToken cancellationToken)
     {
-        var timeout = TimeSpan.FromSeconds(Math.Clamp(
-            configuration.GetValue("Auth:MagicLink:TimeoutSeconds", DefaultDeliveryTimeoutSeconds), 1, 30));
+        var timeout = DeliveryTimeout();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
         using var request = new HttpRequestMessage(HttpMethod.Post, ResendEmails)
@@ -101,8 +109,8 @@ public sealed class AuthExternalService(
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning("Magic link não enviado: provider=resend reason=timeout elapsedMs={ElapsedMs}.", ElapsedMs(started));
-            throw new MagicLinkDeliveryException("tempo esgotado");
+            logger.LogWarning("Magic link não confirmado: provider=resend reason=timeout elapsedMs={ElapsedMs}.", ElapsedMs(started));
+            throw new MagicLinkDeliveryException("tempo esgotado", mayHaveBeenSent: true);
         }
         catch (HttpRequestException ex)
         {
@@ -129,6 +137,17 @@ public sealed class AuthExternalService(
         {
             return "desconhecido";
         }
+    }
+
+    /// <summary>Prazo do envio; valor ausente, ilegível ou não finito usa o padrão de 10 s (com aviso no log).</summary>
+    private TimeSpan DeliveryTimeout()
+    {
+        var raw = configuration["Auth:MagicLink:TimeoutSeconds"];
+        if (string.IsNullOrWhiteSpace(raw)) return TimeSpan.FromSeconds(DefaultDeliveryTimeoutSeconds);
+        if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && double.IsFinite(seconds))
+            return TimeSpan.FromSeconds(Math.Clamp(seconds, 1, MaxDeliveryTimeoutSeconds));
+        logger.LogWarning("Auth:MagicLink:TimeoutSeconds inválido; usando {DefaultSeconds} s.", DefaultDeliveryTimeoutSeconds);
+        return TimeSpan.FromSeconds(DefaultDeliveryTimeoutSeconds);
     }
 
     private static long ElapsedMs(long started) => (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;

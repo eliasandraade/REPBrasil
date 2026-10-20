@@ -22,8 +22,10 @@ Adicionar identidade e recursos pessoais ao REPBrasil sem transformar dados púb
 ## Entrega do magic link
 
 - Fora de desenvolvimento, a única entrega é `Auth__MagicLink__Delivery=resend`: `POST https://api.resend.com/emails` (HTTPS, porta 443) com a chave da API no cabeçalho `Authorization`. Não há SMTP no fluxo: o Railway bloqueia SMTP de saída fora do plano Pro, e foi isso que travou o login por e-mail no smoke humano de 20/10/2026 (conexões a `smtp.resend.com:587` descartadas, pedido preso por até 269 s).
-- O envio tem prazo próprio de 10 s (`Auth__MagicLink__TimeoutSeconds`, de 1 a 30). Ao fim do prazo a chamada ao provedor é cancelada.
-- Tempo esgotado, falha de rede ou resposta de erro do Resend terminam em **503** ("O login por e-mail está temporariamente indisponível."), e o cookie de correlação é apagado. A mesma resposta vale para entrega ausente, não suportada (inclusive o antigo `smtp`) ou sem chave/remetente.
+- O envio tem prazo próprio de 10 s (`Auth__MagicLink__TimeoutSeconds`, de 1 a 15; valor ilegível usa 10 s, com aviso no log). Ao fim do prazo a chamada ao provedor é cancelada.
+- Tempo esgotado, falha de rede ou resposta de erro do Resend terminam em **503** ("O login por e-mail está temporariamente indisponível."). A mesma resposta vale para entrega ausente, não suportada (inclusive o antigo `smtp`) ou sem chave/remetente.
+- Na recusa (erro HTTP, rede, configuração) o cookie de correlação é apagado. No tempo esgotado ele é mantido: o Resend pode ter aceitado o e-mail sem responder a tempo, e o link precisa continuar válido neste navegador.
+- Chave e remetente são lidos sem espaços ou quebras de linha nas pontas. O cliente HTTP do Resend redige o cabeçalho `Authorization` nos logs do `HttpClient`.
 - Se o próprio pedido for cancelado (o navegador desistiu), o cancelamento é propagado e não vira 503.
 - O frontend aborta o pedido em 20 s, mais que o prazo da API para o 503 chegar antes. A tela sempre sai de "Enviando…": confirmação em caso de sucesso, mensagem de indisponibilidade em caso de falha.
 - Logs do envio: só provedor, motivo (`timeout`, `network`, `http_status`), status HTTP, código de erro do Resend (ex.: `validation_error`; a mensagem de erro, que pode citar o destinatário, é descartada) e duração. Nunca e-mail (destinatário ou remetente), token, link ou chave; configuração ausente é registrada só pelo nome da variável.
@@ -43,7 +45,7 @@ Auth__Google__RedirectUri=https://SEU_BACKEND/api/v1/auth/google/callback
 Auth__MagicLink__Delivery=resend                  # `log` somente em desenvolvimento
 Auth__MagicLink__Resend__ApiKey=...               # segredo: chave da API do Resend
 Auth__MagicLink__From=REPBrasil <acesso@SEU_DOMINIO>  # remetente de domínio verificado no Resend
-Auth__MagicLink__TimeoutSeconds=10                # opcional: prazo do envio, de 1 a 30 s
+Auth__MagicLink__TimeoutSeconds=10                # opcional: prazo do envio, de 1 a 15 s
 Auth__SuperadminEmails=pessoa@exemplo.com          # lista separada por vírgulas
 Alerts__PublishToken=...
 ```

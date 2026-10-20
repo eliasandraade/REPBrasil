@@ -139,7 +139,7 @@ public sealed class MagicLinkDeliveryTests
 
         Assert.InRange(clock.Elapsed, TimeSpan.FromSeconds(0.9), TimeSpan.FromSeconds(10));
         Assert.True(handler.SawCancellation);
-        Assert.IsAssignableFrom<InvalidOperationException>(error); // AccountController responde 503
+        Assert.True(error.MayHaveBeenSent); // o provedor pode ter aceitado: o cookie de correlação fica
         Assert.Contains(logger.Lines, line => line.Contains("reason=timeout"));
         AssertNoSecrets(logger);
     }
@@ -156,9 +156,42 @@ public sealed class MagicLinkDeliveryTests
         var error = await Assert.ThrowsAsync<MagicLinkDeliveryException>(() =>
             Service(Responds(status, body), logger).SendMagicLinkAsync(Challenge, CancellationToken.None));
 
-        Assert.IsAssignableFrom<InvalidOperationException>(error);
+        Assert.False(error.MayHaveBeenSent);
         Assert.Contains(logger.Lines, line => line.Contains($"status={(int)status}") && line.Contains($"providerError={expectedCode}"));
         AssertNoSecrets(logger);
+    }
+
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("10s")]
+    [InlineData("Infinity")]
+    public async Task Unreadable_timeout_falls_back_to_the_default_and_still_sends(string timeout)
+    {
+        var handler = Responds(HttpStatusCode.OK, """{"id":"x"}""");
+        var logger = new CapturingLogger();
+
+        await Service(handler, logger, new() { ["Auth:MagicLink:TimeoutSeconds"] = timeout }).SendMagicLinkAsync(Challenge, CancellationToken.None);
+
+        Assert.Single(handler.Requests);
+        Assert.Contains(logger.Lines, line => line.Contains("Auth:MagicLink:TimeoutSeconds inválido"));
+    }
+
+    [Fact]
+    public async Task Api_key_and_sender_pasted_with_surrounding_whitespace_are_trimmed()
+    {
+        var handler = Responds(HttpStatusCode.OK, """{"id":"x"}""");
+        var logger = new CapturingLogger();
+
+        await Service(handler, logger, new()
+        {
+            ["Auth:MagicLink:Resend:ApiKey"] = $" {ApiKey}\n",
+            ["Auth:MagicLink:From"] = $" REPBrasil <{SenderAddress}>\r\n",
+        }).SendMagicLinkAsync(Challenge, CancellationToken.None);
+
+        var (request, body) = Assert.Single(handler.Requests);
+        Assert.Equal(ApiKey, request.Headers.Authorization!.Parameter);
+        using var json = JsonDocument.Parse(body);
+        Assert.Equal($"REPBrasil <{SenderAddress}>", json.RootElement.GetProperty("from").GetString());
     }
 
     [Fact]
@@ -167,9 +200,10 @@ public sealed class MagicLinkDeliveryTests
         var handler = new Handler((_, _) => throw new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused (api.resend.com:443)"));
         var logger = new CapturingLogger();
 
-        await Assert.ThrowsAsync<MagicLinkDeliveryException>(() =>
+        var error = await Assert.ThrowsAsync<MagicLinkDeliveryException>(() =>
             Service(handler, logger).SendMagicLinkAsync(Challenge, CancellationToken.None));
 
+        Assert.False(error.MayHaveBeenSent);
         Assert.Contains(logger.Lines, line => line.Contains("reason=network") && line.Contains("ConnectionError"));
         AssertNoSecrets(logger);
     }
