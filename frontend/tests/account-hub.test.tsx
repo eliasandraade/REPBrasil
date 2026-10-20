@@ -194,7 +194,7 @@ describe("favoritos e watchlist", () => {
     expect(await screen.findByText("Rankings 2024")).toBeTruthy();
     expect(screen.getByRole("meter", { name: "Favoritos" }).getAttribute("aria-valuetext")).toBe("7 de 10");
     expect(screen.getByText(/Organizar em pastas faz parte do plano Profissional/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Pasta" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Pasta de / })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Remover Rankings 2024" }));
     await waitFor(() => expect(calls(fn, "/account/saved?", "DELETE")).toHaveLength(1));
     expect((calls(fn, "/account/saved?", "DELETE")[0][1]?.headers as Record<string, string>)["X-RepBrasil-CSRF"]).toBe("csrf-1");
@@ -213,7 +213,7 @@ describe("favoritos e watchlist", () => {
       ["/account/saved", ok([ITEM])],
     ]);
     renderWithClient(<SavedSection collection="favorite" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Pasta" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Pasta de Rankings 2024" }));
     fireEvent.change(screen.getByLabelText("Nome da pasta (vazio tira da pasta)"), { target: { value: "Eleições 2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
     await waitFor(() => expect(calls(fn, "/account/saved/folder", "POST")).toHaveLength(1));

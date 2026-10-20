@@ -76,8 +76,8 @@ export function PlanSection() {
         <h2 id="plan-compare" className="text-label uppercase text-fg-muted">Comparação</h2>
         <div className="mt-4">
           {catalog.isPending && <DataState kind="loading" title="Carregando os planos" height="h-64" />}
-          {catalog.isError && <DataState kind="error" title="Não foi possível carregar os planos" action={<RetryButton onRetry={() => void catalog.refetch()} />} />}
-          {catalog.isSuccess && (
+          {catalog.isError && !catalog.data && <DataState kind="error" title="Não foi possível carregar os planos" action={<RetryButton onRetry={() => void catalog.refetch()} />} />}
+          {catalog.data && (
             <>
               <PlanComparison catalog={catalog.data} currentPlan={me.plan} />
               <BillingNote available={catalog.data.billing.available} message={catalog.data.billing.message} />

@@ -195,7 +195,7 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) return null;
             var session = new AccountSession(
-                reader.GetGuid(0), reader.GetString(1), NullString(reader, 2), NullString(reader, 3), reader.GetString(4), reader.GetFieldValue<DateTimeOffset>(5));
+                reader.GetGuid(0), reader.GetString(1), reader.NullableString(2), reader.NullableString(3), reader.GetString(4), reader.GetFieldValue<DateTimeOffset>(5));
             await reader.DisposeAsync();
             await using var touch = Command("UPDATE account.session SET last_seen_at = now() WHERE token_hash = @hash", ("hash", Hash(token)));
             await touch.ExecuteNonQueryAsync(cancellationToken);
@@ -383,7 +383,7 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var items = new List<NotificationDto>();
             while (await reader.ReadAsync(cancellationToken))
-                items.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), NullString(reader, 5), NullString(reader, 6), Json(reader.GetString(7)), reader.GetFieldValue<DateTimeOffset>(8), reader.IsDBNull(9) ? null : reader.GetFieldValue<DateTimeOffset>(9)));
+                items.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.NullableString(5), reader.NullableString(6), Json(reader.GetString(7)), reader.GetFieldValue<DateTimeOffset>(8), reader.NullableTime(9)));
             return items;
         }
         finally { await db.Database.CloseConnectionAsync(); }
@@ -425,7 +425,7 @@ public sealed class AccountService(ApplicationDbContext db)
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var items = new List<EntitlementDto>();
             while (await reader.ReadAsync(cancellationToken))
-                items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3), reader.IsDBNull(4) ? null : reader.GetFieldValue<DateTimeOffset>(4)));
+                items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3), reader.NullableTime(4)));
             return items;
         }
         finally { await db.Database.CloseConnectionAsync(); }
@@ -478,7 +478,7 @@ public sealed class AccountService(ApplicationDbContext db)
             var items = new List<ApiKeyDto>();
             while (await reader.ReadAsync(cancellationToken))
                 items.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3), reader.GetInt32(4), reader.GetFieldValue<DateTimeOffset>(5),
-                    reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTimeOffset>(6), reader.IsDBNull(7) ? null : reader.GetFieldValue<DateTimeOffset>(7), reader.GetBoolean(8)));
+                    reader.NullableTime(6), reader.NullableTime(7), reader.GetBoolean(8)));
             return items;
         }
         finally { await db.Database.CloseConnectionAsync(); }
@@ -569,7 +569,7 @@ public sealed class AccountService(ApplicationDbContext db)
         await using var user = Command("SELECT email, display_name, CASE WHEN avatar_hidden THEN NULL ELSE avatar_url END FROM account.user_account WHERE id = @id", ("id", userId));
         await using var reader = await user.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
-        return (new(userId, reader.GetString(0), NullString(reader, 1), NullString(reader, 2), csrf, expires), token);
+        return (new(userId, reader.GetString(0), reader.NullableString(1), reader.NullableString(2), csrf, expires), token);
     }
 
     private async Task<int> ResolveApiQuotaAsync(Guid userId, CancellationToken cancellationToken)
@@ -629,8 +629,8 @@ public sealed class AccountService(ApplicationDbContext db)
     }
 
     private static SavedItemDto ReadSavedItem(DbDataReader reader) =>
-        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), NullString(reader, 4), NullString(reader, 5),
-            Json(reader.GetString(6)), reader.GetFieldValue<DateTimeOffset>(7), NullString(reader, 8));
+        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.NullableString(4), reader.NullableString(5),
+            Json(reader.GetString(6)), reader.GetFieldValue<DateTimeOffset>(7), reader.NullableString(8));
 
     private Task OpenAsync(CancellationToken cancellationToken) => db.Database.OpenConnectionAsync(cancellationToken);
 
@@ -673,6 +673,5 @@ public sealed class AccountService(ApplicationDbContext db)
         var parts = ip.Split('.');
         return parts.Length == 4 ? string.Join('.', parts.Take(3)) : ip.Split(':').Take(4).Aggregate(new StringBuilder(), (b, part) => b.Length == 0 ? b.Append(part) : b.Append(':').Append(part)).ToString();
     }
-    private static string? NullString(DbDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement.Clone();
 }

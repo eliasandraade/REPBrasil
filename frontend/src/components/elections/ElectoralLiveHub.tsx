@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { UF_NAMES, UFS } from "@/lib/site";
 import {
   getLiveCount,
   getPolls,
@@ -158,23 +160,54 @@ function LivePanel({ data }: Readonly<{ data: LiveCountResponse | null }>) {
   );
 }
 
+/** UF do recorte: `BR` é o Brasil (vazio); sigla desconhecida volta ao Ceará, o recorte carregado. */
+function scopeOf(raw: string | null): string {
+  const value = (raw ?? "CE").toUpperCase();
+  if (value === "BR") return "";
+  return UFS.includes(value) ? value : "CE";
+}
+
+/**
+ * Recorte na URL (`?ano=&turno=&cargo=&uf=&municipio=`; `uf=BR` é o Brasil): link direto, voltar do navegador e links
+ * das notificações de pesquisas e apuração abrem o mesmo recorte.
+ */
+function useLiveQuery() {
+  const search = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname() ?? "/pesquisas";
+  const year = Number(search.get("ano")) || 2026;
+  const round = search.get("turno") === "2" ? 2 : 1;
+  const office = offices.some((item) => item.value === Number(search.get("cargo"))) ? Number(search.get("cargo")) : 3;
+  const uf = scopeOf(search.get("uf"));
+  const rawMunicipality = (search.get("municipio") ?? "").replace(/\D/g, "").slice(0, 5);
+  const set = useCallback(
+    (updates: Record<string, string | null>) => {
+      const next = new URLSearchParams(search.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      router.replace(`${pathname}${next.size ? `?${next}` : ""}`, { scroll: false });
+    },
+    [pathname, router, search],
+  );
+  return { year, round, office, uf, municipalityTseCode: uf ? rawMunicipality : "", set };
+}
+
 export function ElectoralLiveHub() {
-  const [round, setRound] = useState(1);
-  const [office, setOffice] = useState(3);
-  const [uf, setUf] = useState("CE");
-  const [municipalityTseCode, setMunicipalityTseCode] = useState("");
+  const { year, round, office, uf, municipalityTseCode, set } = useLiveQuery();
   const [polls, setPolls] = useState<PollsResponse | null>(null);
   const [live, setLive] = useState<LiveCountResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const query = useMemo(() => ({
-    year: 2026,
+    year,
     round,
     office,
     ...(uf ? { uf } : {}),
     ...(municipalityTseCode.length === 5 ? { municipalityTseCode } : {}),
-  }), [round, office, uf, municipalityTseCode]);
+  }), [year, round, office, uf, municipalityTseCode]);
 
   useEffect(() => {
     let active = true;
@@ -194,17 +227,17 @@ export function ElectoralLiveHub() {
   return (
     <main className="mx-auto w-full max-w-6xl space-y-7 px-4 py-8 lg:px-8">
       <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent-text">Eleições 2026</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent-text">Eleições {year}</p>
         <h1 className="text-3xl font-semibold tracking-tight text-fg">Pesquisas & apuração</h1>
         <p className="max-w-3xl text-sm leading-6 text-fg-muted">Pesquisas registradas e snapshots oficiais de totalização, com fonte, horário e estado não iniciado/parcial/final explícitos. Sem projeções disfarçadas de resultado.</p>
       </header>
 
       <section className="rounded-xl border border-line bg-surface p-4" aria-label="Recorte eleitoral">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="space-y-1 text-sm text-fg-muted"><span>Turno</span><select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={round} onChange={(event) => setRound(Number(event.target.value))}><option value={1}>1º turno</option><option value={2}>2º turno</option></select></label>
-          <label className="space-y-1 text-sm text-fg-muted"><span>Cargo</span><select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={office} onChange={(event) => setOffice(Number(event.target.value))}>{offices.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-          <label className="space-y-1 text-sm text-fg-muted"><span>Abrangência</span><select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={uf} onChange={(event) => { setUf(event.target.value); setMunicipalityTseCode(""); }}><option value="CE">Ceará</option><option value="">Brasil</option></select></label>
-          <label className="space-y-1 text-sm text-fg-muted"><span>Município TSE (opcional)</span><input className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg placeholder:text-fg-muted" inputMode="numeric" maxLength={5} disabled={!uf} placeholder="ex.: 13897" value={municipalityTseCode} onChange={(event) => setMunicipalityTseCode(event.target.value.replace(/\D/g, "").slice(0, 5))} /></label>
+          <label className="space-y-1 text-sm text-fg-muted"><span>Turno</span><select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={round} onChange={(event) => set({ turno: event.target.value === "2" ? "2" : null })}><option value={1}>1º turno</option><option value={2}>2º turno</option></select></label>
+          <label className="space-y-1 text-sm text-fg-muted"><span>Cargo</span><select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={office} onChange={(event) => set({ cargo: event.target.value })}>{offices.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+          <label className="space-y-1 text-sm text-fg-muted"><span>Abrangência</span><select className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg" value={uf} onChange={(event) => set({ uf: event.target.value || "BR", municipio: null })}><option value="">Brasil</option>{UFS.map((code) => <option key={code} value={code}>{UF_NAMES[code]}</option>)}</select></label>
+          <label className="space-y-1 text-sm text-fg-muted"><span>Município TSE (opcional)</span><input className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-fg placeholder:text-fg-muted" inputMode="numeric" maxLength={5} disabled={!uf} placeholder="ex.: 13897" value={municipalityTseCode} onChange={(event) => set({ municipio: event.target.value.replace(/\D/g, "").slice(0, 5) || null })} /></label>
         </div>
       </section>
 

@@ -98,6 +98,49 @@ public sealed class AccountFlowAlertPublisherTests
     }
 
     [ElectoralSchemaFact]
+    public async Task First_cycle_ever_turns_existing_history_into_a_silent_baseline()
+    {
+        var email = UniqueEmail("publisher-baseline");
+        var indicator = $"test.base_{Guid.NewGuid():N}";
+        using var api = CreateApi();
+        using var browser = Browser(api);
+        try
+        {
+            await Scalar("""
+                INSERT INTO electoral.indicator (code, name, unit, provider, description)
+                VALUES (@code, 'Indicador de Linha de Base', 'pessoas', 'Teste', 'Indicador sintético do teste de linha de base.')
+                """, ("code", indicator));
+            var user = await SignInByMagicLink(api, browser, email);
+            Assert.Equal(HttpStatusCode.OK, (await Subscribe(browser, user, "indicator", indicator, "new_edition")).Status);
+            await Scalar("""
+                INSERT INTO electoral.socioeconomic_source (indicator_code, period, provider, dataset, source_url, sha256, parser_version)
+                VALUES (@code, 2010, 'Teste', 'historico', 'https://example.invalid/historico', repeat('d', 64), 'test')
+                """, ("code", indicator));
+
+            // Publicador ligado pela primeira vez (estado vazio): a edição que já existia não vira aviso.
+            await Scalar("DELETE FROM account.alert_publisher_state");
+            await RunCycle(api);
+            Assert.Equal(0, (await Inbox(browser, user)).GetArrayLength());
+            Assert.Equal(1L, await Scalar("SELECT count(*) FROM account.alert_publisher_state"));
+
+            await Scalar("""
+                INSERT INTO electoral.socioeconomic_source (indicator_code, period, provider, dataset, source_url, sha256, parser_version)
+                VALUES (@code, 2011, 'Teste', 'nova', 'https://example.invalid/nova', repeat('e', 64), 'test')
+                """, ("code", indicator));
+            await RunCycle(api);
+            var notice = Assert.Single((await Inbox(browser, user)).EnumerateArray());
+            Assert.Equal("Nova edição oficial: Indicador de Linha de Base (2011)", notice.GetProperty("title").GetString());
+        }
+        finally
+        {
+            await Cleanup(email);
+            await Scalar("DELETE FROM account.alert_edition WHERE resource_key = @code", ("code", indicator));
+            await Scalar("DELETE FROM electoral.socioeconomic_source WHERE indicator_code = @code", ("code", indicator));
+            await Scalar("DELETE FROM electoral.indicator WHERE code = @code", ("code", indicator));
+        }
+    }
+
+    [ElectoralSchemaFact]
     public async Task Amendment_editions_reach_the_state_recorded_by_the_ingestion()
     {
         var email = UniqueEmail("publisher-amendments");

@@ -53,7 +53,7 @@ export function AccountOverview() {
             <p className="mt-3 text-body-sm text-fg-muted">
               Informe sua UF e seu município no{" "}
               <TransitionLink href="/conta/perfil" className="focus-ring mi-underline rounded text-accent-text">perfil</TransitionLink> para
-              abrir o REPBrasil direto no seu território. O dado serve só para isso.
+              ter um atalho para o seu território aqui. O dado serve só para isso.
             </p>
           )}
         </section>
@@ -65,10 +65,10 @@ export function AccountOverview() {
           </div>
           <div className="mt-3">
             {notifications.isPending && <DataState kind="loading" title="Carregando notificações" />}
-            {notifications.isError && (
+            {notifications.isError && !notifications.data && (
               <DataState kind="error" title="Não foi possível carregar as notificações" action={<RetryButton onRetry={() => void notifications.refetch()} />} />
             )}
-            {notifications.isSuccess && recent.length === 0 && (
+            {notifications.data && recent.length === 0 && (
               <p className="text-body-sm text-fg-muted">
                 Nenhuma notificação ainda. Crie{" "}
                 <TransitionLink href="/conta/alertas" className="focus-ring mi-underline rounded text-accent-text">alertas</TransitionLink> para

@@ -44,15 +44,15 @@ export function NotificationsSection() {
 
       <div className="mt-4">
         {notifications.isPending && <DataState kind="loading" title="Carregando notificações" height="h-48" />}
-        {notifications.isError && <DataState kind="error" title="Não foi possível carregar as notificações" action={<RetryButton onRetry={() => void notifications.refetch()} />} />}
-        {notifications.isSuccess && notifications.data.length === 0 && (
+        {notifications.isError && !notifications.data && <DataState kind="error" title="Não foi possível carregar as notificações" action={<RetryButton onRetry={() => void notifications.refetch()} />} />}
+        {notifications.data && notifications.data.length === 0 && (
           <p className="text-body-sm text-fg-muted">
             Nenhuma notificação. Elas aparecem aqui quando um{" "}
             <TransitionLink href="/conta/alertas" className="focus-ring mi-underline rounded text-accent-text">alerta</TransitionLink> seu é disparado
             por uma nova edição oficial.
           </p>
         )}
-        {notifications.isSuccess && notifications.data.length > 0 && (
+        {notifications.data && notifications.data.length > 0 && (
           <ul className="divide-y divide-line border-y border-line">
             {notifications.data.map((notice) => (
               <NotificationRow key={notice.id} notice={notice} onRead={() => run(() => markNotificationRead(me, notice.id))} />

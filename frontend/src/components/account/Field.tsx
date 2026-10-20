@@ -18,3 +18,11 @@ export function Field({ id, label, hint, children, className = "" }: Readonly<{ 
 }
 
 export const hintId = (id: string) => `${id}-hint`;
+
+/** Situação da lista de municípios de uma UF, para a dica do campo (nulo quando a lista está pronta). */
+export function municipalityStatus(uf: string | null, list: { isPending: boolean; isError: boolean; data?: readonly unknown[] }): string | null {
+  if (!uf) return "Escolha a UF antes.";
+  if (list.isPending) return "Carregando os municípios da UF…";
+  if (list.isError) return "Não foi possível carregar os municípios agora.";
+  return (list.data?.length ?? 0) === 0 ? "O catálogo de municípios desta UF ainda não foi carregado." : null;
+}

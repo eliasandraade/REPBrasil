@@ -22,7 +22,7 @@ import { ufName, UF_NAMES, UFS } from "@/lib/site";
 import { territoriesApi, ufOfIbgeCode, type TerritoryMunicipality } from "@/lib/territories";
 import { accountKeys, useAccount, useRefreshAccount } from "@/lib/useAccount";
 import { UsageMeter } from "./UsageMeter";
-import { Field, FIELD_CONTROL as FIELD, hintId } from "./Field";
+import { Field, FIELD_CONTROL as FIELD, hintId, municipalityStatus } from "./Field";
 import { formatDate } from "./format";
 const kindId = (kind: Pick<AlertKind, "resourceType" | "eventKind">) => `${kind.resourceType}/${kind.eventKind}`;
 
@@ -105,11 +105,11 @@ export function AlertsSection() {
         )}
         <div className="mt-3">
           {alerts.isPending && <DataState kind="loading" title="Carregando alertas" height="h-40" />}
-          {alerts.isError && <DataState kind="error" title="Não foi possível carregar os alertas" action={<RetryButton onRetry={() => void alerts.refetch()} />} />}
-          {alerts.isSuccess && alerts.data.length === 0 && (
+          {alerts.isError && !alerts.data && <DataState kind="error" title="Não foi possível carregar os alertas" action={<RetryButton onRetry={() => void alerts.refetch()} />} />}
+          {alerts.data && alerts.data.length === 0 && (
             <p className="text-body-sm text-fg-muted">Nenhum alerta. Crie um ao lado para ser avisado quando uma nova edição oficial for carregada.</p>
           )}
-          {alerts.isSuccess && alerts.data.length > 0 && (
+          {alerts.data && alerts.data.length > 0 && (
             <ul className="divide-y divide-line border-y border-line">
               {alerts.data.map((alert) => {
                 const { label, target } = describe(alert);
@@ -123,6 +123,7 @@ export function AlertsSection() {
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button type="button" className="focus-ring rounded-md px-2 py-1 text-micro font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg"
+                        aria-label={`${alert.enabled ? "Pausar" : "Retomar"} alerta: ${target}`}
                         onClick={() => void run(() => saveAlert(me, { resourceType: alert.resourceType, resourceKey: alert.resourceKey, eventKind: alert.eventKind, enabled: !alert.enabled }), alert.enabled ? "Alerta pausado." : "Alerta retomado.")}>
                         {alert.enabled ? "Pausar" : "Retomar"}
                       </button>
@@ -268,13 +269,6 @@ function UfSelect({ id, value, onChange }: Readonly<{ id: string; value: string;
   );
 }
 
-function municipalityHint(uf: string, state: { isPending: boolean; isError: boolean }, count: number): string | null {
-  if (!uf) return "Escolha a UF antes.";
-  if (state.isPending) return "Carregando os municípios…";
-  if (state.isError) return "Não foi possível carregar os municípios agora.";
-  return count === 0 ? "O catálogo de municípios desta UF ainda não foi carregado." : null;
-}
-
 function MunicipalitySelect({
   id,
   uf,
@@ -284,7 +278,7 @@ function MunicipalitySelect({
 }: Readonly<{ id: string; uf: string; value: string; onChange: (ibge: string) => void; state: { isPending: boolean; isError: boolean; data?: TerritoryMunicipality[] } }>) {
   const list = state.data ?? [];
   return (
-    <Field id={id} label="Município" hint={municipalityHint(uf, state, list.length)}>
+    <Field id={id} label="Município" hint={municipalityStatus(uf, state)}>
       <select id={id} className={FIELD} value={value} onChange={(e) => onChange(e.target.value)} disabled={!uf || list.length === 0} required
         aria-describedby={hintId(id)}>
         <option value="">Escolha o município</option>

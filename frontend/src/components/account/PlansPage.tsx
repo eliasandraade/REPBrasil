@@ -26,8 +26,8 @@ export function PlansPage() {
 
       <div className="mt-10">
         {catalog.isPending && <DataState kind="loading" title="Carregando os planos" height="h-96" />}
-        {catalog.isError && <DataState kind="error" title="Não foi possível carregar os planos" action={<RetryButton onRetry={() => void catalog.refetch()} />} />}
-        {catalog.isSuccess && (
+        {catalog.isError && !catalog.data && <DataState kind="error" title="Não foi possível carregar os planos" action={<RetryButton onRetry={() => void catalog.refetch()} />} />}
+        {catalog.data && (
           <>
             <PlanComparison catalog={catalog.data} currentPlan={me?.plan ?? null} />
             <BillingNote available={catalog.data.billing.available} message={catalog.data.billing.message} />

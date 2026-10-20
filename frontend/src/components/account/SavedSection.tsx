@@ -79,9 +79,9 @@ export function SavedSection({ collection }: Readonly<{ collection: Collection }
           </p>
         )}
         {items.isPending && <DataState kind="loading" title={`Carregando ${copy.title.toLowerCase()}`} height="h-48" />}
-        {items.isError && <DataState kind="error" title={`Não foi possível carregar ${copy.title.toLowerCase()}`} action={<RetryButton onRetry={() => void items.refetch()} />} />}
-        {items.isSuccess && items.data.length === 0 && <p className="text-body-sm text-fg-muted">{copy.empty}</p>}
-        {items.isSuccess &&
+        {items.isError && !items.data && <DataState kind="error" title={`Não foi possível carregar ${copy.title.toLowerCase()}`} action={<RetryButton onRetry={() => void items.refetch()} />} />}
+        {items.data && items.data.length === 0 && <p className="text-body-sm text-fg-muted">{copy.empty}</p>}
+        {items.data &&
           folders.map((folder) => {
             const inFolder = items.data.filter((item) => (item.folder ?? UNFILED) === folder);
             return (
@@ -157,7 +157,7 @@ function SavedRow({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {canFolder && (
-            <button type="button" onClick={() => setEditing((v) => !v)} aria-expanded={editing} aria-controls={`${ids}-folder`}
+            <button type="button" onClick={() => setEditing((v) => !v)} aria-expanded={editing} aria-controls={`${ids}-folder`} aria-label={`Pasta de ${label}`}
               className="focus-ring rounded-md px-2 py-1 text-micro font-medium text-fg-muted hover:bg-fg/[0.05] hover:text-fg">
               Pasta
             </button>

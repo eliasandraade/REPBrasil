@@ -85,9 +85,9 @@ function LegacyApiAccess() {
         </p>
         {error && <p role="alert" className="text-danger">{error}</p>}
         {keys.isPending && <DataState kind="loading" title="Carregando chaves" />}
-        {keys.isError && <DataState kind="error" title="Não foi possível carregar as chaves" action={<RetryButton onRetry={() => void keys.refetch()} />} />}
-        {keys.isSuccess && keys.data.length === 0 && <p className="text-fg-muted">Nenhuma chave criada.</p>}
-        {keys.isSuccess && keys.data.length > 0 && (
+        {keys.isError && !keys.data && <DataState kind="error" title="Não foi possível carregar as chaves" action={<RetryButton onRetry={() => void keys.refetch()} />} />}
+        {keys.data && keys.data.length === 0 && <p className="text-fg-muted">Nenhuma chave criada.</p>}
+        {keys.data && keys.data.length > 0 && (
           <ul className="divide-y divide-line border-y border-line">
             {keys.data.map((key) => (
               <li key={key.id} className="flex flex-wrap items-center justify-between gap-2 py-3">

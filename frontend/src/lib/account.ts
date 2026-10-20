@@ -227,6 +227,16 @@ export async function getAccount(): Promise<AccountMe | null> {
     if (!state.authenticated || !state.id || !state.email || !state.csrfToken) return null;
     return normalizeAccount(state as AccountMe);
   } catch (error) {
+    // API anterior a esta versão (frontend publicado antes): sem /account/session, vale /account/me (401 = anônimo).
+    if (error instanceof ApiError && error.status === 404) return getAccountFromMe();
+    throw error;
+  }
+}
+
+async function getAccountFromMe(): Promise<AccountMe | null> {
+  try {
+    return normalizeAccount(await accountFetch<AccountMe>("/api/v1/account/me"));
+  } catch (error) {
     if (error instanceof ApiError && error.status === 401) return null;
     throw error;
   }

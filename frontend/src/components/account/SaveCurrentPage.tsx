@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { getSavedItems, planRefusalOf, removeSavedItem, saveItem, savedPageLabel } from "@/lib/account";
 import { accountKeys, useAccount, useRefreshAccount } from "@/lib/useAccount";
@@ -35,7 +35,8 @@ export function SaveCurrentPage() {
   const favorites = useQuery({ queryKey: accountKeys.saved("favorite"), queryFn: () => getSavedItems("favorite"), enabled: signedIn });
   const watchlist = useQuery({ queryKey: accountKeys.saved("watchlist"), queryFn: () => getSavedItems("watchlist"), enabled: signedIn });
   const [busy, setBusy] = useState<Collection | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<{ text: string; plan: boolean } | null>(null);
+  useEffect(() => setRefusal(null), [pathname, query]);
 
   const returnTo = query ? `${pathname}?${query}` : pathname;
   const isSaved = (items: typeof favorites.data) =>
@@ -71,7 +72,8 @@ export function SaveCurrentPage() {
       }
       await refreshAccount();
     } catch (error) {
-      setRefusal(planRefusalOf(error)?.message ?? "Não foi possível salvar agora. Tente de novo.");
+      const plan = planRefusalOf(error);
+      setRefusal(plan ? { text: plan.message, plan: true } : { text: selected ? "Não foi possível remover agora. Tente de novo." : "Não foi possível salvar agora. Tente de novo.", plan: false });
     } finally {
       setBusy(null);
     }
@@ -81,8 +83,13 @@ export function SaveCurrentPage() {
     <div className="flex flex-col items-end gap-2">
       {refusal && (
         <p role="alert" className="max-w-xs rounded-lg border border-line bg-surface px-3 py-2 text-xs text-fg shadow-lg">
-          {refusal}{" "}
-          <TransitionLink href="/planos" className="focus-ring rounded font-semibold text-accent-text underline underline-offset-2">Ver planos</TransitionLink>
+          {refusal.text}
+          {refusal.plan && (
+            <>
+              {" "}
+              <TransitionLink href="/planos" className="focus-ring rounded font-semibold text-accent-text underline underline-offset-2">Ver planos</TransitionLink>
+            </>
+          )}
         </p>
       )}
       <div className="flex items-center gap-2 rounded-full border border-line bg-surface/95 p-1.5 shadow-lg backdrop-blur">

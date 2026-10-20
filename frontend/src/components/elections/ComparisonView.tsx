@@ -27,7 +27,7 @@ import { compareTerritoryLabel } from "@/lib/elections/compare-csv";
 import { DataState, RetryButton } from "@/components/ui/DataState";
 import { Term } from "@/components/ui/Term";
 import { AddCandidacy, CompareActions } from "./CompareTools";
-import { useCompareMax } from "@/lib/elections/useCompareMax";
+import { useCompareMax, useSelectionMax } from "@/lib/elections/useCompareMax";
 import { TransitionLink } from "@/motion/navigation";
 import { useResolvedTheme } from "@/components/theme/theme";
 import { CATEGORICAL, type DataTheme } from "@/lib/dataviz/palette";
@@ -68,10 +68,11 @@ const definitionLabel = (key: string) => DEFINITION_LABEL[key] ?? key.replaceAll
 
 /** Comparação vazia: o que é, como montar aqui mesmo e por onde mais dá para chegar. */
 function EmptyComparison({ onAdd }: Readonly<{ onAdd: (candidacyId: string, uf: string | null) => void }>) {
+  const { max } = useCompareMax();
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2" data-testid="compare-empty">
       <div className="rounded-xl border border-line bg-surface p-5 text-sm text-fg-muted">
-        <p className="font-medium text-fg-soft">Escolha até {MAX_COMPARE} candidaturas</p>
+        <p className="font-medium text-fg-soft">Escolha até {max} candidaturas</p>
         <p className="mt-2">
           Da mesma eleição (quem teve mais votos em cada lugar) ou de eleições diferentes (como a votação de alguém mudou). Município, zona,
           seção e local de votação, lado a lado.
@@ -98,7 +99,7 @@ export function ComparisonView() {
   const router = useRouter();
   const pathname = usePathname() ?? "/eleicoes/comparar";
   const rawIds = (search.get("c") ?? "").split(",").filter(Boolean);
-  const { max, resolved } = useCompareMax();
+  const { max, resolved } = useSelectionMax();
   const ids = parseSelection(search.get("c"), max);
   const uf = (search.get("uf") ?? "CE").toUpperCase();
   const level = (LEVELS.includes(search.get("nivel") as TerritoryLevel) ? search.get("nivel") : "municipality") as TerritoryLevel;
@@ -201,7 +202,7 @@ export function ComparisonView() {
             </DataState>
           </div>
         )}
-        {q.isLoading && (
+        {(q.isLoading || (!resolved && rawIds.length > MAX_COMPARE && !needsMunicipality)) && (
           <div className="mt-6">
             <DataState kind="loading" title="Carregando comparação" height="h-40" />
           </div>

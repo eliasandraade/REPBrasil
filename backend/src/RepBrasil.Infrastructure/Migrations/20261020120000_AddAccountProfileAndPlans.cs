@@ -79,12 +79,19 @@ public sealed class AddAccountProfileAndPlans : Migration
                 CONSTRAINT ck_alert_edition_event_key CHECK (char_length(event_key) BETWEEN 1 AND 160)
             );
             CREATE INDEX ix_alert_edition_pending ON account.alert_edition(first_seen_at) WHERE fanned_out_at IS NULL;
+
+            -- Primeiro ciclo do publicador: o histórico existente vira linha de base, sem aviso a ninguém.
+            CREATE TABLE account.alert_publisher_state (
+                id smallint PRIMARY KEY CHECK (id = 1),
+                baseline_at timestamptz NOT NULL DEFAULT now()
+            );
             """);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.Sql("""
+            DROP TABLE IF EXISTS account.alert_publisher_state;
             DROP TABLE IF EXISTS account.alert_edition;
 
             ALTER TABLE account.saved_item

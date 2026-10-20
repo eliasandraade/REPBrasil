@@ -33,3 +33,7 @@ const UF_BY_IBGE_PREFIX: Readonly<Record<string, string>> = {
 };
 
 export const ufOfIbgeCode = (ibgeCode: string): string | null => UF_BY_IBGE_PREFIX[ibgeCode.slice(0, 2)] ?? null;
+
+/** Código IBGE (2 dígitos) da UF pela sigla, ou nulo. */
+export const ibgeCodeOfUf = (uf: string): string | null =>
+  Object.entries(UF_BY_IBGE_PREFIX).find(([, code]) => code === uf.toUpperCase())?.[0] ?? null;

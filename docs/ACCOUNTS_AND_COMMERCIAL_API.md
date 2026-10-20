@@ -72,7 +72,8 @@ Schema `account`:
 - `api_key`: chave comercial por hash, prefixo visível, scopes, quota e revogação;
 - `api_usage_daily`: contador diário por chave;
 - `subscription`: vínculo da conta com um plano pago (`manual` enquanto não houver cobrança online), status e fim do período;
-- `alert_edition`: edições oficiais já vistas pelo publicador de alertas (uma linha por edição, com o instante em que apareceu).
+- `alert_edition`: edições oficiais já vistas pelo publicador de alertas (uma linha por edição, com o instante em que apareceu);
+- `alert_publisher_state`: marca a linha de base do publicador (primeiro ciclo).
 
 O perfil nunca coleta CPF, partido, candidato, ideologia, religião ou intenção de voto. UF e município servem só à personalização territorial; o tipo de uso (eleitor, estudante/pesquisador, jornalista, assessor político, profissional do setor público, outro) é opcional.
 
@@ -95,7 +96,11 @@ O publicador (`DataEditionAlertPublisher`) roda dentro da API em intervalo fixo.
 2. entrega cada edição a quem **já assinava** quando ela apareceu (assinar hoje não traz aviso de edição antiga), no máximo uma vez por pessoa;
 3. não entrega a conta suspensa.
 
-Uma trava consultiva no banco garante um só publicador por vez. Falha num ciclo vai para o log e espera o próximo; nunca derruba a API.
+No primeiro ciclo de todos (`account.alert_publisher_state` vazio), o histórico existente vira linha de base, sem aviso: ligar o publicador depois do deploy não dispara notificações de edições antigas.
+
+Uma trava consultiva no banco garante um só publicador por vez. Falha num ciclo vai para o log e espera o próximo; valor malformado nas variáveis `Alerts__Publisher__*` vira o padrão com aviso no log. Nada disso derruba a API.
+
+Os links das notificações abrem o recorte certo: `/parlamento?uf=`, `/pesquisas?ano=&turno=&cargo=&uf=` (`uf=BR` é o Brasil) e `/dados?x=&periodo=`; essas páginas guardam o recorte na URL.
 
 O endpoint interno continua disponível para rotinas auditáveis externas:
 
@@ -207,7 +212,7 @@ Novos endpoints comerciais devem entrar atrás do mesmo gate, sem criar uma segu
 - `/planos`: comparação lida de `GET /api/v1/plans`, com a base pública gratuita e o estado real da cobrança.
 - Dock global: login/conta e ações contextuais de favorito/watchlist em políticos, partidos, municípios, estados, eleições, rankings e dados. O limite do plano aparece como mensagem com caminho para `/planos`.
 
-O frontend lê a sessão em `GET /api/v1/account/session` (200 `{"authenticated":false}` sem sessão, para a checagem de toda página não virar erro no console). `GET /api/v1/account/me` continua respondendo 401 sem sessão. Um único hook (`useAccount`) guarda a conta no cliente; recursos e limites vêm sempre da API.
+O frontend lê a sessão em `GET /api/v1/account/session` (200 `{"authenticated":false}` sem sessão, para a checagem de toda página não virar erro no console). `GET /api/v1/account/me` continua respondendo 401 sem sessão; se o frontend for publicado antes da API, ele usa `/account/me` enquanto `/account/session` não existir. Um único hook (`useAccount`) guarda a conta no cliente; recursos e limites vêm sempre da API.
 
 O conteúdo público existente continua navegável sem autenticação.
 

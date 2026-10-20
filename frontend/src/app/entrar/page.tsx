@@ -102,7 +102,7 @@ export default function SignInPage() {
         )}
 
         <p className="mt-6 text-xs leading-5 text-fg-muted">
-          O REPBrasil não usa senha local. Sessões podem ser encerradas a qualquer momento pela sua conta.
+          O REPBrasil não usa senha local. Você pode sair desta sessão a qualquer momento, em Conta › Segurança.
         </p>
       </section>
     </main>

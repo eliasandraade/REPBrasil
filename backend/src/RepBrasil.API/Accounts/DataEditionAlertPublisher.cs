@@ -11,7 +11,9 @@ public sealed record AlertCycleResult(bool Ran, int Recorded, int Delivered);
 /// Transforma edições oficiais gravadas pelas ingestões em notificações na conta de quem assinou o alerta
 /// (<see cref="AlertCatalog"/>). Cada edição é registrada uma vez em <c>account.alert_edition</c> (chave estável por
 /// edição) e entregue uma vez por pessoa (<c>ON CONFLICT (user_id, event_key) DO NOTHING</c>). Só recebe quem já
-/// assinava quando a edição apareceu: assinar hoje não traz avisos de edições antigas.
+/// assinava quando a edição apareceu: assinar hoje não traz avisos de edições antigas. No primeiro ciclo de todos
+/// (<c>account.alert_publisher_state</c> vazio), o histórico existente vira linha de base, sem aviso: ligar o
+/// publicador depois do deploy não dispara notificações de edições antigas.
 /// </summary>
 public sealed class AlertEditionService(ApplicationDbContext db)
 {
@@ -55,7 +57,7 @@ public sealed class AlertEditionService(ApplicationDbContext db)
                count(DISTINCT p.registration_number)
                  || CASE WHEN count(DISTINCT p.registration_number) = 1 THEN ' registro novo' ELSE ' registros novos' END
                  || ' na base oficial (' || ps.provider || ').',
-               '/pesquisas?ano=' || p.year || '&cargo=' || p.office_code || COALESCE('&uf=' || p.state_code::text, ''),
+               '/pesquisas?ano=' || p.year || '&cargo=' || p.office_code || '&uf=' || COALESCE(p.state_code::text, 'BR'),
                jsonb_build_object('provider', ps.provider, 'dataset', ps.dataset, 'sourceUrl', ps.source_url,
                                   'retrievedAt', ps.retrieved_at, 'newRegistrations', count(DISTINCT p.registration_number))
           FROM electoral.poll_source ps
@@ -87,7 +89,7 @@ public sealed class AlertEditionService(ApplicationDbContext db)
                    CASE WHEN t.counted_percent IS NULL THEN 'Totalização oficial do TSE atualizada.'
                         ELSE replace(to_char(t.counted_percent, 'FM990.00'), '.', ',') || '% das seções totalizadas (TSE).' END AS body,
                    '/pesquisas?ano=' || e.year || '&turno=' || e.round || '&cargo=' || t.office_code
-                     || COALESCE('&uf=' || t.state_code::text, '') AS href,
+                     || '&uf=' || COALESCE(t.state_code::text, 'BR') || COALESCE('&municipio=' || m.tse_code::text, '') AS href,
                    jsonb_build_object('year', e.year, 'round', e.round, 'office', t.office_code, 'scope', t.scope, 'status', t.status,
                                       'countedPercent', t.counted_percent, 'capturedAt', t.captured_at,
                                       'tseGeneratedAt', t.tse_generated_at, 'sourceUrl', t.source_url) AS payload,
@@ -147,11 +149,23 @@ public sealed class AlertEditionService(ApplicationDbContext db)
                 if (await lockCommand.ExecuteScalarAsync(cancellationToken) is not true) return new(false, 0, 0);
             }
 
+            bool baseline;
+            await using (var state = db.Command("INSERT INTO account.alert_publisher_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING"))
+            {
+                baseline = await state.ExecuteNonQueryAsync(cancellationToken) == 1;
+            }
+
             var recorded = 0;
             foreach (var sql in RecordEditions)
             {
                 await using var record = db.Command(sql);
                 recorded += await record.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            if (baseline)
+            {
+                await using var settle = db.Command("UPDATE account.alert_edition SET fanned_out_at = now() WHERE fanned_out_at IS NULL");
+                await settle.ExecuteNonQueryAsync(cancellationToken);
             }
 
             var delivered = 0;
@@ -186,9 +200,10 @@ public sealed partial class DataEditionAlertPublisher(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("Alerts:Publisher:Enabled", true)) return;
-        var interval = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue("Alerts:Publisher:IntervalSeconds", 300), 30, 86_400));
-        var initialDelay = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue("Alerts:Publisher:InitialDelaySeconds", 60), 0, 3_600));
+        // Valor malformado (ex.: "300s") vira o padrão com aviso no log: configuração nunca derruba a API.
+        if (!Setting("Alerts:Publisher:Enabled", true, bool.TryParse)) return;
+        var interval = TimeSpan.FromSeconds(Math.Clamp(Setting("Alerts:Publisher:IntervalSeconds", 300, ParseInt), 30, 86_400));
+        var initialDelay = TimeSpan.FromSeconds(Math.Clamp(Setting("Alerts:Publisher:InitialDelaySeconds", 60, ParseInt), 0, 3_600));
         try
         {
             await Task.Delay(initialDelay, stoppingToken);
@@ -203,6 +218,20 @@ public sealed partial class DataEditionAlertPublisher(
         {
             // Desligamento da API.
         }
+    }
+
+    private delegate bool Parser<T>(string? text, out T value);
+
+    private static bool ParseInt(string? text, out int value) =>
+        int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value);
+
+    private T Setting<T>(string key, T fallback, Parser<T> parse)
+    {
+        var raw = configuration[key];
+        if (string.IsNullOrWhiteSpace(raw)) return fallback;
+        if (parse(raw.Trim(), out var value)) return value;
+        LogBadSetting(logger, key);
+        return fallback;
     }
 
     private async Task RunCycleAsync(CancellationToken stoppingToken)
@@ -221,6 +250,9 @@ public sealed partial class DataEditionAlertPublisher(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Alertas: {Recorded} edições oficiais novas, {Delivered} notificações entregues")]
     private static partial void LogCycle(ILogger logger, int recorded, int delivered);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Alertas: valor inválido em {Setting}; usando o padrão")]
+    private static partial void LogBadSetting(ILogger logger, string setting);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Alertas: ciclo do publicador falhou; nova tentativa no próximo intervalo")]
     private static partial void LogFailure(ILogger logger, Exception exception);

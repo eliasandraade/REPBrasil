@@ -8,7 +8,7 @@ import { UF_NAMES, UFS } from "@/lib/site";
 import { territoriesApi } from "@/lib/territories";
 import { accountKeys, useAccount, useRefreshAccount } from "@/lib/useAccount";
 import { AccountAvatar } from "./AccountAvatar";
-import { Field, FIELD_CONTROL, hintId } from "./Field";
+import { Field, FIELD_CONTROL, hintId, municipalityStatus } from "./Field";
 import { USAGE_TYPE_LABEL } from "./format";
 
 const toForm = (profile: AccountProfile): ProfileUpdate => ({
@@ -46,10 +46,12 @@ export function ProfileSection() {
   });
 
   if (!me) return null;
-  if (profile.isPending || (profile.isSuccess && form === null)) return <DataState kind="loading" title="Carregando o perfil" height="h-64" />;
-  if (profile.isError || !form) {
-    return <DataState kind="error" title="Não foi possível carregar o perfil" action={<RetryButton onRetry={() => void profile.refetch()} />} />;
+  if (!profile.data) {
+    return profile.isError
+      ? <DataState kind="error" title="Não foi possível carregar o perfil" action={<RetryButton onRetry={() => void profile.refetch()} />} />
+      : <DataState kind="loading" title="Carregando o perfil" height="h-64" />;
   }
+  if (!form) return <DataState kind="loading" title="Carregando o perfil" height="h-64" />;
 
   const set = <K extends keyof ProfileUpdate>(key: K, value: ProfileUpdate[K]) => {
     setForm((current) => (current ? { ...current, [key]: value } : current));
@@ -71,13 +73,7 @@ export function ProfileSection() {
     }
   }
 
-  const municipalityHint = (() => {
-    if (!uf) return "Escolha a UF antes.";
-    if (municipalities.isPending) return "Carregando os municípios da UF…";
-    if (municipalities.isError) return "Não foi possível carregar os municípios agora.";
-    if (municipalities.data.length === 0) return "O catálogo de municípios desta UF ainda não foi carregado.";
-    return null;
-  })();
+  const municipalityHint = municipalityStatus(uf, municipalities);
   const name = form.displayName || form.fullName || me.email;
   const providerAvatar = profile.data.providerAvatarUrl;
   return (
@@ -164,8 +160,8 @@ export function ProfileSection() {
       <aside id={`${id}-privacy`} className="border-t border-line pt-6 text-body-sm text-fg-muted lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
         <h2 className="text-label uppercase text-fg-muted">O que guardamos</h2>
         <p className="mt-3">
-          UF e município servem só para abrir o REPBrasil no seu território. O tipo de uso é opcional e ajuda a entender quem usa o
-          produto.
+          UF e município servem só como atalho para o seu território dentro da conta. O tipo de uso é opcional e ajuda a entender quem
+          usa o produto.
         </p>
         <p className="mt-3 text-fg-soft">
           Não pedimos CPF, partido, candidato, ideologia, religião nem intenção de voto, e nada disso é inferido do seu uso.

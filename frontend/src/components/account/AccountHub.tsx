@@ -37,19 +37,17 @@ export function AccountHub({ children }: Readonly<{ children: ReactNode }>) {
     if (account.data === null) router.replace(`/entrar?returnTo=${encodeURIComponent(pathname)}`);
   }, [account.data, pathname, router]);
 
-  if (account.isPending) {
+  // Só a primeira carga mostra erro de tela inteira; com a conta em cache, uma recarga que falha não desmonta a seção.
+  if (account.data === undefined) {
     return (
       <Frame>
-        <DataState kind="loading" title="Carregando sua conta" height="h-40" />
-      </Frame>
-    );
-  }
-  if (account.isError) {
-    return (
-      <Frame>
-        <DataState kind="error" title="Não foi possível carregar sua conta" action={<RetryButton onRetry={() => void account.refetch()} />}>
-          A conexão com o REPBrasil falhou. Seus dados continuam salvos.
-        </DataState>
+        {account.isError ? (
+          <DataState kind="error" title="Não foi possível carregar sua conta" action={<RetryButton onRetry={() => void account.refetch()} />}>
+            A conexão com o REPBrasil falhou. Seus dados continuam salvos.
+          </DataState>
+        ) : (
+          <DataState kind="loading" title="Carregando sua conta" height="h-40" />
+        )}
       </Frame>
     );
   }
@@ -101,6 +99,7 @@ export function AccountHub({ children }: Readonly<{ children: ReactNode }>) {
                   {section.label}
                   {unread > 0 && (
                     <span className="ml-1.5 tabular-nums text-accent-text">
+                      <span className="sr-only">, </span>
                       {unread}
                       <span className="sr-only"> não lidas</span>
                     </span>
