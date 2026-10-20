@@ -77,7 +77,7 @@ describe("exports mantêm a URL reproduzível inteira", () => {
     const ys = layout.lines.map((line) => line.y);
     expect(ys).toEqual([...ys].sort((a, b) => a - b));
     expect(layout.height).toBeGreaterThanOrEqual(Math.max(...ys));
-    expect(layout.lines.filter((line) => line.text.includes("apprepbrasil")).length).toBe(1);
+    expect(layout.lines.filter((line) => line.text.includes("apprepbrasil"))).toHaveLength(1);
   });
 
   it("linhas quebradas mantêm o espaçamento original entre palavras", () => {
@@ -97,7 +97,7 @@ describe("exports mantêm a URL reproduzível inteira", () => {
     const note = texts.find((text) => text.startsWith("PNG limitado às primeiras"));
     expect(note).toMatch(/^PNG limitado às primeiras \d+ linhas; CSV\/XLSX preservam todas as 2000\.$/);
     const shown = Number(note?.match(/primeiras (\d+)/)?.[1]);
-    expect(texts.filter((text) => text.startsWith("Município ")).length).toBe(shown);
+    expect(texts.filter((text) => text.startsWith("Município "))).toHaveLength(shown);
   });
 
   it("CSV e XLSX trazem a URL inteira, e o CSV mantém o ponto decimal", () => {

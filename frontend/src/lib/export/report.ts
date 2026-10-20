@@ -280,30 +280,59 @@ export const PDF_TEXT_WIDTH = 595 - 2 * PDF_MARGIN;
 
 const pdfCharWidth = (char: string) => (HELVETICA_WIDTHS[winAnsiByte(char)] * PDF_FONT_SIZE) / 1000;
 
+/** Soma das larguras dos caracteres de `value`, medidos com `charWidth`. */
+function textWidth(value: string, charWidth: (char: string) => number): number {
+  let width = 0;
+  for (const char of value) width += charWidth(char);
+  return width;
+}
+
 /** Largura, em pontos, de uma linha do PDF (Helvetica 9 pt). */
 export function pdfTextWidth(value: string): number {
-  let width = 0;
-  for (const char of value) width += pdfCharWidth(char);
-  return width;
+  return textWidth(value, pdfCharWidth);
 }
 
 // Depois destes caracteres uma URL quebra sem perder legibilidade; antes de `%` também (mantém `%2C` inteiro).
 const BREAK_AFTER = new Set(["/", "&", "?", "=", ",", ";", ".", "-", "_"]);
 
+/** Ponto de quebra no trecho `[start, end)` de um token: depois de um separador ou antes de `%`, na metade final. */
+function breakIndex(chars: string[], start: number, end: number): number {
+  for (let index = end; index > start + (end - start) / 2; index -= 1) {
+    if (BREAK_AFTER.has(chars[index - 1]) || chars[index] === "%") return index;
+  }
+  return end;
+}
+
+/** Quebra um token mais largo que a linha: devolve as linhas cheias e o resto, que ainda aceita palavras. */
+function splitToken(chars: string[], widths: number[], maxWidth: number): { full: string[]; rest: string; restWidth: number } {
+  const full: string[] = [];
+  let start = 0;
+  for (;;) {
+    let end = start;
+    let width = 0;
+    while (end < chars.length && width + widths[end] <= maxWidth) {
+      width += widths[end];
+      end += 1;
+    }
+    if (end === chars.length) return { full, rest: chars.slice(start).join(""), restWidth: width };
+    // Um caractere mais largo que a linha ainda avança uma posição.
+    const cut = breakIndex(chars, start, Math.max(end, start + 1));
+    full.push(chars.slice(start, cut).join(""));
+    start = cut;
+  }
+}
+
 /**
  * Quebra `value` em linhas que cabem em `maxWidth`, medindo cada caractere com `charWidth`. Palavras
- * passam inteiras para a linha seguinte; um token mais largo que a linha (uma URL, por exemplo) é
- * quebrado dentro dele, de preferência depois de um separador. Nenhum caractere é descartado.
+ * passam inteiras para a linha seguinte, mantendo o espaçamento original dentro da linha; um token mais
+ * largo que a linha (uma URL, por exemplo) é quebrado dentro dele, de preferência depois de um
+ * separador. Nenhum caractere é descartado.
  */
 function wrapText(value: string, maxWidth: number, charWidth: (char: string) => number): string[] {
-  let total = 0;
-  for (const char of value) total += charWidth(char);
-  if (total <= maxWidth) return [value];
-
+  if (textWidth(value, charWidth) <= maxWidth) return [value];
   const lines: string[] = [];
   let line = "";
   let lineWidth = 0;
-  // O espaço original entre palavras (ex.: "  |  " nas linhas do PNG) é mantido; só some na quebra de linha.
   let gap = "";
   for (const token of value.split(/(\s+)/)) {
     if (!token) continue;
@@ -311,44 +340,21 @@ function wrapText(value: string, maxWidth: number, charWidth: (char: string) => 
       gap = token;
       continue;
     }
-    const word = token;
-    const chars = Array.from(word);
+    const chars = Array.from(token);
     const widths = chars.map(charWidth);
-    const wordWidth = widths.reduce((sum, width) => sum + width, 0);
-    let gapWidth = 0;
-    for (const char of gap) gapWidth += charWidth(char);
-    const separator = gap;
+    const tokenWidth = widths.reduce((sum, width) => sum + width, 0);
+    const gapWidth = textWidth(gap, charWidth);
+    if (line && lineWidth + gapWidth + tokenWidth <= maxWidth) {
+      line += gap + token;
+      lineWidth += gapWidth + tokenWidth;
+    } else {
+      if (line) lines.push(line);
+      const { full, rest, restWidth } = splitToken(chars, widths, maxWidth);
+      for (const part of full) lines.push(part);
+      line = rest;
+      lineWidth = restWidth;
+    }
     gap = "";
-    if (line && lineWidth + gapWidth + wordWidth <= maxWidth) {
-      line += separator + word;
-      lineWidth += gapWidth + wordWidth;
-      continue;
-    }
-    if (line) lines.push(line);
-    let start = 0;
-    for (;;) {
-      let end = start;
-      let width = 0;
-      while (end < chars.length && width + widths[end] <= maxWidth) {
-        width += widths[end];
-        end += 1;
-      }
-      if (end === chars.length) {
-        line = chars.slice(start).join("");
-        lineWidth = width;
-        break;
-      }
-      end = Math.max(end, start + 1);
-      let cut = end;
-      for (let index = end; index > start + (end - start) / 2; index -= 1) {
-        if (BREAK_AFTER.has(chars[index - 1]) || chars[index] === "%") {
-          cut = index;
-          break;
-        }
-      }
-      lines.push(chars.slice(start, cut).join(""));
-      start = cut;
-    }
   }
   if (line) lines.push(line);
   return lines.length > 0 ? lines : [""];
