@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -44,7 +44,7 @@ def test_identical_bytes_seen_again_become_the_current_edition(conn, monkeypatch
     )
     conn.execute(
         "UPDATE parliament_source SET retrieved_at = %s WHERE id = %s",
-        (datetime(2026, 1, 1, tzinfo=timezone.utc), first_id),
+        (datetime(2026, 1, 1, tzinfo=UTC), first_id),
     )
 
     second_id = ensure_source(
@@ -59,7 +59,7 @@ def test_identical_bytes_seen_again_become_the_current_edition(conn, monkeypatch
     )
     conn.execute(
         "UPDATE parliament_source SET retrieved_at = %s WHERE id = %s",
-        (datetime(2026, 2, 1, tzinfo=timezone.utc), second_id),
+        (datetime(2026, 2, 1, tzinfo=UTC), second_id),
     )
 
     monkeypatch.setattr(parliament, "PARSER_VERSION", "parliament-v2")
