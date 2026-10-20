@@ -1,21 +1,33 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { AccountAvatar } from "@/components/account/AccountAvatar";
 import { PLAN_NAME } from "@/lib/plans";
 import { useAccount } from "@/lib/useAccount";
 import { TransitionLink } from "@/motion/navigation";
 
+const PENDING = <div className="skeleton h-10 w-full" aria-hidden="true" data-testid="nav-account-pending" />;
+
 /**
  * Conta na navegação: "Entrar" (voltando para a mesma página), ou avatar, nome e plano → /conta; a Administração
  * aparece só para quem a API diz ser Super Admin. Enquanto a sessão carrega, a geometria fica reservada.
+ * `useSearchParams` no shell exige Suspense: sem ele, o prerender estático das páginas falha no build.
  */
-export function NavAccount({ onLinkClick }: Readonly<{ onLinkClick?: () => void }>) {
+export function NavAccount(props: Readonly<{ onLinkClick?: () => void }>) {
+  return (
+    <Suspense fallback={PENDING}>
+      <AccountBlock {...props} />
+    </Suspense>
+  );
+}
+
+function AccountBlock({ onLinkClick }: Readonly<{ onLinkClick?: () => void }>) {
   const { data: me } = useAccount();
   const pathname = usePathname() ?? "/";
   const query = useSearchParams()?.toString() ?? "";
 
-  if (me === undefined) return <div className="skeleton h-10 w-full" aria-hidden="true" data-testid="nav-account-pending" />;
+  if (me === undefined) return PENDING;
 
   if (!me) {
     const here = query ? `${pathname}?${query}` : pathname;
