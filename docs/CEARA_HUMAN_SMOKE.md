@@ -106,9 +106,12 @@ Registre cada item como **OK** ou **FALHA** (com captura de tela e horário) na 
 - **Esperado:** arquivos `repbrasil-municipios-2022.csv`, `.xlsx`, `.pdf` e `.png`. CSV com acentos
   corretos, primeira linha "REPBrasil — Comparação de municípios" e linhas `Fonte;…`,
   `Metodologia;…` e `URL reproduzível;<URL da página>`; nenhuma célula vira fórmula. XLSX abre sem
-  pedido de reparo e traz o mesmo conteúdo. PDF e PNG trazem título, fontes e data.
+  pedido de reparo e traz o mesmo conteúdo. PDF e PNG trazem título, fontes, data e a URL
+  reproduzível inteira (quebrada em mais de uma linha quando não cabe, nunca cortada). O CSV usa
+  ponto decimal (`94.38`), para processamento programático: no Excel em português esse valor abre
+  como texto; o XLSX traz números nativos.
 - **Falha:** arquivo não abre, Excel pede reparo, acentos corrompidos, contexto ausente (fonte,
-  metodologia, URL) ou valores alterados (ex.: ausência virando 0).
+  metodologia, URL), URL cortada ou fora da página, ou valores alterados (ex.: ausência virando 0).
 
 ## 9. Parlamento
 

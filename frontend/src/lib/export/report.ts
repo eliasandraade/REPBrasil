@@ -232,31 +232,115 @@ const WIN_ANSI_SPECIAL = new Map<number, number>([
   [0x0178, 0x9f],
 ]);
 
+function winAnsiByte(char: string): number {
+  const codePoint = char.codePointAt(0) ?? 0x3f;
+  return codePoint <= 0xff ? codePoint : (WIN_ANSI_SPECIAL.get(codePoint) ?? 0x3f);
+}
+
 function pdfWinAnsiHex(value: string): string {
   let result = "";
-  for (const char of value) {
-    const codePoint = char.codePointAt(0) ?? 0x3f;
-    const byte = codePoint <= 0xff ? codePoint : (WIN_ANSI_SPECIAL.get(codePoint) ?? 0x3f);
-    result += byte.toString(16).padStart(2, "0");
-  }
+  for (const char of value) result += winAnsiByte(char).toString(16).padStart(2, "0");
   return result;
 }
 
-function wrap(value: string, width = 92): string[] {
-  if (value.length <= width) return [value];
-  const words = value.split(/\s+/);
+/**
+ * Largura de cada glifo da Helvetica (métricas AFM das fontes padrão do PDF), em milésimos de em,
+ * indexada pelo byte WinAnsi. Byte sem glifo conta como 1000, a maior largura possível.
+ */
+const HELVETICA_WIDTHS = (() => {
+  const widths = new Array<number>(256).fill(1000);
+  const put = (first: number, values: number[]) => values.forEach((value, index) => { widths[first + index] = value; });
+  put(0x20, [
+    278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278,
+    556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,
+    1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,
+    667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,
+    333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,
+    556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
+  ]);
+  put(0x80, [
+    556, 1000, 222, 556, 333, 1000, 556, 556, 333, 1000, 667, 333, 1000, 1000, 611, 1000,
+    1000, 222, 222, 333, 333, 350, 556, 1000, 333, 1000, 500, 333, 944, 1000, 500, 667,
+  ]);
+  put(0xa0, [
+    278, 333, 556, 556, 556, 556, 260, 556, 333, 737, 370, 556, 584, 333, 737, 333,
+    400, 584, 333, 333, 333, 556, 537, 278, 333, 333, 365, 556, 834, 834, 834, 611,
+    667, 667, 667, 667, 667, 667, 1000, 722, 667, 667, 667, 667, 278, 278, 278, 278,
+    722, 722, 778, 778, 778, 778, 778, 584, 778, 722, 722, 722, 722, 667, 667, 611,
+    556, 556, 556, 556, 556, 556, 889, 500, 556, 556, 556, 556, 278, 278, 278, 278,
+    556, 556, 556, 556, 556, 556, 556, 584, 611, 556, 556, 556, 556, 500, 556, 500,
+  ]);
+  return widths;
+})();
+
+const PDF_FONT_SIZE = 9;
+const PDF_MARGIN = 42;
+/** Largura útil da linha no PDF: página A4 (595 pt) com 42 pt de margem dos dois lados. */
+export const PDF_TEXT_WIDTH = 595 - 2 * PDF_MARGIN;
+
+const pdfCharWidth = (char: string) => (HELVETICA_WIDTHS[winAnsiByte(char)] * PDF_FONT_SIZE) / 1000;
+
+/** Largura, em pontos, de uma linha do PDF (Helvetica 9 pt). */
+export function pdfTextWidth(value: string): number {
+  let width = 0;
+  for (const char of value) width += pdfCharWidth(char);
+  return width;
+}
+
+// Depois destes caracteres uma URL quebra sem perder legibilidade; antes de `%` também (mantém `%2C` inteiro).
+const BREAK_AFTER = new Set(["/", "&", "?", "=", ",", ";", ".", "-", "_"]);
+
+/**
+ * Quebra `value` em linhas que cabem em `maxWidth`, medindo cada caractere com `charWidth`. Palavras
+ * passam inteiras para a linha seguinte; um token mais largo que a linha (uma URL, por exemplo) é
+ * quebrado dentro dele, de preferência depois de um separador. Nenhum caractere é descartado.
+ */
+function wrapText(value: string, maxWidth: number, charWidth: (char: string) => number): string[] {
+  let total = 0;
+  for (const char of value) total += charWidth(char);
+  if (total <= maxWidth) return [value];
+
+  const space = charWidth(" ");
   const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    if (!current) current = word;
-    else if (`${current} ${word}`.length <= width) current += ` ${word}`;
-    else {
-      lines.push(current);
-      current = word;
+  let line = "";
+  let lineWidth = 0;
+  for (const word of value.split(/\s+/).filter(Boolean)) {
+    const chars = Array.from(word);
+    const widths = chars.map(charWidth);
+    const wordWidth = widths.reduce((sum, width) => sum + width, 0);
+    if (line && lineWidth + space + wordWidth <= maxWidth) {
+      line += ` ${word}`;
+      lineWidth += space + wordWidth;
+      continue;
+    }
+    if (line) lines.push(line);
+    let start = 0;
+    for (;;) {
+      let end = start;
+      let width = 0;
+      while (end < chars.length && width + widths[end] <= maxWidth) {
+        width += widths[end];
+        end += 1;
+      }
+      if (end === chars.length) {
+        line = chars.slice(start).join("");
+        lineWidth = width;
+        break;
+      }
+      end = Math.max(end, start + 1);
+      let cut = end;
+      for (let index = end; index > start + (end - start) / 2; index -= 1) {
+        if (BREAK_AFTER.has(chars[index - 1]) || chars[index] === "%") {
+          cut = index;
+          break;
+        }
+      }
+      lines.push(chars.slice(start, cut).join(""));
+      start = cut;
     }
   }
-  if (current) lines.push(current);
-  return lines;
+  if (line) lines.push(line);
+  return lines.length > 0 ? lines : [""];
 }
 
 export function reportPdf(report: ExportReport): Uint8Array {
@@ -272,7 +356,7 @@ export function reportPdf(report: ExportReport): Uint8Array {
     "",
     report.headers.join(" | "),
     ...report.rows.map((row) => row.map(text).join(" | ")),
-  ].flatMap((line) => wrap(line));
+  ].flatMap((line) => wrapText(line, PDF_TEXT_WIDTH, pdfCharWidth));
 
   const pages: string[][] = [];
   for (let index = 0; index < lines.length; index += 44) pages.push(lines.slice(index, index + 44));
@@ -295,8 +379,8 @@ export function reportPdf(report: ExportReport): Uint8Array {
     objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
     const stream = [
       "BT",
-      "/F1 9 Tf",
-      "42 802 Td",
+      `/F1 ${PDF_FONT_SIZE} Tf`,
+      `${PDF_MARGIN} 802 Td`,
       ...page.flatMap((line, lineIndex) => [lineIndex === 0 ? "" : "0 -17 Td", `<${pdfWinAnsiHex(line)}> Tj`]).filter(Boolean),
       "ET",
     ].join("\n");
@@ -317,31 +401,47 @@ export function reportPdf(report: ExportReport): Uint8Array {
   return utf8(body);
 }
 
-export async function reportPng(report: ExportReport): Promise<Blob> {
-  const maxRows = 1000;
-  const rows = report.rows.slice(0, maxRows);
-  const width = 1600;
-  const lineHeight = 30;
-  const contextLines = report.metadata.length + report.sources.length + report.methodology.length + 8;
-  const height = Math.max(900, Math.min(32000, 180 + (contextLines + rows.length + 2) * lineHeight));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas indisponível para exportar PNG.");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = "#111827";
-  ctx.font = "700 32px Arial";
-  ctx.fillText(report.title, 48, 58);
-  ctx.font = "16px Arial";
-  let y = 94;
-  const line = (value: string, bold = false) => {
-    ctx.font = `${bold ? "700" : "400"} 16px Arial`;
-    ctx.fillStyle = bold ? "#111827" : "#4b5563";
-    ctx.fillText(value.slice(0, 180), 48, y);
-    y += lineHeight;
+const PNG_WIDTH = 1600;
+const PNG_MARGIN = 48;
+const PNG_LINE_HEIGHT = 30;
+const PNG_MAX_HEIGHT = 32000;
+const PNG_MAX_ROWS = 1000;
+const PNG_TITLE_FONT = "700 32px Arial";
+const PNG_TEXT_FONT = "400 16px Arial";
+const PNG_BOLD_FONT = "700 16px Arial";
+/** Largura útil da linha no PNG. */
+export const PNG_TEXT_WIDTH = PNG_WIDTH - 2 * PNG_MARGIN;
+
+export interface PngLine {
+  text: string;
+  font: string;
+  color: string;
+  y: number;
+}
+
+export interface PngLayout {
+  width: number;
+  height: number;
+  lines: PngLine[];
+}
+
+/**
+ * Posição de cada linha do PNG. Linhas longas (URL, metodologia, fontes) quebram dentro da largura
+ * útil e a imagem cresce para caber todas; só as linhas da tabela podem ser limitadas, com aviso.
+ */
+export function layoutPng(report: ExportReport, measureChar: (char: string, font: string) => number): PngLayout {
+  const lines: PngLine[] = [];
+  const wrapped = (value: string, font: string) => wrapText(value, PNG_TEXT_WIDTH, (char) => measureChar(char, font));
+  const title = wrapped(report.title, PNG_TITLE_FONT);
+  title.forEach((part, index) => lines.push({ text: part, font: PNG_TITLE_FONT, color: "#111827", y: 58 + index * 40 }));
+  let y = 58 + (title.length - 1) * 40 + 36;
+  const add = (parts: string[], bold = false) => {
+    for (const part of parts) {
+      lines.push({ text: part, font: bold ? PNG_BOLD_FONT : PNG_TEXT_FONT, color: bold ? "#111827" : "#4b5563", y });
+      y += PNG_LINE_HEIGHT;
+    }
   };
+  const line = (value: string) => add(wrapped(value, PNG_TEXT_FONT));
   if (report.subtitle) line(report.subtitle);
   report.metadata.forEach((item) => line(`${item.label}: ${item.value}`));
   line(`Gerado em: ${report.generatedAt}`);
@@ -349,9 +449,44 @@ export async function reportPng(report: ExportReport): Promise<Blob> {
   report.sources.forEach((source) => line(`Fonte: ${source}`));
   report.methodology.forEach((item) => line(`Metodologia: ${item}`));
   y += 10;
-  line(report.headers.join("  |  "), true);
-  rows.forEach((row) => line(row.map(text).join("  |  ")));
-  if (report.rows.length > maxRows) line(`PNG limitado às primeiras ${maxRows} linhas; CSV/XLSX preservam todas as ${report.rows.length}.`);
+  add(wrapped(report.headers.join("  |  "), PNG_BOLD_FONT), true);
+  let shown = 0;
+  for (const row of report.rows.slice(0, PNG_MAX_ROWS)) {
+    const parts = wrapped(row.map(text).join("  |  "), PNG_TEXT_FONT);
+    // Reserva uma linha para o aviso de limite: a imagem nunca passa da altura máxima do canvas.
+    if (y + (parts.length + 1) * PNG_LINE_HEIGHT > PNG_MAX_HEIGHT) break;
+    add(parts);
+    shown += 1;
+  }
+  if (shown < report.rows.length) line(`PNG limitado às primeiras ${shown} linhas; CSV/XLSX preservam todas as ${report.rows.length}.`);
+  return { width: PNG_WIDTH, height: Math.max(900, y), lines };
+}
+
+export async function reportPng(report: ExportReport): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível para exportar PNG.");
+  const widths = new Map<string, number>();
+  const layout = layoutPng(report, (char, font) => {
+    const key = `${font}|${char}`;
+    let width = widths.get(key);
+    if (width === undefined) {
+      ctx.font = font;
+      width = ctx.measureText(char).width;
+      widths.set(key, width);
+    }
+    return width;
+  });
+  // Redimensionar o canvas zera o estado do contexto: fonte e cor são definidas de novo em cada linha.
+  canvas.width = layout.width;
+  canvas.height = layout.height;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, layout.width, layout.height);
+  for (const line of layout.lines) {
+    ctx.font = line.font;
+    ctx.fillStyle = line.color;
+    ctx.fillText(line.text, PNG_MARGIN, line.y);
+  }
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Não foi possível gerar o PNG."))), "image/png");
   });
