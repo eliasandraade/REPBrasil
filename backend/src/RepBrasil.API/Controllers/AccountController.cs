@@ -56,7 +56,15 @@ public sealed class AccountController(
         if (!AccountService.SecureEquals(correlation, token))
             return Redirect(external.FrontendRedirect("/entrar?erro=link-invalido").AbsoluteUri);
 
-        var result = await accounts.ConsumeMagicLinkAsync(token, Request.Headers.UserAgent.ToString(), HttpContext.Connection.RemoteIpAddress?.ToString(), cancellationToken);
+        (AccountSession Session, string SessionToken, string ReturnTo)? result;
+        try
+        {
+            result = await accounts.ConsumeMagicLinkAsync(token, Request.Headers.UserAgent.ToString(), HttpContext.Connection.RemoteIpAddress?.ToString(), cancellationToken);
+        }
+        catch (AccountSuspendedException)
+        {
+            return Redirect(external.FrontendRedirect("/entrar?erro=conta-suspensa").AbsoluteUri);
+        }
         if (result is null) return Redirect(external.FrontendRedirect("/entrar?erro=link-invalido").AbsoluteUri);
         SetSessionCookie(result.Value.SessionToken, result.Value.Session.ExpiresAt);
         return Redirect(external.FrontendRedirect(result.Value.ReturnTo).AbsoluteUri);
@@ -100,6 +108,10 @@ public sealed class AccountController(
             SetSessionCookie(result.Token, result.Session.ExpiresAt);
             return Redirect(external.FrontendRedirect(returnTo).AbsoluteUri);
         }
+        catch (AccountSuspendedException)
+        {
+            return Redirect(external.FrontendRedirect("/entrar?erro=conta-suspensa").AbsoluteUri);
+        }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
         {
             return Redirect(external.FrontendRedirect("/entrar?erro=google-falhou").AbsoluteUri);
@@ -111,10 +123,10 @@ public sealed class AccountController(
     /// assinatura, perfil e uso frente aos limites. Nenhum segredo além do token CSRF da própria sessão.
     /// </summary>
     [HttpGet("account/me")]
+    [RequiresSession]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
-        var session = await CurrentSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         Response.Headers.CacheControl = "no-store";
         return Ok(await AccountPayloadAsync(session, cancellationToken));
     }
@@ -175,45 +187,46 @@ public sealed class AccountController(
     }
 
     [HttpGet("account/profile")]
+    [RequiresSession]
     public async Task<IActionResult> Profile(CancellationToken cancellationToken)
     {
-        var session = await CurrentSession(cancellationToken);
-        return session is null ? Unauthorized() : Ok(await profiles.GetAsync(session.UserId, cancellationToken));
+        var session = await RequiredSession(cancellationToken);
+        return Ok(await profiles.GetAsync(session.UserId, cancellationToken));
     }
 
     [HttpPost("account/profile")]
+    [RequiresSession]
     public async Task<IActionResult> UpdateProfile([FromBody] ProfileUpdate request, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         try { return Ok(await profiles.UpdateAsync(session.UserId, request, cancellationToken)); }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     [HttpPost("auth/logout")]
+    [RequiresSession]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         if (Request.Cookies.TryGetValue(SessionCookie, out var token)) await accounts.RevokeSessionAsync(token, cancellationToken);
         Response.Cookies.Delete(SessionCookie, SessionCookieOptions());
         return NoContent();
     }
 
     [HttpGet("account/saved")]
+    [RequiresSession]
     public async Task<IActionResult> Saved([FromQuery] string collection = "favorite", CancellationToken cancellationToken = default)
     {
-        var session = await CurrentSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         try { return Ok(await accounts.GetSavedItemsAsync(session.UserId, collection, cancellationToken)); }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     [HttpPost("account/saved")]
+    [RequiresSession]
     public async Task<IActionResult> Save([FromBody] SaveItemRequest request, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         var effective = await access.AccessAsync(HttpContext, cancellationToken);
         var limit = effective.Limit(request.Collection == "watchlist" ? PlanCatalog.WatchlistLimit : PlanCatalog.FavoritesLimit);
         try
@@ -239,10 +252,10 @@ public sealed class AccountController(
     }
 
     [HttpDelete("account/saved")]
+    [RequiresSession]
     public async Task<IActionResult> RemoveSaved([FromQuery] string collection, [FromQuery] string resourceType, [FromQuery] string resourceKey, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         try
         {
             await accounts.RemoveSavedItemAsync(session.UserId, collection, resourceType, resourceKey, cancellationToken);
@@ -252,10 +265,11 @@ public sealed class AccountController(
     }
 
     [HttpGet("account/alerts")]
+    [RequiresSession]
     public async Task<IActionResult> Alerts(CancellationToken cancellationToken)
     {
-        var session = await CurrentSession(cancellationToken);
-        return session is null ? Unauthorized() : Ok(await accounts.GetAlertsAsync(session.UserId, cancellationToken));
+        var session = await RequiredSession(cancellationToken);
+        return Ok(await accounts.GetAlertsAsync(session.UserId, cancellationToken));
     }
 
     /// <summary>Tipos de alerta que o sistema dispara de verdade (cada um tem um produtor de edições oficiais).</summary>
@@ -263,10 +277,10 @@ public sealed class AccountController(
     public IActionResult AlertKinds() => Ok(AlertCatalog.Kinds);
 
     [HttpPost("account/alerts")]
+    [RequiresSession]
     public async Task<IActionResult> UpsertAlert([FromBody] AlertRequest request, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         var limit = (await access.AccessAsync(HttpContext, cancellationToken)).Limit(PlanCatalog.AlertsLimit);
         try { return Ok(await accounts.UpsertAlertAsync(session.UserId, request.ResourceType, request.ResourceKey, request.EventKind, request.Delivery, request.Enabled, limit, cancellationToken)); }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
@@ -274,72 +288,76 @@ public sealed class AccountController(
     }
 
     [HttpDelete("account/alerts/{id:guid}")]
+    [RequiresSession]
     public async Task<IActionResult> DeleteAlert(Guid id, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         await accounts.DeleteAlertAsync(session.UserId, id, cancellationToken);
         return NoContent();
     }
 
     [HttpGet("account/notifications")]
+    [RequiresSession]
     public async Task<IActionResult> Notifications(CancellationToken cancellationToken)
     {
-        var session = await CurrentSession(cancellationToken);
-        return session is null ? Unauthorized() : Ok(await accounts.GetNotificationsAsync(session.UserId, cancellationToken));
+        var session = await RequiredSession(cancellationToken);
+        return Ok(await accounts.GetNotificationsAsync(session.UserId, cancellationToken));
     }
 
     [HttpPost("account/notifications/{id:guid}/read")]
+    [RequiresSession]
     public async Task<IActionResult> ReadNotification(Guid id, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         await accounts.MarkNotificationReadAsync(session.UserId, id, cancellationToken);
         return NoContent();
     }
 
     [HttpPost("account/notifications/read-all")]
+    [RequiresSession]
     public async Task<IActionResult> ReadAllNotifications(CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         await accounts.MarkAllNotificationsReadAsync(session.UserId, cancellationToken);
         return NoContent();
     }
 
     [HttpGet("account/entitlements")]
+    [RequiresSession]
     public async Task<IActionResult> Entitlements(CancellationToken cancellationToken)
     {
-        var session = await CurrentSession(cancellationToken);
-        return session is null ? Unauthorized() : Ok(await accounts.GetEntitlementsAsync(session.UserId, cancellationToken));
+        var session = await RequiredSession(cancellationToken);
+        return Ok(await accounts.GetEntitlementsAsync(session.UserId, cancellationToken));
     }
 
     [HttpGet("account/api-keys")]
+    [RequiresSession]
     public async Task<IActionResult> ApiKeys(CancellationToken cancellationToken)
     {
-        var session = await CurrentSession(cancellationToken);
-        return session is null ? Unauthorized() : Ok(await accounts.GetApiKeysAsync(session.UserId, cancellationToken));
+        var session = await RequiredSession(cancellationToken);
+        return Ok(await accounts.GetApiKeysAsync(session.UserId, cancellationToken));
     }
 
     [HttpPost("account/api-keys")]
+    [RequiresSession]
     public async Task<IActionResult> CreateApiKey([FromBody] CreateApiKeyRequest request, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         try { return Ok(await accounts.CreateApiKeyAsync(session.UserId, request.Name, request.Scopes, cancellationToken)); }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     [HttpDelete("account/api-keys/{id:guid}")]
+    [RequiresSession]
     public async Task<IActionResult> RevokeApiKey(Guid id, CancellationToken cancellationToken)
     {
-        var session = await RequireMutationSession(cancellationToken);
-        if (session is null) return Unauthorized();
+        var session = await RequiredSession(cancellationToken);
         await accounts.RevokeApiKeyAsync(session.UserId, id, cancellationToken);
         return NoContent();
     }
 
     [HttpPost("internal/alerts/publish")]
+    [HeaderCredential("X-Alerts-Token", "Token interno de publicação de alertas (rotina auditável)")]
     public async Task<IActionResult> PublishAlert([FromBody] PublishAlertRequest request, CancellationToken cancellationToken)
     {
         if (!AccountService.SecureEquals(Request.Headers["X-Alerts-Token"].ToString(), configuration["Alerts:PublishToken"])) return NotFound();
@@ -353,11 +371,9 @@ public sealed class AccountController(
 
     private Task<AccountSession?> CurrentSession(CancellationToken cancellationToken) => access.SessionAsync(HttpContext, cancellationToken);
 
-    private async Task<AccountSession?> RequireMutationSession(CancellationToken cancellationToken)
-    {
-        var session = await CurrentSession(cancellationToken);
-        return session is not null && AccountAccessService.CsrfMatches(HttpContext, session) ? session : null;
-    }
+    /// <summary>Sessão de uma rota com <see cref="RequiresSessionAttribute"/> (o filtro já recusou quem não tem).</summary>
+    private async Task<AccountSession> RequiredSession(CancellationToken cancellationToken) =>
+        await CurrentSession(cancellationToken) ?? throw new InvalidOperationException("Rota sem [RequiresSession].");
 
     private void SetSessionCookie(string token, DateTimeOffset expiresAt)
     {

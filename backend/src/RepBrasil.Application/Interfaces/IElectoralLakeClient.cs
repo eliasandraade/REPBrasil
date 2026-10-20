@@ -25,4 +25,7 @@ public interface IElectoralLakeClient
 
     /// <summary>Base Eleitoral (escopo frio): posição da candidatura na disputa por urna ou local de votação.</summary>
     Task<IReadOnlyList<ContestStatsRow>> SectionContestStatsAsync(ContestStatsQuery query, CancellationToken ct);
+
+    /// <summary>Saúde do worker (<c>GET /health</c>): falha de rede, prazo esgotado ou resposta não-2xx viram <c>false</c>.</summary>
+    Task<bool> HealthAsync(CancellationToken ct);
 }

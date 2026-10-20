@@ -15,12 +15,14 @@ namespace RepBrasil.API.Infrastructure;
 public static class ApiRateLimits
 {
     public const string Heavy = "heavy";
+    public const string Support = "support";
     public const string InternalTokenHeader = "X-Internal-Token";
 
     public static IServiceCollection AddApiRateLimits(this IServiceCollection services, IConfiguration config)
     {
         var perMinute = Math.Max(1, config.GetValue("RateLimit:PerMinute", 300));
         var heavyPerMinute = Math.Max(1, config.GetValue("RateLimit:HeavyPerMinute", 60));
+        var supportPerHour = Math.Max(1, config.GetValue("RateLimit:SupportPerHour", 6));
         var internalToken = config["RateLimit:InternalToken"];
         bool Internal(HttpContext http) =>
             !string.IsNullOrEmpty(internalToken) && HttpPipeline.SecretEquals(http.Request.Headers[InternalTokenHeader], internalToken);
@@ -34,6 +36,13 @@ public static class ApiRateLimits
             o.AddPolicy(Heavy, http => Internal(http)
                 ? RateLimitPartition.GetNoLimiter("exempt")
                 : RateLimitPartition.GetTokenBucketLimiter(ClientKey(http), _ => Bucket(heavyPerMinute)));
+            // Formulário de suporte: poucos envios por origem e por hora, contra robôs (RateLimit:SupportPerHour).
+            o.AddPolicy(Support, http => RateLimitPartition.GetFixedWindowLimiter(ClientKey(http), _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = supportPerHour,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0,
+            }));
             o.OnRejected = async (context, ct) =>
             {
                 var http = context.HttpContext;
