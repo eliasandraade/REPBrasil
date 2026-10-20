@@ -6,19 +6,7 @@ namespace RepBrasil.Infrastructure.Repositories;
 
 public sealed class ParliamentRepository(ApplicationDbContext db) : IParliamentRepository
 {
-    // Cada (provider, dataset) é uma edição completa do seu recorte. Vale só a mais recente, decidida
-    // em parliament_source antes de olhar as emendas: uma edição vigente sem nenhuma emenda é ausência
-    // oficial e não deixa a edição anterior "ressuscitar". Edições anteriores ficam preservadas para
-    // auditoria. `uf` é o recorte oficial gravado pela ingestão (metadata.uf), nunca inferido de texto.
-    private const string CurrentEditions = """
-        WITH current_edition AS (
-          SELECT DISTINCT ON (s.provider, s.dataset)
-                 s.id, s.provider, s.dataset, s.source_url, s.retrieved_at, s.metadata->>'uf' AS uf
-            FROM electoral.parliament_source s
-           ORDER BY s.provider, s.dataset, s.retrieved_at DESC, s.id DESC
-        )
-
-        """;
+    private const string CurrentEditions = ParliamentSql.CurrentEditions;
 
     private async Task<IReadOnlyList<T>> Query<T>(string sql, CancellationToken ct, params object[] parameters) =>
         await db.Database.SqlQueryRaw<T>(sql, parameters).ToListAsync(ct);
@@ -126,4 +114,22 @@ public sealed class ParliamentRepository(ApplicationDbContext db) : IParliamentR
              ORDER BY sum(a.committed_amount) DESC NULLS LAST, m.name
             """, ct, yearParameter, uf);
     }
+
+    public Task<IReadOnlyList<AmendmentSeriesRow>> AmendmentMapSeriesAsync(string uf, CancellationToken ct) =>
+        // Mesmas regras do mapa anual, todos os anos de uma vez: só município com código IBGE oficial da UF.
+        Query<AmendmentSeriesRow>(CurrentEditions + """
+            SELECT a.year AS "Year", a.municipality_ibge_code AS "MunicipalityIbgeCode", m.name AS "MunicipalityName",
+                   count(*)::int AS "AmendmentCount",
+                   sum(a.committed_amount) AS "CommittedAmount",
+                   count(*) FILTER (WHERE a.committed_amount IS NULL)::int AS "CommittedAmountMissing",
+                   sum(a.paid_amount) AS "PaidAmount",
+                   count(*) FILTER (WHERE a.paid_amount IS NULL)::int AS "PaidAmountMissing",
+                   max(e.retrieved_at) AS "RetrievedAt"
+              FROM electoral.parliament_amendment a
+              JOIN current_edition e ON e.id = a.source_id AND e.uf = {0}
+              JOIN electoral.municipality m ON m.ibge_code::text = a.municipality_ibge_code AND m.state_code = {0}
+             WHERE a.municipality_ibge_code IS NOT NULL AND a.year IS NOT NULL
+             GROUP BY a.year, a.municipality_ibge_code, m.name
+             ORDER BY a.year, sum(a.committed_amount) DESC NULLS LAST, m.name
+            """, ct, uf);
 }

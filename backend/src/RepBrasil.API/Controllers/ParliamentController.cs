@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.AspNetCore.RateLimiting;
+using RepBrasil.API.Accounts;
 using RepBrasil.API.Infrastructure;
 using RepBrasil.Application.Parliament;
 
@@ -76,6 +78,18 @@ public sealed class ParliamentController(ParliamentService service) : Controller
         CancellationToken ct)
     {
         try { return Ok(await service.AmendmentMapAsync(year, uf, ct)); }
+        catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
+    }
+
+    /// <summary>O mapa de emendas da UF ano a ano numa consulta (linha do tempo). Cada ano continua aberto em <c>/amendments/map</c>.</summary>
+    [HttpGet("amendments/map-series")]
+    [RequiresCapability(PlanCatalog.MapSeries)]
+    [OutputCache(NoStore = true)]
+    [EnableRateLimiting(ApiRateLimits.Heavy)]
+    public async Task<ActionResult<AmendmentMapSeriesResponse>> AmendmentMapSeries([FromQuery] string? uf, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "private, no-store";
+        try { return Ok(await service.AmendmentMapSeriesAsync(uf, ct)); }
         catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
     }
 }
