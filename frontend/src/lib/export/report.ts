@@ -333,28 +333,22 @@ function wrapText(value: string, maxWidth: number, charWidth: (char: string) => 
   const lines: string[] = [];
   let line = "";
   let lineWidth = 0;
-  let gap = "";
-  for (const token of value.split(/(\s+)/)) {
-    if (!token) continue;
-    if (/^\s/.test(token)) {
-      gap = token;
+  // Cada palavra vem com o espaço original que a precede (ex.: "  |  " nas linhas do PNG).
+  for (const [, gap, word] of value.matchAll(/(\s*)(\S+)/g)) {
+    const chars = Array.from(word);
+    const widths = chars.map(charWidth);
+    const wordWidth = widths.reduce((sum, width) => sum + width, 0);
+    const gapWidth = textWidth(gap, charWidth);
+    if (line && lineWidth + gapWidth + wordWidth <= maxWidth) {
+      line += gap + word;
+      lineWidth += gapWidth + wordWidth;
       continue;
     }
-    const chars = Array.from(token);
-    const widths = chars.map(charWidth);
-    const tokenWidth = widths.reduce((sum, width) => sum + width, 0);
-    const gapWidth = textWidth(gap, charWidth);
-    if (line && lineWidth + gapWidth + tokenWidth <= maxWidth) {
-      line += gap + token;
-      lineWidth += gapWidth + tokenWidth;
-    } else {
-      if (line) lines.push(line);
-      const { full, rest, restWidth } = splitToken(chars, widths, maxWidth);
-      for (const part of full) lines.push(part);
-      line = rest;
-      lineWidth = restWidth;
-    }
-    gap = "";
+    if (line) lines.push(line);
+    const { full, rest, restWidth } = splitToken(chars, widths, maxWidth);
+    lines.push(...full);
+    line = rest;
+    lineWidth = restWidth;
   }
   if (line) lines.push(line);
   return lines.length > 0 ? lines : [""];
