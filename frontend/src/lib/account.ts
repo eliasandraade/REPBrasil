@@ -108,11 +108,22 @@ export async function getAccount(): Promise<AccountMe | null> {
   }
 }
 
-export function requestMagicLink(email: string, returnTo = "/conta") {
-  return accountFetch<{ status: string }>("/api/v1/auth/magic-link", {
-    method: "POST",
-    body: JSON.stringify({ email, returnTo }),
-  });
+/** Prazo do pedido de magic link no navegador: maior que o limite de ~10 s da API, para o 503 dela chegar antes. */
+export const MAGIC_LINK_TIMEOUT_MS = 20_000;
+
+export async function requestMagicLink(email: string, returnTo = "/conta") {
+  // Sem resposta no prazo, o pedido é abortado e a tela sai de "Enviando…" com a mensagem de erro.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MAGIC_LINK_TIMEOUT_MS);
+  try {
+    return await accountFetch<{ status: string }>("/api/v1/auth/magic-link", {
+      method: "POST",
+      body: JSON.stringify({ email, returnTo }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function googleLoginUrl(returnTo = "/conta") {

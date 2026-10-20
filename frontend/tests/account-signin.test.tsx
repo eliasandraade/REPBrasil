@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import SignInPage from "@/app/entrar/page";
+import { MAGIC_LINK_TIMEOUT_MS } from "@/lib/account";
 import { reportCsv, type ExportReport } from "@/lib/export/report";
 
 afterEach(() => {
@@ -40,6 +41,52 @@ describe("/entrar explica por que o acesso falhou", () => {
     openSignIn(`?returnTo=${encodeURIComponent(target)}`);
     const google = screen.getByRole("link", { name: "Continuar com Google" });
     expect(google.getAttribute("href")).toContain(`returnTo=${encodeURIComponent("/conta")}`);
+  });
+});
+
+describe("/entrar sempre sai de “Enviando…” ao pedir o link por e-mail", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function submitEmail() {
+    openSignIn("");
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "pessoa@example.test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Receber link de acesso" }));
+    expect(screen.getByRole("button", { name: "Enviando…" }).hasAttribute("disabled")).toBe(true);
+  }
+
+  const sendButtonEnabled = () =>
+    expect(screen.getByRole("button", { name: "Receber link de acesso" }).hasAttribute("disabled")).toBe(false);
+
+  it("confirma o pedido aceito pela API", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ status: "accepted" }), { status: 202, headers: { "Content-Type": "application/json" } }))));
+    submitEmail();
+    expect((await screen.findByRole("status")).textContent).toContain("o link chegará em instantes");
+    sendButtonEnabled();
+  });
+
+  it("explica a indisponibilidade quando o provedor falha (503)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ detail: "O login por e-mail está temporariamente indisponível." }), { status: 503 }))));
+    submitEmail();
+    expect((await screen.findByRole("alert")).textContent).toContain("O login por e-mail está indisponível agora");
+    sendButtonEnabled();
+  });
+
+  it("desiste no prazo quando a API não responde", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Pedido abortado", "AbortError")));
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    submitEmail();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(MAGIC_LINK_TIMEOUT_MS);
+    });
+    expect((await screen.findByRole("alert")).textContent).toContain("O login por e-mail está indisponível agora");
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    sendButtonEnabled();
   });
 });
 
