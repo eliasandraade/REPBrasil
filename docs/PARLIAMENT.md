@@ -23,6 +23,10 @@ Contrato da camada parlamentar (`electoral.parliament_*`, `/api/v1/parliament/*`
 
 - Cada `(provider, dataset)` de `parliament_source` é uma edição **completa** do seu recorte,
   identificada pelo SHA-256 dos bytes oficiais.
+- Reobservar exatamente os mesmos bytes é idempotente: a mesma linha de `parliament_source` é
+  reutilizada, sem criar uma edição duplicada. Como a observação é nova, `retrieved_at`, URL,
+  metadados e versão do parser são atualizados; assim, numa sequência A → B → A, a edição A volta a
+  ser corretamente a vigente sem apagar a B do histórico.
 - As leituras de emendas (`/amendments`, `/amendments/map`, `/amendments/years`) usam somente a
   edição mais recente de cada dataset, decidida em `parliament_source` **antes** de olhar as emendas.
   Uma edição vigente sem nenhuma emenda é ausência oficial no recorte: nada da edição anterior
@@ -105,6 +109,8 @@ DATABASE_URL=... python scripts/ingest_parliament.py --uf CE --legislature 57
   recorte" com o total da API, nunca o tamanho da listagem.
 - `etl/tests/sources/camara/test_activity.py` e `etl/tests/sources/transparencia/test_amendments.py`:
   parsers fail-closed, código IBGE oficial obrigatório, dinheiro ausente não vira zero.
+- `etl/tests/electoral/test_parliament_source_currentness.py`: sequência de bytes A → B → A reaproveita
+  a edição A sem duplicá-la, atualiza sua proveniência e a torna novamente a edição vigente.
 - `etl/tests/pipeline/test_parliament_download.py`: redirecionamento fora da lista, com downgrade
   para HTTP, credenciais ou porta estranha recusado sem que o host seja contatado; limite de saltos;
   `Content-Length` acima do teto recusado antes de ler o corpo; corpo sem tamanho cortado no teto.
