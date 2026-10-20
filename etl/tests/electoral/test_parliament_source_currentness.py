@@ -9,7 +9,7 @@ from src.pipeline.parliament import ParliamentSource, ensure_source
 
 psycopg = pytest.importorskip("psycopg")
 
-from conftest import TEST_DATABASE_URL, reset_electoral_schema  # noqa: E402
+from conftest import TEST_DATABASE_URL, reset_electoral_schema  # noqa: E402, I001
 
 
 db = pytest.mark.skipif(
