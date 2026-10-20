@@ -26,17 +26,19 @@ import { CausalityNote, Insights } from "../Insights";
 import { MatrixSection } from "../MatrixSection";
 import { Scatter } from "../Scatter";
 import type { ModeContext, ModeView, ReadingModel } from "../explorer-types";
-import { SELECT, municipalityRows, ofPlace, ranksOf, relationTo } from "./shared";
+import { SELECT, emptyChoice, knownState, municipalityRows, ofPlace, pendingReading, ranksOf, relationTo } from "./shared";
 
 /**
  * Modo socioeconômico: um indicador oficial por município, na UF escolhida. Só aparecem como escolha os indicadores
  * com valor carregado na UF (os outros ficam visíveis e desabilitados, "sem dados nesta UF").
  */
 export function useSocioMode(ctx: ModeContext): ModeView {
-  const { state, coverage, enabled, theme, level, municipalities, update, hovered, onHover } = ctx;
+  const { state, coverage, coverageStatus, enabled, theme, level, municipalities, update, hovered, onHover } = ctx;
   const uf = state.uf;
   const atState = enabled && level !== "country" && !!uf;
   const catalogQ = useQuery({ queryKey: ["data-indicators"], queryFn: getIndicators, staleTime: 10 * 60_000, enabled });
+  // o que está carregado só é conhecido com a cobertura e o catálogo em mãos
+  const known = coverageStatus === "ready" ? knownState(catalogQ) : coverageStatus;
   const loaded = useMemo(() => loadedIndicators(coverage), [coverage]);
   const catalog = catalogQ.data ?? [];
   const available = catalog.filter((i) => loaded.has(i.code));
@@ -124,11 +126,11 @@ export function useSocioMode(ctx: ModeContext): ModeView {
       <label className="space-y-1 text-body-sm text-fg-muted">
         <span>Indicador</span>
         <select className={SELECT} value={x?.code ?? ""} onChange={(e) => update({ x: e.target.value, period: null, y: null })} disabled={available.length === 0}>
-          {available.length === 0 && <option value="">Sem indicadores carregados</option>}
+          {available.length === 0 && <option value="">{emptyChoice(known, "Sem indicadores carregados")}</option>}
           {catalog.map((i) => (
             <option key={i.code} value={i.code} disabled={!loaded.has(i.code)}>
               {i.name}
-              {loaded.has(i.code) ? "" : " — sem dados nesta UF"}
+              {loaded.has(i.code) || known !== "ready" ? "" : " — sem dados nesta UF"}
             </option>
           ))}
         </select>
@@ -146,6 +148,7 @@ export function useSocioMode(ctx: ModeContext): ModeView {
   );
 
   const reading: ReadingModel = (() => {
+    if (known !== "ready") return pendingReading(known);
     if (!x || period === null)
       return { what: `Nenhum indicador socioeconômico carregado para os municípios ${ofPlace(coverage, uf)} até agora.`, facts: [], notice: "A malha municipal (IBGE) continua disponível para navegar." };
     const what = `${x.name} em ${period}, por município. ${x.description}`.trim();
@@ -188,7 +191,8 @@ export function useSocioMode(ctx: ModeContext): ModeView {
       sentences.push(`Metade dos municípios fica abaixo de ${fmt(dist.median)} e metade acima.`);
     }
     const missing = (coverage?.municipalities ?? 0) - dist.n;
-    if (missing > 0) sentences.push(`${formatInteger(missing)} municípios ${place} não têm este dado em ${period} e ficam sem cor no mapa.`);
+    if (missing === 1) sentences.push(`1 município ${place} não tem este dado em ${period} e fica sem cor no mapa.`);
+    else if (missing > 1) sentences.push(`${formatInteger(missing)} municípios ${place} não têm este dado em ${period} e ficam sem cor no mapa.`);
   }
 
   const analysis = !ready ? null : (
@@ -225,7 +229,11 @@ export function useSocioMode(ctx: ModeContext): ModeView {
     controls,
     layer: ready ? layer : null,
     compare: beforeLayer && y ? { before: { layer: beforeLayer, label: y.name }, afterLabel: x?.name ?? "" } : null,
-    compareNote: y ? undefined : "A comparação precisa de um segundo indicador com dado no mesmo período.",
+    compareNote: y || known !== "ready" ? undefined : "A comparação precisa de um segundo indicador com dado no mesmo período.",
+    compareError:
+      comparing && y && yValuesQ.isError && !yValuesQ.data ? { message: `Não foi possível carregar ${y.name}.`, retry: () => void yValuesQ.refetch() } : null,
+    // os dois lados são do mesmo período: é comparação lado a lado, não antes e depois
+    viewLabels: { comparar: "Lado a lado" },
     views,
     reading,
     table: ready
@@ -237,6 +245,7 @@ export function useSocioMode(ctx: ModeContext): ModeView {
           ],
           rows,
           initialSort: { key: "value", dir: "desc" },
+          status: knownState(valuesQ),
           actions: (
             <>
               <ExportAction capability={EXPORT_CSV} label="Baixar CSV do recorte" run={() => downloadIndicatorCsv(x!.code, uf!, period)} />

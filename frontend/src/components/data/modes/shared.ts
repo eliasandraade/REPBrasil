@@ -2,6 +2,7 @@ import type { TableRow } from "@/components/territory/TerritoryTable";
 import type { StateCoverage } from "@/lib/data-intelligence";
 import type { TerritoryMunicipality } from "@/lib/territories";
 import { ofUf } from "@/lib/territory/places";
+import type { KnownState, ReadingModel } from "../explorer-types";
 
 export const SELECT = "focus-ring w-full rounded-lg border border-line bg-canvas px-3 py-2 text-body-sm text-fg disabled:opacity-60";
 
@@ -43,6 +44,27 @@ export function municipalityRows<T extends { code: string; name: string }>(
     return { code, name, ...build(row) };
   });
 }
+
+/** Estado de uma consulta do React Query: valor em mãos, consultando ou falha. */
+export function knownState(query: { data: unknown; isError: boolean }): KnownState {
+  if (query.data !== undefined) return "ready";
+  return query.isError ? "error" : "loading";
+}
+
+/** Painel enquanto a cobertura da UF não é conhecida: nunca "nada carregado" antes de saber. */
+export function pendingReading(status: Exclude<KnownState, "ready">): ReadingModel {
+  if (status === "loading") return { what: "Verificando o que está carregado nesta UF…", facts: [] };
+  return { what: "Não foi possível verificar agora o que está carregado nesta UF.", facts: [], notice: "A malha municipal (IBGE) continua disponível para navegar." };
+}
+
+/** Texto de uma lista de escolha vazia: a ausência só aparece quando a cobertura é conhecida. */
+export function emptyChoice(status: KnownState, absent: string): string {
+  if (status === "ready") return absent;
+  return status === "loading" ? "Carregando…" : "Indisponível agora";
+}
+
+/** "1 município" ou "N municípios". */
+export const municipios = (n: number, format: (n: number) => string) => `${format(n)} ${n === 1 ? "município" : "municípios"}`;
 
 /** "acima", "abaixo" ou "igual" à referência. */
 export function relationTo(value: number, reference: number): "acima" | "abaixo" | "igual" {

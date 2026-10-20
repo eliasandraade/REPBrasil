@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useEntitlement } from "@/components/account/PlanGate";
+import { RetryButton } from "@/components/ui/DataState";
 import { MAP_SERIES } from "@/lib/plans";
 import { TransitionLink } from "@/motion/navigation";
 
@@ -18,6 +19,8 @@ export function AmendmentsTimeline({
   onYear,
   onPrepare,
   ready,
+  failed,
+  onRetry,
 }: Readonly<{
   /** Anos com dado, em ordem crescente. */
   years: number[];
@@ -27,6 +30,9 @@ export function AmendmentsTimeline({
   onPrepare: () => void;
   /** Série carregada no cache: dá para reproduzir sem espera. */
   ready: boolean;
+  /** A consulta da série falhou: diz isso em vez de "carregando". */
+  failed: boolean;
+  onRetry: () => void;
 }>) {
   const gate = useEntitlement(MAP_SERIES);
   const [playing, setPlaying] = useState(false);
@@ -88,7 +94,12 @@ export function AmendmentsTimeline({
         />
         <span className="w-10 text-right font-semibold tabular-nums text-fg">{year}</span>
       </label>
-      {playing && !ready && <span role="status" className="text-micro text-fg-muted">Carregando a série…</span>}
+      {playing && !ready && !failed && <span role="status" className="text-micro text-fg-muted">Carregando a série…</span>}
+      {playing && failed && (
+        <span role="status" className="text-micro text-fg-muted">
+          Não foi possível carregar a série. <RetryButton onRetry={onRetry} />
+        </span>
+      )}
     </div>
   );
 }

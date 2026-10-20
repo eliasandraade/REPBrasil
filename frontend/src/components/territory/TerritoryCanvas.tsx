@@ -3,6 +3,7 @@
 import type { Map as MapLibreMap, MapMouseEvent, PointLike } from "maplibre-gl";
 import { useEffect, useId, useRef, useState } from "react";
 import { useResolvedTheme } from "@/components/theme/theme";
+import { RetryButton } from "@/components/ui/DataState";
 import type { DataTheme } from "@/lib/dataviz/palette";
 import { bboxOf, loadMunicipalityMesh, loadUfMesh, type Bounds, type TerritoryCollection, type TerritoryFeature } from "@/lib/elections/geo";
 import { insidePoint } from "@/lib/territory/centroid";
@@ -132,12 +133,16 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
   const hoverFromOutside = useRef(false);
   const revealed = useRef<Record<string, number | null>>({});
   const interacted = useRef(false);
+  /** Inclinação já pedida à câmera (o MapLibre não expõe o destino de um voo em curso). */
+  const pitchTarget = useRef(0);
   const themeRef = useRef<DataTheme>("light");
   const splitRef = useRef(50);
   const latest = useRef(props);
   latest.current = props;
   const [status, setStatus] = useState<Status>("loading");
   const [meshState, setMeshState] = useState<string | null>(null);
+  const [meshFailed, setMeshFailed] = useState<string | null>(null);
+  const [meshAttempt, setMeshAttempt] = useState(0);
   const [compareReady, setCompareReady] = useState(false);
   const [split, setSplit] = useState(50);
   splitRef.current = split;
@@ -145,6 +150,10 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
   const descriptionId = useId();
 
   // ── geometria e câmera ──────────────────────────────────────────────────────
+
+  /** Malha da UF em cena. A da UF anterior continua na tela durante a troca, mas não responde nem recebe cor. */
+  const sceneMesh = (p: TerritoryCanvasProps): Mesh | null =>
+    p.level !== "country" && meshRef.current?.state === p.stateCode ? meshRef.current : null;
 
   const targetBounds = (p: TerritoryCanvasProps): Bounds | null => {
     const ufs = ufsRef.current;
@@ -170,7 +179,9 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
     const camera = map.cameraForBounds([[bounds[0], bounds[1]], [bounds[2], bounds[3]]], { padding, maxZoom });
     if (!camera) return;
     const motion = cameraMotion(p.level === "municipality" ? "traverse" : "survey", p.reduced || !animate);
-    map.easeTo({ ...camera, bearing: 0, pitch: reliefOn(p) ? RELIEF_PITCH : 0, duration: motion.duration, easing: motion.easing });
+    const pitch = reliefOn(p) ? RELIEF_PITCH : 0;
+    pitchTarget.current = pitch;
+    map.easeTo({ ...camera, bearing: 0, pitch, duration: motion.duration, easing: motion.easing });
   };
 
   /** Caixa da seleção na tela: o rótulo evita cobri-la. */
@@ -246,7 +257,7 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
 
   const hitAt = (map: MapLibreMap, point: PointLike): Hit | null => {
     const p = latest.current;
-    if (p.level !== "country" && meshRef.current) {
+    if (sceneMesh(p)) {
       const mun = map.queryRenderedFeatures(point, { layers: ["mun-a"] })[0];
       if (mun?.id != null) return { source: "mun", id: Number(mun.id), name: String(mun.properties?.name ?? "") };
     }
@@ -318,7 +329,7 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
   const applyLayer = (map: MapLibreMap, layer: CanvasLayer | null): boolean => {
     const p = latest.current;
     const target: SourceId | null = layer ? (layer.level === "country" ? "ufs" : "mun") : null;
-    const drawable = !!target && (target === "ufs" || (p.level !== "country" && !!meshRef.current));
+    const drawable = !!target && (target === "ufs" || !!sceneMesh(p));
     for (const source of ["ufs", "mun"] as const) {
       if (drawable && source === target) continue;
       paint(map, `${source}-a`, "fill-opacity", 0, "traverse", p.reduced);
@@ -482,13 +493,16 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
         if (compareRef.current) setCollection(compareRef.current, "mun", mesh);
         // nova malha: a próxima camada reescreve as cores (o estado da feição não depende da troca de dados)
         slots.current.mun.sig = { a: "", b: "" };
+        setMeshFailed(null);
         setMeshState(sceneState);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active && mapRef.current === map) setMeshFailed(sceneState);
+      });
     return () => {
       active = false;
     };
-  }, [status, sceneState]);
+  }, [status, sceneState, meshAttempt]);
 
   // Câmera: Brasil → UF → município (survey/traverse); a malha chegando depois completa a aproximação.
   useEffect(() => {
@@ -536,7 +550,7 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
     const map = mapRef.current;
     if (status !== "ready" || !map) return;
     const p = latest.current;
-    const mesh = meshRef.current;
+    const mesh = sceneMesh(p);
     const relief = reliefOn(p) && !!mesh;
     if (relief && mesh && p.layer) {
       const [w, s, e, n] = bboxOf(mesh.collection.features);
@@ -547,10 +561,15 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
       map.setLayoutProperty("mun-extrude", "visibility", "visible");
     }
     paint(map, "mun-extrude", "fill-extrusion-opacity", relief ? 0.92 : 0, relief ? "traverse" : "settle", p.reduced);
-    const pitch = relief ? RELIEF_PITCH : 0;
-    if (Math.abs(map.getPitch() - pitch) > 0.5) {
-      const motion = cameraMotion("survey", p.reduced);
-      map.easeTo({ pitch, duration: motion.duration, easing: motion.easing });
+    // Um easeTo só de inclinação cancelaria o voo em curso (troca de UF): sem gesto da pessoa, o enquadramento,
+    // que já leva a inclinação, refaz o voo; depois de um gesto, só a inclinação muda, no lugar.
+    const pitch = reliefOn(p) ? RELIEF_PITCH : 0;
+    if (pitchTarget.current !== pitch) {
+      if (interacted.current) {
+        pitchTarget.current = pitch;
+        const motion = cameraMotion("survey", p.reduced);
+        map.easeTo({ pitch, center: map.getCenter(), zoom: map.getZoom(), duration: motion.duration, easing: motion.easing });
+      } else fit(true);
     }
     const heat = heatOn(p) && !!mesh;
     if (heat && mesh && p.layer) for (const f of mesh.collection.features) map.setFeatureState({ source: "pts", id: f.id }, { w: p.layer.magnitudes[String(f.id)] ?? 0 });
@@ -580,7 +599,7 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
     const source: SourceId = p.level === "country" ? "ufs" : "mun";
     const id = Number(p.hovered);
     if (hover.current?.id === id && hover.current.source === source) return;
-    const feature = source === "ufs" ? ufsRef.current?.features.find((f) => f.id === id) : meshRef.current?.byId.get(id);
+    const feature = source === "ufs" ? ufsRef.current?.features.find((f) => f.id === id) : sceneMesh(p)?.byId.get(id);
     if (!feature) return;
     hoverFromOutside.current = true;
     const hit = { source, id, name: feature.properties.name };
@@ -742,6 +761,21 @@ export function TerritoryCanvas(props: TerritoryCanvasProps) {
           {status === "loading" && "Carregando a malha territorial oficial (IBGE)…"}
           {status === "error" && "Malha territorial indisponível agora. A tabela abaixo traz os mesmos dados."}
           {status === "unsupported" && "Mapa indisponível neste navegador (WebGL). A tabela abaixo traz os mesmos dados."}
+        </div>
+      )}
+      {status === "ready" && sceneState && meshFailed === sceneState && (
+        <div
+          className="absolute left-3 right-14 top-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-canvas/95 px-3 py-2 text-xs text-fg-soft"
+          role="status"
+          data-testid="territory-mesh-error"
+        >
+          <span>Não foi possível carregar os municípios desta UF. A tabela abaixo traz os mesmos dados.</span>
+          <RetryButton
+            onRetry={() => {
+              setMeshFailed(null);
+              setMeshAttempt((n) => n + 1);
+            }}
+          />
         </div>
       )}
       {legend && !comparing && (

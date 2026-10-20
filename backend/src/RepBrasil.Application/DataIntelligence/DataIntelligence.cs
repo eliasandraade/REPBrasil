@@ -70,7 +70,10 @@ public sealed record IndicatorCoverageDto(string Indicator, int Period, int Muni
 /// <summary>Pleito com resultado (Boletim de Urna) carregado: quantos municípios da UF.</summary>
 public sealed record ElectionCoverageDto(int Year, int Round, int Municipalities);
 
-/// <summary>Ano com emendas na edição vigente: emendas e municípios identificados por código IBGE oficial.</summary>
+/// <summary>
+/// Ano com emendas na edição vigente da UF. <c>Amendments</c> conta todas as emendas destinadas à UF, com ou sem
+/// município identificado; <c>Municipalities</c> conta só os municípios identificados por código IBGE oficial.
+/// </summary>
 public sealed record AmendmentCoverageDto(int Year, int Municipalities, int Amendments);
 
 public sealed record CoverageStateRow(string Uf, string Name, int? IbgeCode, int Municipalities);

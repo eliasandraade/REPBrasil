@@ -14,7 +14,7 @@ import { TransitionLink } from "@/motion/navigation";
 import { AmendmentsTimeline } from "../AmendmentsTimeline";
 import { Insights } from "../Insights";
 import type { ModeContext, ModeView, ReadingModel } from "../explorer-types";
-import { SELECT, municipalityRows, ofPlace, ranksOf } from "./shared";
+import { SELECT, emptyChoice, knownState, municipalityRows, municipios, ofPlace, pendingReading, ranksOf } from "./shared";
 
 interface Metric {
   label: string;
@@ -40,7 +40,7 @@ const complete = (metric: Metric) => (r: AmendmentMunicipality) => metric.value(
  * oficial do município entram no mapa; nada é inferido de texto.
  */
 export function useAmendmentsMode(ctx: ModeContext): ModeView {
-  const { state, coverage, enabled, theme, level, municipalities, update } = ctx;
+  const { state, coverage, coverageStatus, enabled, theme, level, municipalities, update } = ctx;
   const queryClient = useQueryClient();
   const uf = state.uf;
   const years = amendmentYears(coverage);
@@ -76,8 +76,11 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
   }, [queryClient, seriesQ.data, uf]);
 
   const ascending = [...years].sort((a, b) => a - b);
-  const beforeYear = state.before && /^\d{4}$/.test(state.before) && years.includes(Number(state.before)) ? Number(state.before) : (ascending[0] ?? null);
-  const comparing = state.view === "comparar" && beforeYear !== null && beforeYear !== year;
+  // "antes" é sempre um ano anterior ao escolhido; sem pedido, o mais próximo
+  const earlier = year === null ? [] : years.filter((y) => y < year).sort((a, b) => b - a);
+  const asked = state.before && /^\d{4}$/.test(state.before) ? Number(state.before) : null;
+  const beforeYear = asked !== null && earlier.includes(asked) ? asked : (earlier[0] ?? null);
+  const comparing = state.view === "comparar" && beforeYear !== null;
   const beforeQ = useQuery({
     queryKey: ["amendment-map", uf, beforeYear],
     queryFn: () => getAmendmentMap(beforeYear, uf!),
@@ -129,6 +132,7 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
   const observed = (rows ?? []).filter(complete(metric)).map((r) => ({ code: r.municipalityIbgeCode, name: r.municipalityName, value: metric.value(r)! }));
   const ranks = ranksOf(observed);
   const totals = summarize(rows ?? []);
+  const partialRows = (rows ?? []).filter((r) => !complete(metric)(r)).length;
   const provenance = provenanceQ.data?.[0];
   const source = provenance
     ? { provider: PROVIDER_LABEL[provenance.provider] ?? provenance.provider, dataset: provenance.dataset, retrievedAt: provenance.retrievedAt }
@@ -141,7 +145,7 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
           <label className="space-y-1 text-body-sm text-fg-muted">
             <span>Ano</span>
             <select className={SELECT} value={year ?? ""} onChange={(e) => update({ year: Number(e.target.value) })} disabled={years.length === 0}>
-              {years.length === 0 && <option value="">Sem emendas carregadas</option>}
+              {years.length === 0 && <option value="">{emptyChoice(coverageStatus, "Sem emendas carregadas")}</option>}
               {years.map((y) => (
                 <option key={y} value={y}>{y}</option>
               ))}
@@ -155,11 +159,11 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
               ))}
             </select>
           </label>
-          {state.view === "comparar" && years.length > 1 && (
+          {state.view === "comparar" && earlier.length > 0 && (
             <label className="space-y-1 text-body-sm text-fg-muted sm:col-span-2">
               <span>Comparar com o ano</span>
               <select className={SELECT} value={beforeYear ?? ""} onChange={(e) => update({ before: e.target.value })}>
-                {years.filter((y) => y !== year).map((y) => (
+                {earlier.map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
@@ -167,12 +171,21 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
           )}
         </div>
         {year !== null && (
-          <AmendmentsTimeline years={ascending} year={year} onYear={(y) => update({ year: y })} onPrepare={() => setSeriesWanted(true)} ready={!!seriesQ.data} />
+          <AmendmentsTimeline
+            years={ascending}
+            year={year}
+            onYear={(y) => update({ year: y })}
+            onPrepare={() => setSeriesWanted(true)}
+            ready={!!seriesQ.data}
+            failed={seriesQ.isError && !seriesQ.data}
+            onRetry={() => void seriesQ.refetch()}
+          />
         )}
       </div>
     );
 
   const reading: ReadingModel = (() => {
+    if (coverageStatus !== "ready") return pendingReading(coverageStatus);
     if (year === null) return { what: `Nenhuma emenda com município identificado foi carregada para os municípios ${place}.`, facts: [], notice: "A malha municipal (IBGE) continua disponível para navegar." };
     const what = `${metric.label} das emendas parlamentares com destino nos municípios ${place}, ${year}. Só entram emendas com o código IBGE oficial do município.`;
     if (level === "municipality" && selected) {
@@ -196,7 +209,7 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
       facts: [
         { label: "Municípios", text: `${formatInteger(totals.municipalities)} de ${formatInteger(coverage?.municipalities ?? totals.municipalities)} com emenda identificada` },
         { label: "Emendas", text: formatInteger(totals.amendments) },
-        ...(state.metric !== "quantidade" ? [{ label: "Soma completa", text: formatValue(sumComplete(rows ?? [], metric), "R$") }] : []),
+        ...(state.metric === "quantidade" ? [] : [{ label: "Soma dos valores completos", text: completeSumText(sumComplete(rows ?? [], metric), partialRows) }]),
       ],
       source,
     };
@@ -212,11 +225,13 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
           : `${name}: nenhuma emenda identificada por código IBGE em ${year}.`,
       );
     } else if (rows.length) {
-      sentences.push(`Em ${year}, ${formatInteger(totals.municipalities)} municípios ${place} receberam ${formatInteger(totals.amendments)} emendas identificadas por código IBGE.`);
+      const destination = totals.municipalities === 1 ? "foi destino" : "foram destino";
+      const amendments = totals.amendments === 1 ? "emenda identificada" : "emendas identificadas";
+      sentences.push(`Em ${year}, ${municipios(totals.municipalities, formatInteger)} ${place} ${destination} de ${formatInteger(totals.amendments)} ${amendments} por código IBGE.`);
       const top = [...observed].sort((a, b) => b.value - a.value)[0];
       if (top && state.metric !== "quantidade") sentences.push(`${top.name} teve o maior ${metric.label.toLowerCase()} completo do ano: ${formatValue(top.value, metric.unit)}.`);
-      const partial = rows.filter((r) => !complete(metric)(r)).length;
-      if (partial > 0) sentences.push(`${formatInteger(partial)} municípios têm emenda sem valor publicado: aparecem sem cor e com a soma parcial no detalhe.`);
+      if (partialRows === 1) sentences.push("1 município tem emenda sem valor publicado: aparece sem cor e com a soma parcial no detalhe.");
+      else if (partialRows > 1) sentences.push(`${formatInteger(partialRows)} municípios têm emenda sem valor publicado: aparecem sem cor e com a soma parcial no detalhe.`);
     }
   }
 
@@ -257,7 +272,9 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
     controls,
     layer: atState ? layer : null,
     compare: comparing && beforeLayer && beforeYear !== null ? { before: { layer: beforeLayer, label: `Antes: ${beforeYear}` }, afterLabel: `Depois: ${year}` } : null,
-    compareNote: years.length < 2 ? "Só há um ano de emendas carregado nesta UF; a comparação precisa de dois." : undefined,
+    compareNote: coverageStatus === "ready" ? amendmentsCompareNote(years.length, earlier.length, year) : undefined,
+    compareError:
+      comparing && beforeQ.isError && !beforeRows ? { message: `Não foi possível carregar as emendas de ${beforeYear}.`, retry: () => void beforeQ.refetch() } : null,
     views,
     reading,
     table:
@@ -285,6 +302,7 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
             ),
             missingLabel: "sem emenda identificada por código IBGE",
             initialSort: { key: SORT_KEY[state.metric], dir: "desc" },
+            status: knownState(mapQ),
           }
         : null,
     analysis: !atState ? null : (
@@ -302,6 +320,18 @@ export function useAmendmentsMode(ctx: ModeContext): ModeView {
     error: mapQ.isError && !rows ? "Não foi possível carregar o mapa de emendas." : null,
     retry: () => void mapQ.refetch(),
   };
+}
+
+function amendmentsCompareNote(loaded: number, earlier: number, year: number | null): string | undefined {
+  if (loaded < 2) return "Só há um ano de emendas carregado nesta UF; a comparação precisa de dois.";
+  if (earlier === 0 && year !== null) return `Não há ano anterior a ${year} carregado nesta UF. Escolha um ano mais recente para comparar.`;
+  return undefined;
+}
+
+/** Soma só dos municípios com valor completo; os de soma parcial ficam fora e a frase diz quantos. */
+function completeSumText(sum: number, partialRows: number): string {
+  const text = formatValue(sum, "R$");
+  return partialRows > 0 ? `${text} (fora ${municipios(partialRows, formatInteger)} com soma parcial)` : text;
 }
 
 function municipalityNotice(chosen: AmendmentMunicipality | undefined, metric: Metric, year: number): string | null {

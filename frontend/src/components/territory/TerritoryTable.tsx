@@ -38,6 +38,9 @@ function ariaSort(current: boolean, dir: Sort["dir"]): "ascending" | "descending
   return dir === "asc" ? "ascending" : "descending";
 }
 
+const STATUS_TEXT = { loading: "carregando os valores", error: "valores indisponíveis agora" } as const;
+const PENDING_CELL = { loading: "…", error: "—" } as const;
+
 const normalize = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export function TerritoryTable({
@@ -52,6 +55,7 @@ export function TerritoryTable({
   noun,
   actions,
   missingLabel = "sem dado neste recorte (sem dado não vira zero)",
+  status = "ready",
 }: Readonly<{
   caption: string;
   columns: TableColumn[];
@@ -65,8 +69,16 @@ export function TerritoryTable({
   noun: string;
   actions?: ReactNode;
   missingLabel?: string;
+  /** Valores ainda não conhecidos (consultando ou falha): a lista continua navegável, sem dizer "sem dado". */
+  status?: "ready" | "loading" | "error";
 }>) {
   const [sort, setSort] = useState<Sort>(initialSort);
+  // A ordem pedida pelo recorte (ex.: a medida das emendas) muda a ordenação; filtro e foco continuam.
+  const [baseSort, setBaseSort] = useState<Sort>(initialSort);
+  if (baseSort.key !== initialSort.key || baseSort.dir !== initialSort.dir) {
+    setBaseSort(initialSort);
+    setSort(initialSort);
+  }
   const [filter, setFilter] = useState("");
   const [focusCode, setFocusCode] = useState<string | null>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
@@ -122,7 +134,8 @@ export function TerritoryTable({
           <h2 className="font-semibold text-fg">{caption}</h2>
           <p className="text-micro text-fg-muted">
             {rows.length} {noun}
-            {missing > 0 && ` · ${missing} ${missingLabel}`}. Use as setas para percorrer e Enter para abrir.
+            {status === "ready" && missing > 0 && ` · ${missing} ${missingLabel}`}
+            {status !== "ready" && ` · ${STATUS_TEXT[status]}`}. Use as setas para percorrer e Enter para abrir.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -153,7 +166,7 @@ export function TerritoryTable({
               return (
                 <tr
                   key={row.code}
-                  className={`border-t border-line transition-colors duration-[var(--motion-acknowledge)] ${highlighted ? "bg-accent/10" : ""} ${row.missing ? "text-fg-muted" : ""}`}
+                  className={`border-t border-line transition-colors duration-[var(--motion-acknowledge)] ${highlighted ? "bg-accent/10" : ""} ${status === "ready" && row.missing ? "text-fg-muted" : ""}`}
                   onMouseEnter={() => onHover(row.code)}
                   onMouseLeave={() => onHover(null)}
                   data-code={row.code}
@@ -181,7 +194,7 @@ export function TerritoryTable({
                   </td>
                   {columns.map((c) => (
                     <td key={c.key} className={`px-3 py-1.5 ${c.numeric ? "text-right tabular-nums" : ""}`}>
-                      {row.cells[c.key] ?? "—"}
+                      {status === "ready" ? (row.cells[c.key] ?? "—") : PENDING_CELL[status]}
                     </td>
                   ))}
                 </tr>

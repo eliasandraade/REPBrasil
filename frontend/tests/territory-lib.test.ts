@@ -168,6 +168,9 @@ describe("leituras em linguagem simples", () => {
     expect(associationSentence("A", "B", -0.82, 10)).toContain("tendem a ter menor B");
     expect(associationSentence("A", "B", -1, 10)).toContain("calculado a partir do outro");
     expect(associationSentence("A", "B", null, 10)).toContain("Não há variação suficiente");
+    // abaixo de 10 municípios a força não é rotulada: um ou dois mudam o coeficiente inteiro
+    expect(associationSentence("A", "B", 1, 3)).toBe("Só 3 municípios têm os dois dados: poucos para descrever uma associação entre A e B.");
+    expect(associationSentence("A", "B", 1, 1)).toBe("Só 1 município tem os dois dados: poucos para descrever uma associação entre A e B.");
   });
 
   it("compara os municípios das duas pontas de X pela média de Y", () => {

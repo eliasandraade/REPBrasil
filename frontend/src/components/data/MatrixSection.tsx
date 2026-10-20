@@ -7,7 +7,7 @@ import { getCorrelationMatrix } from "@/lib/data-intelligence";
 import { mix, SEQUENTIAL, type DataTheme } from "@/lib/dataviz/palette";
 import { CORRELATION_MATRIX } from "@/lib/plans";
 import { formatCoefficient, formatInteger } from "@/lib/territory/format";
-import { STRENGTH_LABEL, strengthOf } from "@/lib/territory/insights";
+import { MIN_ASSOCIATION_N, STRENGTH_LABEL, strengthOf, type Strength } from "@/lib/territory/insights";
 
 /** Texto legível sobre a cor da célula (a rampa inverte no tema escuro): escuro em fundo claro e vice-versa. */
 function inkOn(hex: string): string {
@@ -20,6 +20,12 @@ function inkOn(hex: string): string {
  * Matriz de correlação da UF (todos os pares de uma vez). Ferramenta do plano Avançado: cada par continua aberto na
  * comparação X × Y acima. A cor mede só a força da associação (|ρ|), nunca o sentido ou um juízo.
  */
+/** Dica da célula: força da associação, ou por que ela não é classificada. */
+function matrixTitle(strength: Strength | null, n: number, few: boolean): string {
+  if (few) return `poucos municípios para classificar a associação · N = ${formatInteger(n)}`;
+  return strength ? `${STRENGTH_LABEL[strength]} · N = ${formatInteger(n)}` : "sem coeficiente";
+}
+
 export function MatrixSection({ uf, period, theme }: Readonly<{ uf: string; period: number; theme: DataTheme }>) {
   const gate = useEntitlement(CORRELATION_MATRIX);
   const matrix = useQuery({
@@ -58,15 +64,17 @@ export function MatrixSection({ uf, period, theme }: Readonly<{ uf: string; peri
                   {matrix.data.indicators.map((col) => {
                     if (row.code === col.code) return <td key={col.code} className="px-2 py-1 text-center text-fg-muted">—</td>;
                     const cell = matrix.data.cells.find((c) => (c.x === row.code && c.y === col.code) || (c.x === col.code && c.y === row.code));
-                    const strength = strengthOf(cell?.spearman ?? null);
-                    const tone = cell?.spearman == null ? undefined : mix(SEQUENTIAL[theme].low, SEQUENTIAL[theme].high, Math.abs(cell.spearman));
+                    // com poucos municípios o coeficiente aparece, mas sem cor nem rótulo de força
+                    const few = !!cell && cell.n < MIN_ASSOCIATION_N;
+                    const strength = few ? null : strengthOf(cell?.spearman ?? null);
+                    const tone = cell?.spearman == null || few ? undefined : mix(SEQUENTIAL[theme].low, SEQUENTIAL[theme].high, Math.abs(cell.spearman));
                     const ink = tone ? inkOn(tone) : undefined;
                     return (
                       <td
                         key={col.code}
                         className="min-w-[5.5rem] px-2 py-1.5 text-center tabular-nums text-fg"
                         style={tone ? { background: tone, color: ink } : undefined}
-                        title={strength ? `${STRENGTH_LABEL[strength]} · N = ${formatInteger(cell!.n)}` : "sem coeficiente"}
+                        title={matrixTitle(strength, cell?.n ?? 0, few)}
                       >
                         {formatCoefficient(cell?.spearman ?? null)}
                         <span className="block text-[10px] opacity-75">N {formatInteger(cell?.n ?? 0)}</span>

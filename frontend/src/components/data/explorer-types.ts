@@ -7,6 +7,9 @@ import type { TerritoryMunicipality } from "@/lib/territories";
 import type { CanvasLayer } from "@/lib/territory/layers";
 import type { ExplorerLevel, ExplorerState, ExplorerView } from "@/lib/territory/url";
 
+/** O que se sabe de uma consulta: o valor chegou, ainda consultando ou falhou. Ausência só se afirma com o valor em mãos. */
+export type KnownState = "ready" | "loading" | "error";
+
 /** Fonte de um valor exibido: quem publicou, o conjunto e quando foi coletado. */
 export interface ReadingSource {
   provider: string;
@@ -34,6 +37,8 @@ export interface TableModel {
   actions?: ReactNode;
   /** Como dizer a ausência na contagem da tabela (padrão: "sem dado neste recorte"). */
   missingLabel?: string;
+  /** Valores ainda não conhecidos: a lista continua navegável, sem dizer "sem dado" (padrão: ready). */
+  status?: KnownState;
 }
 
 /** O que cada modo entrega ao explorador; o mapa e a tabela são do explorador (uma instância só). */
@@ -44,6 +49,10 @@ export interface ModeView {
   compare: { before: CompareSide; afterLabel: string } | null;
   /** Por que a comparação não existe aqui (texto ao lado do controle). */
   compareNote?: string;
+  /** O lado "antes" falhou ao carregar: diz isso e oferece nova tentativa (não é ausência de dado). */
+  compareError?: { message: string; retry: () => void } | null;
+  /** Rótulo próprio de uma vista neste modo (ex.: "Lado a lado" quando os dois lados são do mesmo período). */
+  viewLabels?: Partial<Record<ExplorerView, string>>;
   /** Vistas que fazem sentido para o dado deste modo. */
   views: ExplorerView[];
   reading: ReadingModel;
@@ -59,6 +68,8 @@ export interface ModeContext {
   state: ExplorerState;
   level: ExplorerLevel;
   coverage: StateCoverage | null;
+  /** Se a cobertura já é conhecida: enquanto consulta (ou se falhou), nenhum modo diz "nada carregado". */
+  coverageStatus: KnownState;
   /** Catálogo territorial da UF (nome, slug, código TSE), para nomes e links de perfil. */
   municipalities: TerritoryMunicipality[];
   theme: DataTheme;

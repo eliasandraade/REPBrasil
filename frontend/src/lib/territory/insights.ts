@@ -37,6 +37,9 @@ export function rankOf(rows: readonly Observation[], code: string): { rank: numb
 
 export type Strength = "sem_associacao" | "fraca" | "moderada" | "forte" | "perfeita";
 
+/** Abaixo disso a associação não ganha rótulo de força: com poucos municípios, um ou dois mudam o coeficiente inteiro. */
+export const MIN_ASSOCIATION_N = 10;
+
 export function strengthOf(coefficient: number | null): Strength | null {
   if (coefficient === null || !Number.isFinite(coefficient)) return null;
   const r = Math.abs(coefficient);
@@ -63,6 +66,8 @@ export const STRENGTH_LABEL: Record<Strength, string> = {
 export function associationSentence(xName: string, yName: string, spearman: number | null, n: number): string {
   const strength = strengthOf(spearman);
   const where = `nos ${formatInteger(n)} municípios com os dois dados`;
+  if (n < MIN_ASSOCIATION_N)
+    return `Só ${formatInteger(n)} ${n === 1 ? "município tem" : "municípios têm"} os dois dados: poucos para descrever uma associação entre ${xName} e ${yName}.`;
   if (strength === null || spearman === null) return `Não há variação suficiente ${where} para medir associação entre ${xName} e ${yName}.`;
   const rho = `ρ = ${formatCoefficient(spearman)}`;
   if (strength === "sem_associacao") return `Não há associação clara entre ${xName} e ${yName} ${where} (${rho}).`;

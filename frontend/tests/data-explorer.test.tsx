@@ -171,6 +171,16 @@ afterEach(() => {
   nav.replace.mockReset();
 });
 
+/** Troca a resposta de uma rota do fetch simulado; o resto continua igual. */
+function override(match: string, respond: () => Promise<Response> | Response) {
+  const base = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (input, init) => (String(input).includes(match) ? respond() : base(input, init)));
+}
+
+const coverageWith = (extra: Partial<Record<"socioeconomic" | "elections" | "amendments", unknown[]>>) => ({
+  states: COVERAGE.states.map((s) => (s.uf === "CE" ? { ...s, ...extra } : s)),
+});
+
 function renderExplorer(search: string) {
   nav.pathname = "/dados";
   nav.search = search;
@@ -199,7 +209,9 @@ describe("explorador territorial (/dados)", () => {
     renderExplorer("");
     fireEvent.click(await screen.findByRole("button", { name: "Ceará (CE)" }));
     expect(nav.push).toHaveBeenLastCalledWith("/dados?uf=CE", { scroll: false });
+    nav.push.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "mapa: Ceará" }));
+    expect(nav.push).toHaveBeenCalledTimes(1);
     expect(nav.push).toHaveBeenLastCalledWith("/dados?uf=CE", { scroll: false });
 
     nav.push.mockReset();
@@ -230,7 +242,7 @@ describe("explorador territorial (/dados)", () => {
     renderExplorer("uf=CE");
     const sentence = await screen.findByTestId("association-sentence");
     expect(sentence.textContent).toBe(
-      "Nos 3 municípios com os dois dados, os que têm maior População tendem a ter maior Taxa de alfabetização (15+) (associação praticamente perfeita, ρ = 1,00). Em geral, isso indica que um indicador é calculado a partir do outro, e não é uma descoberta.",
+      "Só 3 municípios têm os dois dados: poucos para descrever uma associação entre População e Taxa de alfabetização (15+).",
     );
     const partner = screen.getByLabelText("Comparar com") as HTMLSelectElement;
     expect([...partner.options].map((o) => o.value)).toEqual(["ibge.literacy_rate_15_plus"]);
@@ -282,11 +294,166 @@ describe("explorador territorial (/dados)", () => {
     expect(screen.queryByTestId("plan-gate-map.advanced_modes")).toBeNull();
   });
 
+  it("clicar no território já aberto não empilha histórico, mesmo com parâmetros a mais na URL", async () => {
+    renderExplorer("utm_source=x&uf=ce");
+    await screen.findByTestId("canvas");
+    fireEvent.click(screen.getByRole("button", { name: "mapa: Ceará" }));
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+
+  it("socioeconômico: o comparar mostra dois indicadores do mesmo período, então se chama lado a lado", async () => {
+    renderExplorer("uf=CE");
+    const views = screen.getByTestId("explorer-views");
+    expect(within(views).getByRole("button", { name: /Lado a lado/ })).toBeTruthy();
+    expect(within(views).queryByRole("button", { name: /Antes\/depois/ })).toBeNull();
+  });
+
   it("eleitoral: o cruzamento com indicadores exige o mesmo ano do pleito", async () => {
     renderExplorer("uf=CE&modo=eleitoral");
     const crossing = await screen.findByTestId("socioelectoral-crossing");
     expect(crossing.textContent).toContain("O cruzamento exige indicador do mesmo ano do pleito (2026).");
     expect(crossing.textContent).toContain("Os indicadores carregados para os municípios do Ceará são de 2022");
+  });
+});
+
+describe("cobertura ainda desconhecida", () => {
+  it("enquanto a cobertura não chega, nada é dito como ausente", async () => {
+    override("/data/coverage", () => new Promise<Response>(() => undefined));
+    renderExplorer("uf=SP");
+    const panel = screen.getByTestId("reading-panel");
+    await waitFor(() => expect(panel.textContent).toContain("Verificando o que está carregado nesta UF…"));
+    expect(panel.textContent).not.toContain("Nenhum indicador");
+    expect((screen.getByLabelText("Indicador") as HTMLSelectElement).textContent).toContain("Carregando…");
+  });
+
+  it("no Brasil, a lista de UFs continua navegável e diz que está carregando, não 'sem dados'", async () => {
+    override("/data/coverage", () => new Promise<Response>(() => undefined));
+    renderExplorer("");
+    const table = await screen.findByTestId("territory-table");
+    expect(table.textContent).toContain("carregando os valores");
+    expect(table.textContent).not.toContain("sem dados carregados");
+    expect(within(table).getByRole("button", { name: "São Paulo (SP)" })).toBeTruthy();
+  });
+
+  it("falha da cobertura: diz que não foi possível verificar, nunca que nada foi carregado", async () => {
+    override("/data/coverage", () => json({ error: "indisponível" }, 503));
+    renderExplorer("uf=SP");
+    const panel = screen.getByTestId("reading-panel");
+    await waitFor(() => expect(panel.textContent).toContain("Não foi possível verificar agora o que está carregado nesta UF."));
+    expect(panel.textContent).not.toContain("Nenhum indicador");
+    expect(await screen.findByText("Não foi possível carregar a cobertura dos dados")).toBeTruthy();
+  });
+});
+
+describe("modo eleitoral", () => {
+  const feature = (code: string, name: string, category: string | null, label: string | null, share: number | null, margin: number | null) => ({
+    key: code,
+    municipalityTseCode: null,
+    ibgeCode: Number(code),
+    name,
+    zone: null,
+    placeCode: null,
+    latitude: null,
+    longitude: null,
+    value: share,
+    category,
+    categoryLabel: label,
+    state: "comparable",
+    details: { marginVotes: margin },
+  });
+  const map = (features: unknown[]) => ({
+    year: 2026,
+    round: 1,
+    uf: "CE",
+    municipalityTseCode: null,
+    layer: "winner",
+    level: "municipality",
+    officeCode: 3,
+    features,
+    legend: [{ key: "c1", label: "ANA", order: 1 }],
+    min: null,
+    max: null,
+    comparability: null,
+    note: "",
+    freshness: { stale: false, refreshedAt: null, note: "" },
+  });
+  const WITH_TIE = [
+    feature("2304400", "FORTALEZA", "c1", "ANA", 52.5, 1000),
+    feature("2304707", "GRANJEIRO", "c1", "ANA", 60, 300),
+    feature("2300101", "ABAIARA", "tie", "Empate", 45, 0),
+  ];
+
+  it("empate na primeira colocação não vira candidatura vencedora", async () => {
+    override("/states/CE/map", () => json(map(WITH_TIE)));
+    renderExplorer("uf=CE&modo=eleitoral");
+    const insights = await screen.findByTestId("insights");
+    await waitFor(() => expect(insights.textContent).toContain("Ana foi a candidatura mais votada para governador em 2 municípios do Ceará (2026 · 1º turno)."));
+    expect(insights.textContent).toContain("1 município teve empate na primeira colocação.");
+    expect(insights.textContent).not.toContain("Empate:");
+    expect(screen.getByTestId("territory-table").textContent).toContain("empate na 1ª colocação");
+  });
+
+  it("no município empatado, o painel diz empate e não mostra margem", async () => {
+    override("/states/CE/map", () => json(map(WITH_TIE)));
+    renderExplorer("uf=CE&modo=eleitoral&municipio=2300101");
+    const panel = screen.getByTestId("reading-panel");
+    await waitFor(() => expect(panel.textContent).toContain("Empate na primeira colocação · 45,0% cada"));
+    expect(panel.textContent).not.toContain("Margem");
+  });
+
+  it("antes/depois compara sempre com um pleito anterior; no mais antigo, diz que não há", async () => {
+    session = ADVANCED_SESSION;
+    const pleito = (year: number, round: number) => ({ year, round, municipalities: 3 });
+    override("/data/coverage", () => json(coverageWith({ elections: [pleito(2026, 1), pleito(2024, 2), pleito(2024, 1), pleito(2022, 2), pleito(2022, 1)] })));
+    override("/states/CE/map", () => json(map(WITH_TIE)));
+    renderExplorer("uf=CE&modo=eleitoral&vista=comparar");
+    // governador não existe em 2024 (municipal): o padrão é o pleito geral anterior, no mesmo turno
+    await waitFor(() => expect(screen.getByTestId("canvas").dataset.before).toBe("Antes: 2022 · 1º turno"));
+    const options = [...(screen.getByLabelText("Comparar com o pleito") as HTMLSelectElement).options].map((o) => o.textContent);
+    expect(options).toEqual(["2024 · 2º turno", "2024 · 1º turno", "2022 · 2º turno", "2022 · 1º turno"]);
+
+    renderExplorer("uf=CE&modo=eleitoral&vista=comparar&ano=2022");
+    expect(await screen.findByText("Não há pleito anterior a este carregado nesta UF. Escolha um pleito mais recente para comparar.")).toBeTruthy();
+  });
+});
+
+describe("modo emendas", () => {
+  const row = (code: string, name: string, count: number, committed: number | null, committedMissing: number) => ({
+    municipalityIbgeCode: code,
+    municipalityName: name,
+    amendmentCount: count,
+    committedAmount: committed,
+    committedAmountMissing: committedMissing,
+    paidAmount: committed,
+    paidAmountMissing: committedMissing,
+  });
+  const ROWS = [row("2304400", "Fortaleza", 2, 1000, 0), row("2304707", "Granjeiro", 1, 200, 1)];
+  const YEARS = [
+    { year: 2025, municipalities: 2, amendments: 3 },
+    { year: 2024, municipalities: 2, amendments: 3 },
+  ];
+
+  it("a soma é só dos valores completos e diz quantos municípios ficaram fora; frases no singular quando é um", async () => {
+    override("/data/coverage", () => json(coverageWith({ amendments: YEARS })));
+    override("/amendments/map?", () => json(ROWS));
+    renderExplorer("uf=CE&modo=emendas");
+    const panel = screen.getByTestId("reading-panel");
+    await waitFor(() => expect(panel.textContent).toContain("Soma dos valores completos"));
+    expect(panel.textContent).toContain("(fora 1 município com soma parcial)");
+    const insights = screen.getByTestId("insights");
+    expect(insights.textContent).toContain("2 municípios do Ceará foram destino de 3 emendas identificadas por código IBGE.");
+    expect(insights.textContent).toContain("1 município tem emenda sem valor publicado");
+  });
+
+  it("antes/depois usa um ano anterior; no ano mais antigo, explica em vez de sumir", async () => {
+    session = ADVANCED_SESSION;
+    override("/data/coverage", () => json(coverageWith({ amendments: YEARS })));
+    override("/amendments/map?", () => json(ROWS));
+    renderExplorer("uf=CE&modo=emendas&vista=comparar");
+    await waitFor(() => expect(screen.getByTestId("canvas").dataset.before).toBe("Antes: 2024"));
+
+    renderExplorer("uf=CE&modo=emendas&vista=comparar&ano=2024");
+    expect(await screen.findByText("Não há ano anterior a 2024 carregado nesta UF. Escolha um ano mais recente para comparar.")).toBeTruthy();
   });
 });
 
@@ -315,6 +482,47 @@ describe("lista de territórios (equivalente ao mapa pelo teclado)", () => {
   }
 
   const names = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getByRole("button").textContent);
+
+  it("valores ainda não conhecidos: a lista navega, sem dizer 'sem dado'", () => {
+    render(
+      <TerritoryTable
+        caption="Teste"
+        columns={[{ key: "v", label: "Valor", numeric: true }]}
+        rows={rows}
+        selected={null}
+        hovered={null}
+        onHover={vi.fn()}
+        onSelect={vi.fn()}
+        initialSort={{ key: "v", dir: "desc" }}
+        noun="municípios"
+        status="loading"
+      />,
+    );
+    const table = screen.getByTestId("territory-table");
+    expect(table.textContent).toContain("3 municípios · carregando os valores.");
+    expect(table.textContent).not.toContain("sem dado");
+    expect(names()).toHaveLength(3);
+  });
+
+  it("a ordem pedida pelo recorte muda a ordenação sem perder o filtro", () => {
+    const props = {
+      caption: "Teste",
+      columns: [{ key: "v", label: "Valor", numeric: true }],
+      rows,
+      selected: null,
+      hovered: null,
+      onHover: vi.fn(),
+      onSelect: vi.fn(),
+      noun: "municípios",
+    };
+    const { rerender } = render(<TerritoryTable {...props} initialSort={{ key: "v", dir: "desc" }} />);
+    const filter = screen.getByLabelText("Filtrar municípios pelo nome") as HTMLInputElement;
+    fireEvent.change(filter, { target: { value: "at" } });
+    expect(names()).toEqual(["Baturité", "Crato"]);
+    rerender(<TerritoryTable {...props} initialSort={{ key: "name", dir: "desc" }} />);
+    expect(names()).toEqual(["Crato", "Baturité"]);
+    expect(filter.value).toBe("at");
+  });
 
   it("ordena com ausência sempre ao fim e filtra sem acento", () => {
     renderTable();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { PlanGateNote, useEntitlement } from "@/components/account/PlanGate";
 import { useResolvedTheme } from "@/components/theme/theme";
@@ -16,7 +16,7 @@ import { ADVANCED_MAP_MODES } from "@/lib/plans";
 import { ibgeCodeOfUf, territoriesApi, ufOfIbgeCode, type TerritoryMunicipality } from "@/lib/territories";
 import { availabilityText, hasData, MODE_LABEL, stateOf, statesWithData } from "@/lib/territory/coverage";
 import { coverageLayer, viewNote } from "@/lib/territory/layers";
-import { ufOfPreposition } from "@/lib/territory/places";
+import { ofUf, ufOfPreposition } from "@/lib/territory/places";
 import {
   EXPLORER_MODES,
   EXPLORER_VIEWS,
@@ -33,10 +33,11 @@ import { useMediaQuery } from "@/lib/useMediaQuery";
 import { useReducedMotion } from "@/motion/reduced-motion";
 import { ExplorerTrail } from "./ExplorerTrail";
 import { ReadingPanel } from "./ReadingPanel";
-import type { ModeView, ReadingModel, TableModel } from "./explorer-types";
+import type { KnownState, ModeView, ReadingModel, TableModel } from "./explorer-types";
 import { useAmendmentsMode } from "./modes/useAmendmentsMode";
 import { useElectoralMode } from "./modes/useElectoralMode";
 import { useSocioMode } from "./modes/useSocioMode";
+import { knownState } from "./modes/shared";
 
 const VIEW_LABEL: Record<ExplorerView, string> = { mapa: "Mapa", relevo: "Relevo 3D", intensidade: "Intensidade", comparar: "Antes/depois" };
 const MODE_NOUN: Record<ExplorerMode, string> = { socioeconomico: "socioeconômicos", eleitoral: "eleitorais", emendas: "de emendas" };
@@ -62,7 +63,6 @@ function municipalitiesOf(mesh: TerritoryCollection | undefined, catalog: Territ
 export function DataExplorer() {
   const search = useSearchParams();
   const router = useRouter();
-  const pathname = usePathname() ?? "/dados";
   const state = useMemo(() => parseExplorerState(search ?? new URLSearchParams()), [search]);
   const level = levelOf(state);
   const theme = useResolvedTheme();
@@ -84,30 +84,33 @@ export function DataExplorer() {
   });
   const municipalities = useMemo(() => municipalitiesOf(meshQ.data, catalogQ.data, state.uf), [catalogQ.data, meshQ.data, state.uf]);
   const coverage = stateOf(coverageQ.data, state.uf);
+  const coverageStatus = knownState(coverageQ);
 
   const go = useCallback(
     (patch: Partial<ExplorerState>, push = false) => {
       const href = explorerHref({ ...state, ...patch });
-      const current = search?.toString() ?? "";
-      if (href === (current ? `${pathname}?${current}` : pathname)) return;
+      // contra a forma canônica do estado atual: URL antiga ou com parâmetros a mais não vira entrada repetida
+      if (href === explorerHref(state)) return;
       if (push) router.push(href, { scroll: false });
       else router.replace(href, { scroll: false });
     },
-    [pathname, router, search, state],
+    [router, state],
   );
   const update = useCallback((patch: Partial<ExplorerState>) => go(patch), [go]);
 
   // vistas avançadas são do plano; quem não tem vê o mapa e o aviso do plano
   const requestedView: ExplorerView = state.view !== "mapa" && advanced.allowed !== true ? "mapa" : state.view;
   const modeState = { ...state, view: requestedView };
-  const base = { state: modeState, level, coverage, municipalities, theme, reduced, update, hovered, onHover: setHovered };
+  const base = { state: modeState, level, coverage, coverageStatus, municipalities, theme, reduced, update, hovered, onHover: setHovered };
   const views: Record<ExplorerMode, ModeView> = {
     socioeconomico: useSocioMode({ ...base, enabled: state.mode === "socioeconomico" }),
     eleitoral: useElectoralMode({ ...base, enabled: state.mode === "eleitoral" }),
     emendas: useAmendmentsMode({ ...base, enabled: state.mode === "emendas" }),
   };
   const mode = views[state.mode];
-  const effectiveView: ExplorerView = level !== "country" && mode.views.includes(requestedView) ? requestedView : "mapa";
+  // a vista que o mapa desenha: relevo só com mouse e tela larga (no celular, o mapa plano e nenhuma nota de relevo)
+  const drawable = level !== "country" && mode.views.includes(requestedView) && (requestedView !== "relevo" || allowRelief);
+  const effectiveView: ExplorerView = drawable ? requestedView : "mapa";
 
   const countryLayer = useMemo(
     () => (coverageQ.data ? coverageLayer(coverageQ.data.states, state.mode, theme, MODE_LABEL[state.mode]) : null),
@@ -123,6 +126,11 @@ export function DataExplorer() {
   const ufName = coverage?.name ?? ufMeshQ.data?.features.find((f) => f.properties.uf === state.uf)?.properties.name ?? state.uf;
   const municipalityName = state.municipality ? (municipalities.find((m) => m.ibgeCode === state.municipality)?.name ?? state.municipality) : null;
   const place = municipalityName ? `${municipalityName} (${state.uf})` : (ufName ?? "Brasil");
+  const mapName = (() => {
+    if (!state.uf || !ufName) return "Mapa do Brasil";
+    const uf = `Mapa ${ofUf(state.uf, ufName)}`;
+    return municipalityName ? `${uf}, com ${municipalityName} em destaque` : uf;
+  })();
 
   const reading: ReadingModel = level === "country" ? countryReading(coverageQ.data, state.mode, coverageQ.isPending) : mode.reading;
   const profileSlug = state.municipality ? municipalities.find((m) => m.ibgeCode === state.municipality)?.slug : null;
@@ -134,7 +142,7 @@ export function DataExplorer() {
     return null;
   })();
 
-  const table = level === "country" ? countryTable(coverageQ.data, ufMeshQ.data, state.mode) : mode.table;
+  const table = level === "country" ? countryTable(coverageQ.data, ufMeshQ.data, state.mode, coverageStatus) : mode.table;
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-5 px-4 py-8 lg:px-8" data-testid="data-explorer">
@@ -176,11 +184,11 @@ export function DataExplorer() {
                 type="button"
                 aria-pressed={effectiveView === v}
                 disabled={!!reason}
-                title={reason ?? (locked ? `${VIEW_LABEL[v]}: plano ${advanced.planName ?? "Avançado"}` : undefined)}
+                title={reason ?? (locked ? `${mode.viewLabels?.[v] ?? VIEW_LABEL[v]}: plano ${advanced.planName ?? "Avançado"}` : undefined)}
                 onClick={() => go({ view: v })}
                 className={SEGMENT}
               >
-                {VIEW_LABEL[v]}
+                {mode.viewLabels?.[v] ?? VIEW_LABEL[v]}
                 {locked && !reason && <span className="ml-1 text-micro text-fg-muted">· plano</span>}
               </button>
             );
@@ -188,6 +196,11 @@ export function DataExplorer() {
         </div>
         {state.view !== "mapa" && advanced.allowed === false && <PlanGateNote capability={ADVANCED_MAP_MODES} className="w-full" />}
         {effectiveView === "comparar" && !mode.compare && mode.compareNote && <p className="text-micro text-fg-muted">{mode.compareNote}</p>}
+        {effectiveView === "comparar" && mode.compareError && (
+          <p className="text-micro text-fg-muted" role="status">
+            {mode.compareError.message} <RetryButton onRetry={mode.compareError.retry} />
+          </p>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -207,7 +220,7 @@ export function DataExplorer() {
               onSelect={(target, code) => (target === "state" ? selectState(code) : go({ municipality: code }, true))}
               reduced={reduced}
               allowRelief={allowRelief}
-              label={`Mapa de ${place}${layer ? `: ${layer.caption}` : ""}`}
+              label={`${mapName}${layer ? `: ${layer.caption}` : ""}`}
             />
           </div>
           {(layer?.legend || comparing) && (
@@ -230,7 +243,7 @@ export function DataExplorer() {
 
       {table && (
         <TerritoryTable
-          key={`${level}:${state.mode}:${state.uf}`}
+          key={level === "country" ? `country:${state.mode}` : `uf:${state.mode}:${state.uf}`}
           caption={table.caption}
           columns={table.columns}
           rows={table.rows}
@@ -242,6 +255,7 @@ export function DataExplorer() {
           noun={level === "country" ? "UFs" : "municípios"}
           actions={table.actions}
           missingLabel={table.missingLabel}
+          status={table.status}
         />
       )}
     </main>
@@ -269,7 +283,7 @@ function countryReading(coverage: DataCoverage | undefined, mode: ExplorerMode, 
   };
 }
 
-function countryTable(coverage: DataCoverage | undefined, ufs: TerritoryCollection | undefined, mode: ExplorerMode): TableModel | null {
+function countryTable(coverage: DataCoverage | undefined, ufs: TerritoryCollection | undefined, mode: ExplorerMode, status: KnownState): TableModel | null {
   if (!ufs) return null;
   const rows: TableRow[] = ufs.features.map((f) => {
     const state = coverage?.states.find((s) => s.uf === f.properties.uf) ?? null;
@@ -287,6 +301,7 @@ function countryTable(coverage: DataCoverage | undefined, ufs: TerritoryCollecti
     columns: [{ key: "available", label: "Disponível" }],
     rows,
     initialSort: { key: "available", dir: "desc" },
+    status,
   };
 }
 

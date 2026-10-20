@@ -8,7 +8,7 @@ import { displayName } from "@/lib/elections/format";
 import { xrayApi } from "@/lib/elections/xray";
 import { loadedIndicators } from "@/lib/territory/coverage";
 import { formatCoefficient, formatInteger, formatValue } from "@/lib/territory/format";
-import { STRENGTH_LABEL, extremeGroups, strengthOf } from "@/lib/territory/insights";
+import { MIN_ASSOCIATION_N, STRENGTH_LABEL, extremeGroups, strengthOf } from "@/lib/territory/insights";
 import { CausalityNote } from "./Insights";
 import { Scatter } from "./Scatter";
 import { SELECT } from "./modes/shared";
@@ -113,6 +113,7 @@ export function SocioElectoralCrossing({
   const name = (ballot: string) => displayName(ballot);
   const ready = pair.length > 0 && results.every(Boolean);
   const failed = correlations.some((q) => q.isError && !q.data) || (candidates.isError && !candidates.data);
+  const noVotes = !!candidates.data && pair.length === 0;
 
   return (
     <section aria-labelledby="crossing-title" className="space-y-3 rounded-xl border border-line bg-surface p-4" data-testid="socioelectoral-crossing">
@@ -147,12 +148,15 @@ export function SocioElectoralCrossing({
         </div>
       </div>
       {failed && <DataState kind="error" title="Não foi possível calcular o cruzamento" action={<RetryButton onRetry={() => { void candidates.refetch(); correlations.forEach((q) => void q.refetch()); }} />} />}
-      {!failed && !ready && <DataState kind="loading" title="Cruzando votos e indicador" height="h-32" />}
+      {noVotes && <p className="text-body-sm text-fg-soft">Nenhuma candidatura com voto registrado neste recorte para cruzar com o indicador.</p>}
+      {!failed && !ready && !noVotes && <DataState kind="loading" title="Cruzando votos e indicador" height="h-32" />}
       {ready && (
         <>
           <ul className="space-y-1.5 text-body leading-7 text-fg" data-testid="crossing-sentences">
             {pair.map((c, index) => {
               const r = results[index]!;
+              if (r.n < MIN_ASSOCIATION_N)
+                return <li key={c.candidacyId}>Para {name(c.ballotName)}, só {formatInteger(r.n)} municípios têm os dois dados: poucos para descrever uma associação.</li>;
               const strength = strengthOf(r.spearman);
               if (!strength || strength === "sem_associacao")
                 return <li key={c.candidacyId}>Para {name(c.ballotName)}, não há associação clara entre {indicator.name} e a parcela de votos válidos (ρ = {formatCoefficient(r.spearman)}).</li>;
