@@ -300,17 +300,28 @@ function wrapText(value: string, maxWidth: number, charWidth: (char: string) => 
   for (const char of value) total += charWidth(char);
   if (total <= maxWidth) return [value];
 
-  const space = charWidth(" ");
   const lines: string[] = [];
   let line = "";
   let lineWidth = 0;
-  for (const word of value.split(/\s+/).filter(Boolean)) {
+  // O espaço original entre palavras (ex.: "  |  " nas linhas do PNG) é mantido; só some na quebra de linha.
+  let gap = "";
+  for (const token of value.split(/(\s+)/)) {
+    if (!token) continue;
+    if (/^\s/.test(token)) {
+      gap = token;
+      continue;
+    }
+    const word = token;
     const chars = Array.from(word);
     const widths = chars.map(charWidth);
     const wordWidth = widths.reduce((sum, width) => sum + width, 0);
-    if (line && lineWidth + space + wordWidth <= maxWidth) {
-      line += ` ${word}`;
-      lineWidth += space + wordWidth;
+    let gapWidth = 0;
+    for (const char of gap) gapWidth += charWidth(char);
+    const separator = gap;
+    gap = "";
+    if (line && lineWidth + gapWidth + wordWidth <= maxWidth) {
+      line += separator + word;
+      lineWidth += gapWidth + wordWidth;
       continue;
     }
     if (line) lines.push(line);

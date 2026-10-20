@@ -80,6 +80,14 @@ describe("exports mantêm a URL reproduzível inteira", () => {
     expect(layout.lines.filter((line) => line.text.includes("apprepbrasil")).length).toBe(1);
   });
 
+  it("linhas quebradas mantêm o espaçamento original entre palavras", () => {
+    const cell = "Município com nome muito longo".repeat(8);
+    const layout = layoutPng({ ...REPORT, rows: [[cell, "%", 1, null]] }, measureChar);
+    const wrapped = layout.lines.filter((line) => line.y > 0 && line.text.includes("  |  "));
+    expect(wrapped.length).toBeGreaterThan(0);
+    expect(layout.lines.map((line) => line.text).join("")).toContain("  |  %  |  1  |  —");
+  });
+
   it("PNG com tabela enorme avisa o limite e preserva todo o contexto", () => {
     const rows = Array.from({ length: 2000 }, (_, index) => [`Município ${index}`, "%", index, null]);
     const layout = layoutPng({ ...REPORT, rows }, measureChar);
