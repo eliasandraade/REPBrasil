@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -21,9 +23,34 @@ class CamaraPage:
 
 
 class CamaraApi:
-    def __init__(self, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        client: httpx.Client | None = None,
+        *,
+        attempts: int = 4,
+        backoff_seconds: float = 2.0,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self._owns_client = client is None
         self._client = client or httpx.Client(timeout=60)
+        self._attempts = max(1, attempts)
+        self._backoff = backoff_seconds
+        self._sleep = sleep
+
+    def _get(self, url: str, params: dict[str, Any] | None) -> httpx.Response:
+        """GET com novas tentativas só para falha de transporte ou 5xx (a API oscila com 504)."""
+        for attempt in range(1, self._attempts + 1):
+            try:
+                response = self._client.get(url, params=params)
+            except httpx.TransportError:
+                if attempt == self._attempts:
+                    raise
+            else:
+                if response.status_code < 500 or attempt == self._attempts:
+                    response.raise_for_status()
+                    return response
+            self._sleep(self._backoff * attempt)
+        raise AssertionError("unreachable")
 
     def close(self) -> None:
         if self._owns_client:
@@ -54,8 +81,7 @@ class CamaraApi:
         pages: list[CamaraPage] = []
         request_params = dict(params or {})
         while True:
-            response = self._client.get(url, params=request_params)
-            response.raise_for_status()
+            response = self._get(url, request_params)
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError("unexpected Câmara API payload")

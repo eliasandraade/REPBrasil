@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from src.sources.camara.api import CamaraApi, CamaraPage
@@ -83,16 +83,41 @@ def fetch_deputy_propositions(
     api: CamaraApi,
     deputy_id: int | str,
     *,
+    presented_from: date,
+    presented_to: date,
     itens: int = 100,
 ) -> tuple[list[CamaraActivity], bytes, tuple[str, ...]]:
+    """Proposições de autoria do deputado apresentadas no intervalo.
+
+    `/deputados/{id}/proposicoes` não existe na API v2 (405) e `/proposicoes` recusa intervalos de
+    datas maiores que 3 meses (400); por isso a consulta é `/proposicoes?idDeputadoAutor=&ano=` para
+    cada ano do intervalo, e o recorte exato usa a data oficial de apresentação.
+    """
     deputy = int(deputy_id)
     if deputy <= 0:
         raise ValueError("invalid Câmara deputy id")
-    pages = api.fetch_all(
-        f"/deputados/{deputy}/proposicoes",
-        params={"itens": int(itens), "ordem": "ASC", "ordenarPor": "id"},
-    )
-    activities = parse_proposition_rows(str(deputy), pages)
+    if presented_from > presented_to:
+        raise ValueError("propositions interval starts after it ends")
+    pages = []
+    for year in range(presented_from.year, presented_to.year + 1):
+        pages.extend(
+            api.fetch_all(
+                "/proposicoes",
+                params={
+                    "idDeputadoAutor": deputy,
+                    "ano": year,
+                    "itens": int(itens),
+                    "ordem": "ASC",
+                    "ordenarPor": "id",
+                },
+            )
+        )
+    activities = [
+        activity
+        for activity in parse_proposition_rows(str(deputy), pages)
+        if activity.occurred_at is None
+        or presented_from <= activity.occurred_at.date() <= presented_to
+    ]
     canonical = json.dumps(
         [page.payload for page in pages],
         ensure_ascii=False,

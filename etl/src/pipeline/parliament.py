@@ -56,6 +56,7 @@ def ensure_source(conn: Any, source: ParliamentSource) -> int:
                 EXCLUDED.published_at,
                 electoral.parliament_source.published_at
             ),
+            retrieved_at = now(),
             metadata = EXCLUDED.metadata
         RETURNING id
         """,
