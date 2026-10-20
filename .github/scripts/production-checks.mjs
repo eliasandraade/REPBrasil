@@ -58,8 +58,8 @@ export async function verifyAnonymousContracts({ web, api, record }) {
 
 // Seções do Ceará cujos votos foram podados do PostGIS: a API só os obtém do worker do lake.
 const ARCHIVED_SECTIONS = [
-  "/api/v1/elections/2022/1/states/CE/municipalities/13897/zones/1/sections/33/results",
-  "/api/v1/elections/2024/1/states/CE/municipalities/13897/zones/1/sections/33/results",
+  [2022, "/api/v1/elections/2022/1/states/CE/municipalities/13897/zones/1/sections/33/results"],
+  [2024, "/api/v1/elections/2024/1/states/CE/municipalities/13897/zones/1/sections/33/results"],
 ];
 
 async function answeredSection(url, attemptsLeft, intervalMs) {
@@ -83,11 +83,13 @@ async function answeredSection(url, attemptsLeft, intervalMs) {
  */
 export async function verifyArchivedSections({ api, record, attempts = 60, intervalMs = 5000 }) {
   await Promise.all(
-    ARCHIVED_SECTIONS.map(async (path) => {
+    ARCHIVED_SECTIONS.map(async ([year, path]) => {
       const body = await answeredSection(`${api}${path}`, attempts, intervalMs);
+      assert.equal(body.election?.year, year, `${path} must answer for ${year}`);
       assert.equal(body.status, "available", `${path} must be available`);
       assert.ok(Array.isArray(body.votes) && body.votes.length > 0, `${path} must carry the archived votes`);
-      record(`Archived ${body.election.year} section votes served through the private lake RPC`, { votes: body.votes.length });
+      // O rótulo do log usa só a constante local: nada vindo da resposta remota chega ao console.
+      record(`Archived ${year} section votes served through the private lake RPC`, { votes: body.votes.length });
     }),
   );
 }
@@ -166,10 +168,10 @@ async function comparisonReady(page) {
   await page.getByTestId("export-actions").waitFor({ state: "visible", timeout: 60000 });
 }
 
+// O Next.js também renderiza um `role="alert"` vazio (anunciador de rotas, em shadow DOM): a
+// verificação mira só o aviso de recusa, pelo texto que o explica.
 async function signInRefusalReady(page) {
-  const alert = page.getByRole("alert");
-  await alert.waitFor({ state: "visible", timeout: 30000 });
-  assert.match((await alert.textContent()) ?? "", /navegador diferente/, "/entrar must explain a refused magic link");
+  await page.getByRole("alert").filter({ hasText: /navegador diferente/ }).waitFor({ state: "visible", timeout: 30000 });
 }
 
 const GUARDED_TARGETS = [
