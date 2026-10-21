@@ -121,10 +121,26 @@ O catálogo de planos, capabilities e limites é código (`PlanCatalog`) e é se
 | `limit.alerts` | 3 | 50 | 200 |
 | `account.saved_folders` | — | — | ✓ |
 | `limit.compare_candidacies` | 5 | 5 | 10 |
+| `map.advanced_modes` (relevo 3D, intensidade, antes/depois) | — | ✓ | ✓ |
+| `data.map_series` (linha do tempo do mapa numa consulta) | — | ✓ | ✓ |
+| `data.correlation_matrix` (todos os pares da UF de uma vez) | — | ✓ | ✓ |
+| `data.export_csv` (CSV do recorte, com proveniência por linha) | — | ✓ | ✓ |
+| `data.export_bulk` (todos os indicadores da UF em CSV) | — | — | ✓ |
 
 Preços mensais: Gratuito R$ 0; Avançado R$ 24,90 (recomendado); Profissional R$ 69,90. Não há plano anual.
 
-Consulta, mapas, fontes, metodologia, proveniência e data de atualização nunca são pagos: o dado público essencial não fica atrás de paywall.
+Consulta, mapas, fontes, metodologia, proveniência e data de atualização nunca são pagos: o dado público essencial não fica atrás de paywall. No explorador territorial (`/dados`), o mapa, a tabela, cada valor, cada ano, cada par de indicadores (`/data/correlation`) e os agrupamentos são de todos. O plano acrescenta conveniência e profundidade: a série inteira numa consulta, a matriz de uma vez, as exportações e os modos avançados do mapa (`docs/DADOS_EXPLORADOR.md`).
+
+Rotas do plano no explorador, todas com `401` sem sessão, `403 plan_required` com o plano mínimo e sem cache compartilhado (`Cache-Control: private, no-store`):
+
+| Rota | Capability |
+|---|---|
+| `GET /api/v1/data/correlation-matrix?uf=&period=` | `data.correlation_matrix` |
+| `GET /api/v1/data/export?indicator=&uf=&period=` | `data.export_csv` |
+| `GET /api/v1/data/export/bulk?uf=&period=` | `data.export_bulk` |
+| `GET /api/v1/parliament/amendments/map-series?uf=` | `data.map_series` |
+
+`map.advanced_modes` é decidido na interface: os modos desenham dado que a API já entrega a todos.
 
 ### Plano efetivo
 
@@ -288,5 +304,7 @@ O conteúdo público existente continua navegável sem autenticação.
 - `backend/tests/RepBrasil.Tests/Api/AccountFlowAlertPublisherTests.cs` (banco de teste): edição nova notifica uma vez quem já assinava; quem assina depois e conta suspensa não recebem; emendas pela UF da ingestão.
 - `backend/tests/RepBrasil.Tests/Api/AccountFlowAdminTests.cs` (banco de teste): RBAC 401/403/200 e sem segredo no diagnóstico; suspensão que encerra sessões e recusa login sem criar conta; último Super Admin protegido mesmo contra admin concorrente; plano, concessões, assinatura e papel refletidos no acesso e na auditoria (que recusa UPDATE); suporte gravado, limitado e triado; catálogo OpenAPI só para Super Admin, com a regra de acesso de cada rota.
 - `backend/tests/RepBrasil.Tests/Api/AdminUnitTests.cs` (sem banco): regra de acesso do catálogo lida dos atributos, mascaramento de erros de ingestão, métricas por rota.
+- `backend/tests/RepBrasil.Tests/Api/AccountFlowDataToolsTests.cs` (banco de teste, UF fictícia própria): cobertura por UF diz só o que está carregado; matriz, exportações e série do mapa com 401/403/200 pelo plano, CSV com proveniência e sem cache compartilhado.
+- `backend/tests/RepBrasil.Tests/DataIntelligence/DataExplorerUnitTests.cs` (sem banco): cobertura, matriz por pares (ausência fora do N), formato do CSV e proteção contra fórmula.
 - `frontend/tests/admin.test.tsx`: guarda do `/admin` (401/403), ação confirmada com CSRF, recusa do último Super Admin, catálogo da API e `/suporte` real (protocolo, 429, FAQ acessível).
 - `frontend/tests/account-signin.test.tsx`: mensagens de `/entrar?erro=...` e destino local após o login.

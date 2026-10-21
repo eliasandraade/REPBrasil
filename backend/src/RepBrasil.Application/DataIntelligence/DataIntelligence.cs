@@ -49,10 +49,78 @@ public sealed record ClusterResponse(
     IReadOnlyList<ClusterItemDto> Items,
     string Methodology);
 
+/// <summary>
+/// O que está carregado, por UF e por domínio. Linha ausente = nada carregado; a interface nunca deduz
+/// cobertura de outra fonte.
+/// </summary>
+public sealed record DataCoverageResponse(IReadOnlyList<StateCoverageDto> States);
+
+public sealed record StateCoverageDto(
+    string Uf,
+    string Name,
+    int? IbgeCode,
+    int Municipalities,
+    IReadOnlyList<IndicatorCoverageDto> Socioeconomic,
+    IReadOnlyList<ElectionCoverageDto> Elections,
+    IReadOnlyList<AmendmentCoverageDto> Amendments);
+
+/// <summary>Indicador com valor carregado num período: quantos municípios da UF têm observação.</summary>
+public sealed record IndicatorCoverageDto(string Indicator, int Period, int Municipalities);
+
+/// <summary>Pleito com resultado (Boletim de Urna) carregado: quantos municípios da UF.</summary>
+public sealed record ElectionCoverageDto(int Year, int Round, int Municipalities);
+
+/// <summary>
+/// Ano com emendas na edição vigente da UF. <c>Amendments</c> conta todas as emendas destinadas à UF, com ou sem
+/// município identificado; <c>Municipalities</c> conta só os municípios identificados por código IBGE oficial.
+/// </summary>
+public sealed record AmendmentCoverageDto(int Year, int Municipalities, int Amendments);
+
+public sealed record CoverageStateRow(string Uf, string Name, int? IbgeCode, int Municipalities);
+public sealed record CoverageIndicatorRow(string Uf, string Indicator, int Period, int Municipalities);
+public sealed record CoverageElectionRow(string Uf, int Year, int Round, int Municipalities);
+public sealed record CoverageAmendmentRow(string Uf, int Year, int Municipalities, int Amendments);
+
+public sealed record CoverageRows(
+    IReadOnlyList<CoverageStateRow> States,
+    IReadOnlyList<CoverageIndicatorRow> Indicators,
+    IReadOnlyList<CoverageElectionRow> Elections,
+    IReadOnlyList<CoverageAmendmentRow> Amendments);
+
+public sealed record MatrixIndicatorDto(string Code, string Name, string Unit, int N);
+
+/// <summary>Par de indicadores: só municípios com os dois valores observados entram no N.</summary>
+public sealed record MatrixCellDto(string X, string Y, int N, double? Pearson, double? Spearman);
+
+public sealed record CorrelationMatrixResponse(
+    string Uf,
+    int Period,
+    IReadOnlyList<MatrixIndicatorDto> Indicators,
+    IReadOnlyList<MatrixCellDto> Cells,
+    string Methodology,
+    string Caveat);
+
+/// <summary>Uma linha de exportação: o valor e de onde ele veio.</summary>
+public sealed record IndicatorExportRow(
+    string Uf,
+    string MunicipalityIbgeCode,
+    string MunicipalityName,
+    string IndicatorCode,
+    string IndicatorName,
+    string Unit,
+    int Period,
+    decimal Value,
+    string Provider,
+    string Dataset,
+    DateTimeOffset RetrievedAt);
+
 public interface IDataIntelligenceRepository
 {
     Task<IReadOnlyList<IndicatorDto>> CatalogAsync(CancellationToken ct);
     Task<IReadOnlyList<IndicatorValueDto>> ValuesAsync(string indicator, int? period, string? uf, CancellationToken ct);
+    /// <summary>Valores vigentes de todos os indicadores numa UF (e período, se informado).</summary>
+    Task<IReadOnlyList<IndicatorValueDto>> StateValuesAsync(string uf, int? period, CancellationToken ct);
+    Task<CoverageRows> CoverageAsync(CancellationToken ct);
     Task<IReadOnlyList<CorrelationPointDto>> IndicatorPairsAsync(string xIndicator, string yIndicator, int period, string? uf, CancellationToken ct);
     Task<IReadOnlyList<CorrelationPointDto>> CandidacySharePairsAsync(
         string xIndicator,
@@ -67,7 +135,120 @@ public interface IDataIntelligenceRepository
 
 public sealed class DataIntelligenceService(IDataIntelligenceRepository repository)
 {
+    public const string CausalityCaveat =
+        "Correlação não implica causalidade. O resultado descreve associação nos dados observados e não demonstra efeito causal.";
+
     public Task<IReadOnlyList<IndicatorDto>> CatalogAsync(CancellationToken ct) => repository.CatalogAsync(ct);
+
+    public async Task<DataCoverageResponse> CoverageAsync(CancellationToken ct) => BuildCoverage(await repository.CoverageAsync(ct));
+
+    public static DataCoverageResponse BuildCoverage(CoverageRows rows)
+    {
+        var indicators = rows.Indicators.ToLookup(r => r.Uf);
+        var elections = rows.Elections.ToLookup(r => r.Uf);
+        var amendments = rows.Amendments.ToLookup(r => r.Uf);
+        return new DataCoverageResponse(rows.States
+            .OrderBy(s => s.Uf, StringComparer.Ordinal)
+            .Select(s => new StateCoverageDto(
+                s.Uf,
+                s.Name,
+                s.IbgeCode,
+                s.Municipalities,
+                indicators[s.Uf].OrderBy(r => r.Indicator, StringComparer.Ordinal).ThenByDescending(r => r.Period)
+                    .Select(r => new IndicatorCoverageDto(r.Indicator, r.Period, r.Municipalities)).ToList(),
+                elections[s.Uf].OrderByDescending(r => r.Year).ThenByDescending(r => r.Round)
+                    .Select(r => new ElectionCoverageDto(r.Year, r.Round, r.Municipalities)).ToList(),
+                amendments[s.Uf].OrderByDescending(r => r.Year)
+                    .Select(r => new AmendmentCoverageDto(r.Year, r.Municipalities, r.Amendments)).ToList()))
+            .ToList());
+    }
+
+    public async Task<CorrelationMatrixResponse> CorrelationMatrixAsync(string? uf, int period, CancellationToken ct)
+    {
+        var state = NormalizeUf(uf) ?? throw new ArgumentException("uf is required", nameof(uf));
+        if (period is < 1900 or > 2200) throw new ArgumentOutOfRangeException(nameof(period));
+        var catalog = await repository.CatalogAsync(ct);
+        var values = await repository.StateValuesAsync(state, period, ct);
+        return BuildMatrix(state, period, catalog, values);
+    }
+
+    /// <summary>Matriz por pares: cada par usa só os municípios com os dois valores (ausência nunca é preenchida).</summary>
+    public static CorrelationMatrixResponse BuildMatrix(
+        string uf, int period, IReadOnlyList<IndicatorDto> catalog, IReadOnlyList<IndicatorValueDto> values)
+    {
+        var byIndicator = values
+            .Where(v => v.Period == period)
+            .GroupBy(v => v.IndicatorCode, StringComparer.Ordinal)
+            .ToDictionary(
+                g => g.Key,
+                g => g.GroupBy(v => v.MunicipalityIbgeCode, StringComparer.Ordinal).ToDictionary(m => m.Key, m => (double)m.First().Value, StringComparer.Ordinal),
+                StringComparer.Ordinal);
+        var indicators = catalog.Where(c => byIndicator.ContainsKey(c.Code))
+            .Select(c => new MatrixIndicatorDto(c.Code, c.Name, c.Unit, byIndicator[c.Code].Count))
+            .ToList();
+        var cells = new List<MatrixCellDto>();
+        for (var i = 0; i < indicators.Count; i++)
+            for (var j = i + 1; j < indicators.Count; j++)
+            {
+                var a = byIndicator[indicators[i].Code];
+                var b = byIndicator[indicators[j].Code];
+                var shared = a.Keys.Where(b.ContainsKey).OrderBy(k => k, StringComparer.Ordinal).ToArray();
+                var x = shared.Select(k => a[k]).ToArray();
+                var y = shared.Select(k => b[k]).ToArray();
+                cells.Add(new MatrixCellDto(indicators[i].Code, indicators[j].Code, shared.Length, Pearson(x, y), Spearman(x, y)));
+            }
+        return new CorrelationMatrixResponse(
+            uf,
+            period,
+            indicators,
+            cells,
+            "Cada par usa só os municípios com os dois valores observados no período (o N do par). Pearson mede associação linear; Spearman, associação monotônica por postos. Associação perfeita (±1) costuma indicar que um indicador é calculado a partir do outro.",
+            CausalityCaveat);
+    }
+
+    /// <summary>Valores de um indicador na UF, com a proveniência de cada linha.</summary>
+    public async Task<IReadOnlyList<IndicatorExportRow>> ExportAsync(string indicator, int? period, string? uf, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(indicator)) throw new ArgumentException("indicator is required", nameof(indicator));
+        var state = NormalizeUf(uf) ?? throw new ArgumentException("uf is required", nameof(uf));
+        ValidatePeriod(period);
+        var catalog = await repository.CatalogAsync(ct);
+        var meta = catalog.FirstOrDefault(c => c.Code == indicator.Trim()) ?? throw new ArgumentException("indicator does not exist", nameof(indicator));
+        var rows = await repository.ValuesAsync(meta.Code, period, state, ct);
+        return ExportRows(state, rows, catalog);
+    }
+
+    /// <summary>Todos os indicadores carregados da UF (e período, se informado), com a proveniência de cada linha.</summary>
+    public async Task<IReadOnlyList<IndicatorExportRow>> BulkExportAsync(string? uf, int? period, CancellationToken ct)
+    {
+        var state = NormalizeUf(uf) ?? throw new ArgumentException("uf is required", nameof(uf));
+        ValidatePeriod(period);
+        var catalog = await repository.CatalogAsync(ct);
+        var rows = await repository.StateValuesAsync(state, period, ct);
+        return ExportRows(state, rows, catalog);
+    }
+
+    private static List<IndicatorExportRow> ExportRows(string uf, IReadOnlyList<IndicatorValueDto> rows, IReadOnlyList<IndicatorDto> catalog)
+    {
+        var meta = catalog.ToDictionary(c => c.Code, StringComparer.Ordinal);
+        return rows
+            .OrderBy(r => r.IndicatorCode, StringComparer.Ordinal)
+            .ThenByDescending(r => r.Period)
+            .ThenBy(r => r.MunicipalityIbgeCode, StringComparer.Ordinal)
+            .Select(r =>
+            {
+                var indicator = meta.GetValueOrDefault(r.IndicatorCode);
+                return new IndicatorExportRow(
+                    uf, r.MunicipalityIbgeCode, r.MunicipalityName, r.IndicatorCode, indicator?.Name ?? r.IndicatorCode,
+                    indicator?.Unit ?? "", r.Period, r.Value, r.Provider, r.Dataset, r.RetrievedAt);
+            })
+            .ToList();
+    }
+
+    private static void ValidatePeriod(int? period)
+    {
+        if (period is < 1900 or > 2200) throw new ArgumentOutOfRangeException(nameof(period));
+    }
 
     public Task<IReadOnlyList<IndicatorValueDto>> ValuesAsync(string indicator, int? period, string? uf, CancellationToken ct)
     {
@@ -119,7 +300,7 @@ public sealed class DataIntelligenceService(IDataIntelligenceRepository reposito
             Spearman(x, y),
             points,
             "Pearson mede associação linear; Spearman mede associação monotônica por postos. Somente municípios com os dois valores observados entram no N.",
-            "Correlação não implica causalidade. O resultado descreve associação nos dados observados e não demonstra efeito causal.");
+            CausalityCaveat);
     }
 
     public async Task<ClusterResponse> ClustersAsync(string indicator, int period, string? uf, int k, CancellationToken ct)

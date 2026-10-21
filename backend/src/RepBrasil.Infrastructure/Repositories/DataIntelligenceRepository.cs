@@ -39,6 +39,74 @@ public sealed class DataIntelligenceRepository(ApplicationDbContext db) : IDataI
             """, ct, indicator, periodParameter, uf ?? "");
     }
 
+    public Task<IReadOnlyList<IndicatorValueDto>> StateValuesAsync(string uf, int? period, CancellationToken ct)
+    {
+        object periodParameter = period.HasValue ? period.Value : DBNull.Value;
+        return Query<IndicatorValueDto>("""
+            WITH latest_source AS (
+              SELECT DISTINCT ON (s.indicator_code, s.period)
+                     s.id, s.indicator_code, s.period, s.provider, s.dataset, s.retrieved_at
+                FROM electoral.socioeconomic_source s
+               WHERE ({0}::int IS NULL OR s.period = {0})
+               ORDER BY s.indicator_code, s.period, s.retrieved_at DESC, s.id DESC
+            )
+            SELECT v.indicator_code AS "IndicatorCode", v.municipality_ibge_code::text AS "MunicipalityIbgeCode",
+                   m.name AS "MunicipalityName", v.period AS "Period",
+                   v.value AS "Value", s.provider AS "Provider", s.dataset AS "Dataset", s.retrieved_at AS "RetrievedAt"
+              FROM latest_source s
+              JOIN electoral.indicator_value v ON v.source_id = s.id AND v.indicator_code = s.indicator_code AND v.period = s.period
+              JOIN electoral.municipality m ON m.ibge_code::text = v.municipality_ibge_code::text AND m.state_code = {1}
+             ORDER BY v.indicator_code, v.period DESC, v.municipality_ibge_code
+            """, ct, periodParameter, uf);
+    }
+
+    /// <summary>
+    /// Cobertura por UF em quatro leituras: catálogo de UFs, indicadores vigentes, pleitos com Boletim de Urna
+    /// carregado e anos de emendas da edição vigente. Cada domínio usa a mesma regra de "vigente" das suas telas.
+    /// </summary>
+    public async Task<CoverageRows> CoverageAsync(CancellationToken ct)
+    {
+        var states = await Query<CoverageStateRow>("""
+            SELECT st.code::text AS "Uf", st.name AS "Name", st.ibge_code AS "IbgeCode",
+                   (SELECT count(*)::int FROM electoral.municipality m WHERE m.state_code = st.code) AS "Municipalities"
+              FROM electoral.state st
+             ORDER BY st.code
+            """, ct);
+        var indicators = await Query<CoverageIndicatorRow>("""
+            WITH latest_source AS (
+              SELECT DISTINCT ON (s.indicator_code, s.period) s.id, s.indicator_code, s.period
+                FROM electoral.socioeconomic_source s
+               ORDER BY s.indicator_code, s.period, s.retrieved_at DESC, s.id DESC
+            )
+            SELECT m.state_code::text AS "Uf", v.indicator_code AS "Indicator", v.period AS "Period",
+                   count(DISTINCT v.municipality_ibge_code)::int AS "Municipalities"
+              FROM latest_source s
+              JOIN electoral.indicator_value v ON v.source_id = s.id AND v.indicator_code = s.indicator_code AND v.period = s.period
+              JOIN electoral.municipality m ON m.ibge_code::text = v.municipality_ibge_code::text
+             GROUP BY m.state_code, v.indicator_code, v.period
+            """, ct);
+        var elections = await Query<CoverageElectionRow>("""
+            SELECT f.uf::text AS "Uf", e.year AS "Year", e.round AS "Round",
+                   count(DISTINCT r.scope->>'municipality')::int AS "Municipalities"
+              FROM electoral.ingestion_run r
+              JOIN electoral.open_data_source_file f ON f.id = r.source_file_id
+              JOIN electoral.election e ON e.year = f.year AND e.round = f.turn
+             WHERE r.source = 'tse-open-data-bu' AND r.status = 'succeeded'
+             GROUP BY f.uf, e.year, e.round
+            """, ct);
+        var amendments = await Query<CoverageAmendmentRow>(ParliamentSql.CurrentEditions + """
+            SELECT e.uf AS "Uf", a.year AS "Year",
+                   count(DISTINCT m.ibge_code)::int AS "Municipalities",
+                   count(*)::int AS "Amendments"
+              FROM electoral.parliament_amendment a
+              JOIN current_edition e ON e.id = a.source_id
+              LEFT JOIN electoral.municipality m ON m.ibge_code::text = a.municipality_ibge_code AND m.state_code::text = e.uf
+             WHERE a.year IS NOT NULL AND e.uf IS NOT NULL
+             GROUP BY e.uf, a.year
+            """, ct);
+        return new CoverageRows(states, indicators, elections, amendments);
+    }
+
     public Task<IReadOnlyList<CorrelationPointDto>> IndicatorPairsAsync(
         string xIndicator, string yIndicator, int period, string? uf, CancellationToken ct) =>
         Query<CorrelationPointDto>("""

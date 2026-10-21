@@ -63,6 +63,23 @@ public sealed record AmendmentMunicipalityDto(
     int PaidAmountMissing,
     DateTimeOffset RetrievedAt);
 
+/// <summary>Linha da série anual do mapa de emendas (mesmas somas de <see cref="AmendmentMunicipalityDto"/>, por ano).</summary>
+public sealed record AmendmentSeriesRow(
+    int Year,
+    string MunicipalityIbgeCode,
+    string MunicipalityName,
+    int AmendmentCount,
+    decimal? CommittedAmount,
+    int CommittedAmountMissing,
+    decimal? PaidAmount,
+    int PaidAmountMissing,
+    DateTimeOffset RetrievedAt);
+
+public sealed record AmendmentSeriesYearDto(int Year, IReadOnlyList<AmendmentMunicipalityDto> Municipalities);
+
+/// <summary>Mapa de emendas da UF, ano a ano, numa consulta (linha do tempo).</summary>
+public sealed record AmendmentMapSeriesResponse(string Uf, IReadOnlyList<AmendmentSeriesYearDto> Years);
+
 /// <summary>Total de atos do recorte, independente do limite da listagem.</summary>
 public sealed record ParliamentActivityTotalDto(int Total);
 
@@ -74,6 +91,7 @@ public interface IParliamentRepository
     Task<IReadOnlyList<ParliamentAmendmentDto>> AmendmentsAsync(int? year, long? memberId, string? uf, int limit, CancellationToken ct);
     Task<IReadOnlyList<int>> AmendmentYearsAsync(string? uf, CancellationToken ct);
     Task<IReadOnlyList<AmendmentMunicipalityDto>> AmendmentMapAsync(int? year, string uf, CancellationToken ct);
+    Task<IReadOnlyList<AmendmentSeriesRow>> AmendmentMapSeriesAsync(string uf, CancellationToken ct);
 }
 
 public sealed class ParliamentService(IParliamentRepository repository)
@@ -110,6 +128,22 @@ public sealed class ParliamentService(IParliamentRepository repository)
     {
         ValidateYear(year);
         return repository.AmendmentMapAsync(year, NormalizeUf(uf) ?? throw new ArgumentException("uf is required", nameof(uf)), ct);
+    }
+
+    public async Task<AmendmentMapSeriesResponse> AmendmentMapSeriesAsync(string? uf, CancellationToken ct)
+    {
+        var state = NormalizeUf(uf) ?? throw new ArgumentException("uf is required", nameof(uf));
+        var rows = await repository.AmendmentMapSeriesAsync(state, ct);
+        return new AmendmentMapSeriesResponse(
+            state,
+            rows.GroupBy(r => r.Year)
+                .OrderBy(g => g.Key)
+                .Select(g => new AmendmentSeriesYearDto(g.Key, g
+                    .Select(r => new AmendmentMunicipalityDto(
+                        r.MunicipalityIbgeCode, r.MunicipalityName, r.AmendmentCount, r.CommittedAmount,
+                        r.CommittedAmountMissing, r.PaidAmount, r.PaidAmountMissing, r.RetrievedAt))
+                    .ToList()))
+                .ToList());
     }
 
     private static int NormalizeLimit(int limit) => limit is >= 1 and <= 200 ? limit : throw new ArgumentOutOfRangeException(nameof(limit), "limit must be between 1 and 200");

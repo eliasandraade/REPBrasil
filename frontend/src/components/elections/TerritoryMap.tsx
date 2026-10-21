@@ -2,7 +2,7 @@
 
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
-import { bboxOf, boundsForLevel, loadTerritoryGeo, type GeoStatus, type TerritoryGeo } from "@/lib/elections/geo";
+import { bboxOf, boundsForLevel, loadMunicipalityMesh, loadTerritoryGeo, type GeoStatus, type TerritoryGeo } from "@/lib/elections/geo";
 import { MAP_CHROME, type DataTheme } from "@/lib/dataviz/palette";
 import { layerSignature, type MapLayerView } from "@/lib/elections/map-layers";
 import type { ExplorerLevel } from "@/lib/elections/route";
@@ -20,6 +20,7 @@ const SURVEY_EASING = easingFn("traverse");
  *   disponíveis. Camadas temáticas (intensidade, crescimento, A × B,
  *   mais votado…) colorem pelo VALOR da API, com paleta neutra.
  * - Pontos SÓ para locais com coordenada publicada pela fonte oficial.
+ * - Malha municipal sob demanda: só a da UF em cena é baixada (as 27 estão publicadas).
  * - Reduced Motion: câmera sem animação.
  * - Sem WebGL ou sem malha: o explorador segue pelas listas.
  */
@@ -122,6 +123,8 @@ export function TerritoryMap(props: Props) {
   // o usuário mexeu no mapa (arrastar/zoom): reenquadrar sozinho deixaria de respeitar a escolha dele
   const interacted = useRef(false);
   const [status, setStatus] = useState<GeoStatus>("loading");
+  // UF cuja malha municipal está na fonte "mun" (baixada quando a UF entra em cena)
+  const [meshState, setMeshState] = useState<string | null>(null);
   const theme = useResolvedTheme();
 
   // Tema claro/escuro: repinta o cromo sem remontar (camada temática chega já colorida no tema).
@@ -354,7 +357,26 @@ export function TerritoryMap(props: Props) {
     const only = props.level === "state" || s.municipality == null ? null : (["==", ["id"], Number(s.municipality)] as never);
     ["mun-fill", "mun-line", "mun-focus"].forEach((id) => map.setFilter(id, only));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, scopeKey, props.level]);
+  }, [status, scopeKey, props.level, meshState]);
+
+  // Malha municipal da UF em cena: baixada sob demanda; sem ela o mapa fica no contorno da UF.
+  useEffect(() => {
+    const map = mapRef.current;
+    const state = props.scope.state;
+    if (status !== "ready" || !map || !state) return;
+    let active = true;
+    loadMunicipalityMesh(state)
+      .then((mesh) => {
+        if (!active || mapRef.current !== map || !geoRef.current) return;
+        geoRef.current = { ...geoRef.current, municipalities: mesh };
+        (map.getSource("mun") as GeoJSONSource | undefined)?.setData(mesh as never);
+        setMeshState(state);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [status, props.scope.state]);
 
   // Camada temática: cor por município (feature-state) e pontos por local de votação.
   const layerKey = layerSignature(props.layer);
@@ -376,7 +398,7 @@ export function TerritoryMap(props: Props) {
         })),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, layerKey]);
+  }, [status, layerKey, meshState]);
 
   const pointsKey = props.points.map((p) => p.code).join(",");
   useEffect(() => {
@@ -418,6 +440,14 @@ export function TerritoryMap(props: Props) {
     fitScope(map, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, props.routeKey, props.scope.state, props.scope.municipality]);
+
+  // Link direto para um município: a malha chega depois do primeiro enquadramento (UF); completa a aproximação.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (status !== "ready" || !map || !meshState || props.level === "country" || props.level === "state") return;
+    if (!interacted.current) fitScope(map, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meshState]);
 
   const zoomBy = (delta: number) => {
     const map = mapRef.current;

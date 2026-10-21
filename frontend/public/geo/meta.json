@@ -1,16 +1,195 @@
 {
   "source": "IBGE — API de malhas territoriais v3 e API de localidades v1",
-  "retrieved_at": "2026-10-07T06:52:36.463Z",
+  "retrieved_at": "2026-10-20T12:56:51.221Z",
   "quality": "minima",
   "projection": "WGS84 (EPSG:4326); renderizado em Web Mercator pelo MapLibre",
+  "transformation": "Coordenadas arredondadas a 4 casas decimais; nomes oficiais anexados às propriedades. Nenhuma geometria editada.",
   "urls": {
     "ufs": "https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo%2Bjson&qualidade=minima&intrarregiao=UF",
-    "ceMunicipios": "https://servicodados.ibge.gov.br/api/v3/malhas/estados/23?formato=application/vnd.geo%2Bjson&qualidade=minima&intrarregiao=municipio",
     "ufNames": "https://servicodados.ibge.gov.br/api/v1/localidades/estados",
-    "ceNames": "https://servicodados.ibge.gov.br/api/v1/localidades/estados/23/municipios"
+    "municipios": "https://servicodados.ibge.gov.br/api/v3/malhas/estados/{uf}?formato=application/vnd.geo%2Bjson&qualidade=minima&intrarregiao=municipio",
+    "municipioNames": "https://servicodados.ibge.gov.br/api/v1/localidades/estados/{uf}/municipios"
   },
   "counts": {
     "ufs": 27,
-    "ceMunicipios": 184
+    "municipios": 5570,
+    "byUf": {
+      "AC": 22,
+      "AL": 102,
+      "AM": 62,
+      "AP": 16,
+      "BA": 417,
+      "CE": 184,
+      "DF": 1,
+      "ES": 78,
+      "GO": 246,
+      "MA": 217,
+      "MG": 853,
+      "MS": 79,
+      "MT": 141,
+      "PA": 144,
+      "PB": 223,
+      "PE": 185,
+      "PI": 224,
+      "PR": 399,
+      "RJ": 92,
+      "RN": 167,
+      "RO": 52,
+      "RR": 15,
+      "RS": 497,
+      "SC": 295,
+      "SE": 75,
+      "SP": 645,
+      "TO": 139
+    }
+  },
+  "withoutGeometry": [
+    {
+      "code": "5101837",
+      "name": "Boa Esperança do Norte",
+      "uf": "MT"
+    }
+  ],
+  "files": {
+    "br-uf.json": {
+      "sha256": "6fd0e69bc306e6ff6738f2e282d8bb967660da704267bef24a446fc033f32243",
+      "bytes": 99412,
+      "features": 27
+    },
+    "municipios/AC.json": {
+      "sha256": "ac09e397e189cb27909508ea12f7f51e7fbeebcd6a3c955fa8e0daf63e87a3e3",
+      "bytes": 29062,
+      "features": 22
+    },
+    "municipios/AL.json": {
+      "sha256": "17c8d128776f0c0c753e82ec54e2c2bbc7b3586de183288e4fef80437b7e3dd9",
+      "bytes": 39092,
+      "features": 102
+    },
+    "municipios/AM.json": {
+      "sha256": "25f24d56129d5152a05a9504dae386e5cbb8a4f5e64b6050d852197f5218b64d",
+      "bytes": 163413,
+      "features": 62
+    },
+    "municipios/AP.json": {
+      "sha256": "5a17ff1f14811edc846386234901263a3921b03732668a4b995d9a775f98502c",
+      "bytes": 28706,
+      "features": 16
+    },
+    "municipios/BA.json": {
+      "sha256": "14f57d7d6f8a363d240ab084a2b0bc345f7cde66516e47f4a7b935b6465b51d2",
+      "bytes": 265447,
+      "features": 417
+    },
+    "municipios/CE.json": {
+      "sha256": "349e2071d8d209920248453818956ecbddef624f19073caf32061605aa71af65",
+      "bytes": 101123,
+      "features": 184
+    },
+    "municipios/DF.json": {
+      "sha256": "3c16d179f2ff2447d747a383d3f25f09d2595f625d2b6c571fc05d0635ef9336",
+      "bytes": 908,
+      "features": 1
+    },
+    "municipios/ES.json": {
+      "sha256": "9a4742bf64c63430e518dab4fb0e43770226dab6d714677af805f5f5bf05cda6",
+      "bytes": 42723,
+      "features": 78
+    },
+    "municipios/GO.json": {
+      "sha256": "800c0a94b0ce818e61eb70d94743f5b4f855d20b17eb27526cfbd36bb4cfbe35",
+      "bytes": 186985,
+      "features": 246
+    },
+    "municipios/MA.json": {
+      "sha256": "d7e66ee06546eede3277f8a9ea648e9bb7f459eb06983fd9b3f1aad3ff56641c",
+      "bytes": 140793,
+      "features": 217
+    },
+    "municipios/MG.json": {
+      "sha256": "33636f00f98153763f8028ec706e748790e3ef2f15ca69d8e6143921f926f19d",
+      "bytes": 491211,
+      "features": 853
+    },
+    "municipios/MS.json": {
+      "sha256": "3e20ff9540834956d48cf0b82216d890729eb8d5cc85f000ba5a8a0928cef5ab",
+      "bytes": 88907,
+      "features": 79
+    },
+    "municipios/MT.json": {
+      "sha256": "65bb72b3580ccbbe1d485150745c2ea60126ae7fd4b9d6f1212af53cb4d3d6d8",
+      "bytes": 197184,
+      "features": 141
+    },
+    "municipios/PA.json": {
+      "sha256": "83151789b35c18a5b519573f637bd8417c698261946b97a0618ac980ebef9120",
+      "bytes": 188691,
+      "features": 144
+    },
+    "municipios/PB.json": {
+      "sha256": "14d41d4c94c066a9ca3f88b4c3990f6d983d708566e37ed93e1f9f4ad627245e",
+      "bytes": 87761,
+      "features": 223
+    },
+    "municipios/PE.json": {
+      "sha256": "f8650394a7861263a11268a7d2a8fefeb0f0b747d3a004ef2b924b5c2d6c863d",
+      "bytes": 85036,
+      "features": 185
+    },
+    "municipios/PI.json": {
+      "sha256": "c69433a1157eb6af0410d12d25b1613b37de5ece775aefac67e15ed16f765638",
+      "bytes": 124680,
+      "features": 224
+    },
+    "municipios/PR.json": {
+      "sha256": "262ce942934a6f5cc2860c4f1312dc5d6691e8448c6485940551d81329531fe6",
+      "bytes": 206600,
+      "features": 399
+    },
+    "municipios/RJ.json": {
+      "sha256": "f723ef0c5696e17416c22dc354ceb98b87c07ff10822862ef96e2ce150bc2029",
+      "bytes": 46672,
+      "features": 92
+    },
+    "municipios/RN.json": {
+      "sha256": "347f5fa111db8b3d0b63f01f31c38e606b6bd50884491ceb2243f3c4bc12cd8f",
+      "bytes": 63925,
+      "features": 167
+    },
+    "municipios/RO.json": {
+      "sha256": "96851b1aff559adff91a67cd04d7570c0d45cb874ca27b968fb4b1cb009b7c10",
+      "bytes": 58357,
+      "features": 52
+    },
+    "municipios/RR.json": {
+      "sha256": "f4a2dd866a2f8ace3cbeb375d3016386f41cd2cc7391425a69f07be2537279da",
+      "bytes": 29667,
+      "features": 15
+    },
+    "municipios/RS.json": {
+      "sha256": "7e72b73c7144fd83d8dfd1cea57bc97872cfd80a2a8f320f65305240052c130b",
+      "bytes": 254230,
+      "features": 497
+    },
+    "municipios/SC.json": {
+      "sha256": "cd43be0d69b78fdfdb49b431f8304046eab9c0d08d548fb067e87765789b0bda",
+      "bytes": 134188,
+      "features": 295
+    },
+    "municipios/SE.json": {
+      "sha256": "3dba01fa194b2008e049b96d32e3d4058a2c328ab4b5e1b859bdbe010fa40370",
+      "bytes": 31803,
+      "features": 75
+    },
+    "municipios/SP.json": {
+      "sha256": "624c5ffa16a23b710a65ca2ce7fdee1a0374fb928962c9d530d6c12d23348769",
+      "bytes": 308416,
+      "features": 645
+    },
+    "municipios/TO.json": {
+      "sha256": "4989c3cf0d264d54906cecdb516bcc23817f7ae1787f07bc40fa30ae0e2e00f1",
+      "bytes": 116261,
+      "features": 139
+    }
   }
 }

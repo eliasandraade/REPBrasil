@@ -39,6 +39,13 @@ export const WATCHLIST_LIMIT = "limit.watchlist";
 export const ALERTS_LIMIT = "limit.alerts";
 export const COMPARE_LIMIT = "limit.compare_candidacies";
 export const SAVED_FOLDERS = "account.saved_folders";
+/** Relevo 3D, intensidade (mapa de calor) e antes/depois no mapa. O mapa, a tabela e os valores são de todos. */
+export const ADVANCED_MAP_MODES = "map.advanced_modes";
+/** Série inteira de uma camada (linha do tempo) numa consulta. Cada ano continua aberto a todos. */
+export const MAP_SERIES = "data.map_series";
+export const CORRELATION_MATRIX = "data.correlation_matrix";
+export const EXPORT_CSV = "data.export_csv";
+export const EXPORT_BULK = "data.export_bulk";
 
 export const PLAN_NAME: Record<PlanCode, string> = { FREE: "Gratuito", ADVANCED: "Avançado", PROFESSIONAL: "Profissional" };
 

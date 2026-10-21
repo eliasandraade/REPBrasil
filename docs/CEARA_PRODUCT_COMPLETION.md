@@ -212,6 +212,11 @@ determinísticas versionadas, sem IA generativa em runtime e sem falácia ecoló
 eleitorado pelo perfil do eleitorado do TSE; voto × escolaridade só por território, nunca atribuído a
 indivíduos), decidido em ADR antes de implementar.
 
+O modo simples entrou com o explorador territorial (`/dados`). Regras, limites e alternativas ficam no
+[ADR-008](adrs/ADR-008-leitura-simples-e-cruzamento-territorial.md). A escolaridade do eleitorado (perfil do
+eleitorado do TSE) ainda não é ingerida. O indicador disponível é o analfabetismo da população de 15 anos
+ou mais, do Censo 2022, que não é o mesmo universo do eleitorado.
+
 ## Regras permanentes do Data Intelligence
 
 - `-` no SIDRA é zero verdadeiro; `..`, `...`, `X` e vazio são ausência.

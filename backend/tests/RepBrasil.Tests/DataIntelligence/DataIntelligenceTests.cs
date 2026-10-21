@@ -42,5 +42,7 @@ public class DataIntelligenceTests
         public Task<IReadOnlyList<IndicatorValueDto>> ValuesAsync(string indicator, int? period, string? uf, CancellationToken ct) => throw Unexpected();
         public Task<IReadOnlyList<CorrelationPointDto>> IndicatorPairsAsync(string xIndicator, string yIndicator, int period, string? uf, CancellationToken ct) => throw Unexpected();
         public Task<IReadOnlyList<CorrelationPointDto>> CandidacySharePairsAsync(string xIndicator, Guid candidacyId, int period, string uf, int year, int round, int office, CancellationToken ct) => throw Unexpected();
+        public Task<IReadOnlyList<IndicatorValueDto>> StateValuesAsync(string uf, int? period, CancellationToken ct) => throw Unexpected();
+        public Task<CoverageRows> CoverageAsync(CancellationToken ct) => throw Unexpected();
     }
 }

@@ -211,4 +211,35 @@ public sealed class AccountFlowAlertPublisherTests
             }
         }
     }
+
+    [ElectoralSchemaFact]
+    public async Task Indicator_alert_links_open_the_explorer_in_the_state_recorded_by_the_ingestion()
+    {
+        var indicator = $"test.uf_{Guid.NewGuid():N}";
+        var sha = Convert.ToHexString(Guid.NewGuid().ToByteArray()).ToLowerInvariant().PadRight(64, '0');
+        using var api = CreateApi();
+        try
+        {
+            await Scalar("""
+                INSERT INTO electoral.indicator (code, name, unit, provider, description)
+                VALUES (@code, 'Indicador de Teste', 'pessoas', 'Teste', 'Indicador sintético do teste do publicador.')
+                """, ("code", indicator));
+            await RunCycle(api);
+            await Scalar("""
+                INSERT INTO electoral.socioeconomic_source (indicator_code, period, provider, dataset, source_url, sha256, parser_version, metadata)
+                VALUES (@code, 2022, 'Teste', 'fixture-uf', 'https://example.invalid/indicador', @sha, 'test', '{"uf": "ce"}'::jsonb)
+                """, ("code", indicator), ("sha", sha));
+            await RunCycle(api);
+
+            // O explorador territorial deriva o território da URL: o link leva a UF que a ingestão registrou.
+            Assert.Equal($"/dados?x={indicator}&periodo=2022&uf=CE",
+                (string?)await Scalar("SELECT href FROM account.alert_edition WHERE resource_key = @code", ("code", indicator)));
+        }
+        finally
+        {
+            await Scalar("DELETE FROM account.alert_edition WHERE resource_key = @code", ("code", indicator));
+            await Scalar("DELETE FROM electoral.socioeconomic_source WHERE indicator_code = @code", ("code", indicator));
+            await Scalar("DELETE FROM electoral.indicator WHERE code = @code", ("code", indicator));
+        }
+    }
 }
