@@ -18,7 +18,9 @@ export function ExportActions({ report }: Readonly<{ report: ExportReport }>) {
     setBusy(format);
     setError(false);
     try {
-      await downloadReport(report, format);
+      // A URL reproduzível é a da barra no momento do clique. Lida na renderização, ela pode ser a anterior a um
+      // router.replace: o React já renderiza com os parâmetros novos antes de o navegador gravar a URL no histórico.
+      await downloadReport({ ...report, url: window.location.href }, format);
     } catch {
       setError(true);
     } finally {
