@@ -17,6 +17,7 @@ import type {
 } from "@/lib/entities-server";
 import { politicianPath } from "@/lib/paths";
 import { KIND_SLUG, type RankingResponse } from "@/lib/rankings";
+import { indicatorHref } from "@/lib/territory/url";
 
 /** Nome do território como elemento compartilhado: chega do explorador territorial (/dados) na mesma identidade. */
 const SHARED_NAME = { viewTransitionName: "vt-name" } as CSSProperties;
@@ -197,7 +198,7 @@ export function StateEntityProfile({ data }: Readonly<{ data: StateProfileData }
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" id="state-indicators">
               {data.indicators.map((item) => (
-                <Link key={item.indicator.code} href={`/dados?x=${encodeURIComponent(item.indicator.code)}&periodo=${item.period}`} className="focus-ring rounded-xl border border-line bg-surface p-4 hover:border-accent/30">
+                <Link key={item.indicator.code} href={indicatorHref(item.indicator.code, item.period, data.uf)} className="focus-ring rounded-xl border border-line bg-surface p-4 hover:border-accent/30">
                   <p className="text-sm font-semibold text-fg">{item.indicator.name}</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-fg">{formatCount(item.observed)}</p>
                   <p className="mt-1 text-xs text-fg-muted">municípios observados · {item.period} · {item.indicator.provider}</p>
@@ -258,7 +259,7 @@ export function MunicipalityEntityProfile({ data }: Readonly<{ data: Municipalit
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" id="municipality-indicators">
               {data.indicators.map(({ indicator, value }) => (
-                <Link key={indicator.code} href={`/dados?x=${encodeURIComponent(indicator.code)}&periodo=${value.period}`} className="focus-ring rounded-xl border border-line bg-surface p-4 hover:border-accent/30">
+                <Link key={indicator.code} href={indicatorHref(indicator.code, value.period, data.uf, data.ibgeCode === null ? null : String(data.ibgeCode))} className="focus-ring rounded-xl border border-line bg-surface p-4 hover:border-accent/30">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">{value.period} · {indicator.provider}</p>
                   <p className="mt-1 text-sm font-semibold text-fg">{indicator.name}</p>
                   <p className="mt-2 text-xl font-bold tabular-nums text-fg">{indicatorValueText(value.value, indicator.unit)}</p>

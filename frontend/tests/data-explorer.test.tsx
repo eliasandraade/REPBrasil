@@ -318,6 +318,25 @@ describe("explorador territorial (/dados)", () => {
   });
 });
 
+describe("links antigos sem território (alertas e perfis anteriores ao explorador)", () => {
+  it("se só uma UF tem o indicador no período, abre nela sem empilhar histórico", async () => {
+    renderExplorer("x=ibge.population&periodo=2022");
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/dados?uf=CE&x=ibge.population&periodo=2022", { scroll: false }));
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+
+  it("se mais de uma UF tem o indicador, fica no Brasil, com a cobertura", async () => {
+    const indicator = { indicator: "ibge.population", period: 2022, municipalities: 3 };
+    override("/data/coverage", () =>
+      json({ states: COVERAGE.states.map((s) => (s.uf === "SP" ? { ...s, socioeconomic: [indicator] } : s)) }),
+    );
+    renderExplorer("x=ibge.population&periodo=2022");
+    const panel = screen.getByTestId("reading-panel");
+    await waitFor(() => expect(panel.textContent).toContain("2 de 27 UFs têm dados socioeconômicos carregados"));
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+});
+
 describe("cobertura ainda desconhecida", () => {
   it("enquanto a cobertura não chega, nada é dito como ausente", async () => {
     override("/data/coverage", () => new Promise<Response>(() => undefined));

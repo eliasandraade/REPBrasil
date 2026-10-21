@@ -115,6 +115,11 @@ export function explorerHref(state: ExplorerState): string {
   return query ? `/dados?${query}` : "/dados";
 }
 
+/** Explorador aberto num indicador e território (cards dos perfis de UF e de município). */
+export function indicatorHref(code: string, period: number, uf: string, municipality: string | null = null): string {
+  return explorerHref({ ...parseExplorerState(new URLSearchParams()), uf: uf.toUpperCase(), municipality, x: code, period });
+}
+
 export function levelOf(state: Pick<ExplorerState, "uf" | "municipality">): ExplorerLevel {
   if (state.municipality) return "municipality";
   return state.uf ? "state" : "country";

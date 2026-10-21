@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlanGateNote, useEntitlement } from "@/components/account/PlanGate";
 import { useResolvedTheme } from "@/components/theme/theme";
 import { MapLegend } from "@/components/territory/MapLegend";
@@ -97,6 +97,16 @@ export function DataExplorer() {
     [router, state],
   );
   const update = useCallback((patch: Partial<ExplorerState>) => go(patch), [go]);
+
+  // Link antigo sem território (alerta de indicador ou perfil anterior ao explorador): /dados?x=&periodo=. Se só
+  // uma UF tem esse indicador nesse período, abre nela (sem empilhar histórico); senão fica no Brasil, com a cobertura.
+  useEffect(() => {
+    if (state.uf || !state.x || !coverageQ.data) return;
+    const holders = coverageQ.data.states.filter((s) =>
+      s.socioeconomic.some((item) => item.indicator === state.x && (state.period === null || item.period === state.period)),
+    );
+    if (holders.length === 1) go({ uf: holders[0].uf });
+  }, [coverageQ.data, go, state.period, state.uf, state.x]);
 
   // vistas avançadas são do plano; quem não tem vê o mapa e o aviso do plano
   const requestedView: ExplorerView = state.view !== "mapa" && advanced.allowed !== true ? "mapa" : state.view;

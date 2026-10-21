@@ -9,7 +9,7 @@ import { canvasSignature, coverageLayer, valueLayer, viewNote } from "@/lib/terr
 import { inUf, ofUf, ufOfPreposition } from "@/lib/territory/places";
 import { classedScale, isExtensive, magnitudes, quantileBreaks } from "@/lib/territory/scale";
 import { placeTooltip } from "@/lib/territory/tooltip";
-import { explorerHref, explorerQuery, levelOf, parseExplorerState } from "@/lib/territory/url";
+import { explorerHref, explorerQuery, indicatorHref, levelOf, parseExplorerState } from "@/lib/territory/url";
 import { cameraMotion, paintTransition, pulseMotion } from "@/motion/map";
 import { duration } from "@/motion/tokens";
 
@@ -66,6 +66,12 @@ describe("estado do explorador na URL", () => {
     expect(levelOf({ uf: null, municipality: null })).toBe("country");
     expect(levelOf({ uf: "CE", municipality: null })).toBe("state");
     expect(levelOf({ uf: "CE", municipality: "2304400" })).toBe("municipality");
+  });
+
+  it("cards dos perfis abrem o indicador no próprio território", () => {
+    expect(indicatorHref("ibge.population", 2022, "ce")).toBe("/dados?uf=CE&x=ibge.population&periodo=2022");
+    expect(indicatorHref("ibge.population", 2022, "CE", "2304400")).toBe("/dados?uf=CE&municipio=2304400&x=ibge.population&periodo=2022");
+    expect(parseExplorerState(params("uf=CE&municipio=2304400&x=ibge.population&periodo=2022"))).toMatchObject({ uf: "CE", municipality: "2304400", x: "ibge.population", period: 2022 });
   });
 });
 
