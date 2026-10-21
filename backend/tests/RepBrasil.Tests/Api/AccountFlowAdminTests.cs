@@ -225,6 +225,42 @@ public sealed class AccountFlowAdminTests
     }
 
     [ElectoralSchemaFact]
+    public async Task Status_change_answers_with_the_request_even_beyond_the_newest_200()
+    {
+        var marker = $"antigo-{Guid.NewGuid():N}@example.test";
+        var id = Guid.NewGuid();
+        string? adminEmail = null;
+        using var api = CreateApi();
+        using var browser = Browser(api);
+        try
+        {
+            // Um pedido antigo e 200 mais novos que ele, todos no passado: a caixa dos outros testes não muda.
+            await Scalar("""
+                INSERT INTO account.support_request (id, category, email, message, created_at, updated_at)
+                VALUES (@id, 'duvida', @email, 'Pedido antigo, anterior aos duzentos mais recentes da caixa.', '2000-01-01', '2000-01-01')
+                """, ("id", id), ("email", marker));
+            await Scalar("""
+                INSERT INTO account.support_request (id, category, email, message, created_at, updated_at)
+                SELECT gen_random_uuid(), 'duvida', @email, 'Pedido de preenchimento, mais novo que o antigo.',
+                       '2000-01-02'::timestamptz + g * interval '1 second', '2000-01-02'::timestamptz
+                  FROM generate_series(1, 200) AS g
+                """, ("email", marker));
+
+            var (admin, email) = await SignInAdmin(api, browser, "admin-support-old");
+            adminEmail = email;
+            var (changed, row) = await Post(browser, admin, $"/api/v1/admin/support/{id}/status", new { status = "arquivado" });
+            Assert.Equal(HttpStatusCode.OK, changed);
+            Assert.Equal(id, row!.Value.GetProperty("id").GetGuid());
+            Assert.Equal("arquivado", row.Value.GetProperty("status").GetString());
+        }
+        finally
+        {
+            await Scalar("DELETE FROM account.support_request WHERE email = @email", ("email", marker));
+            await Cleanup(adminEmail ?? "");
+        }
+    }
+
+    [ElectoralSchemaFact]
     public async Task Support_requests_are_stored_rate_limited_and_triaged_with_audit()
     {
         var reporter = $"suporte-{Guid.NewGuid():N}@example.test";

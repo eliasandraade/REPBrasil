@@ -35,6 +35,8 @@ public sealed class AdminUnitTests
         { $"connection failed: Host=db;Password={FakeCredential};Database=x", "Password=***" },
         { $"GET https://user:{FakeCredential}@lake.internal/v1 failed", "https://***@lake.internal" },
         { $"token: {FakeCredential} rejected", "token=***" },
+        { $"401 Unauthorized; Authorization: Bearer {FakeCredential}", "Authorization=***" },
+        { $"request rejected (Bearer {FakeCredential})", "Bearer ***" },
     };
 
     [Theory]

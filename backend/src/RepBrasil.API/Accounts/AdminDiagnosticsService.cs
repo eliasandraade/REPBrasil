@@ -251,17 +251,25 @@ public sealed partial class AdminDiagnosticsService(
         };
     }
 
-    /// <summary>Erro de ingestão para a tela: 200 caracteres, com <c>senha/token/chave=…</c> e URLs com credencial mascarados.</summary>
+    /// <summary>
+    /// Erro de ingestão para a tela: 200 caracteres, com <c>senha/token/chave/authorization=…</c> (inclusive o valor depois de
+    /// <c>Bearer</c>/<c>Basic</c>), credencial solta depois desses esquemas e URLs com credencial mascarados.
+    /// </summary>
     public static string? Redact(string? error)
     {
         if (string.IsNullOrWhiteSpace(error)) return null;
         var text = Secrets().Replace(error, m => m.Groups["name"].Value + "=***");
+        text = SchemeCredentials().Replace(text, m => m.Groups["scheme"].Value + " ***");
         text = UrlCredentials().Replace(text, "://***@");
         return text.Length <= 200 ? text : text[..200] + "…";
     }
 
-    [GeneratedRegex("(?<name>password|pwd|passwd|token|secret|api[_-]?key|apikey|authorization)\\s*[=:]\\s*[^\\s;&,]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
+    [GeneratedRegex("(?<name>password|pwd|passwd|token|secret|api[_-]?key|apikey|authorization)\\s*[=:]\\s*(?:(?:bearer|basic|digest|token)\\s+)?[^\\s;&,]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
     private static partial Regex Secrets();
+
+    /// <summary>Credencial solta depois do esquema (ex.: "Bearer eyJ…" num log de requisição), mesmo sem nome antes.</summary>
+    [GeneratedRegex("\\b(?<scheme>bearer|basic)\\s+[A-Za-z0-9\\-._~+/]{8,}=*", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
+    private static partial Regex SchemeCredentials();
 
     [GeneratedRegex("://[^/@\\s]+@", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
     private static partial Regex UrlCredentials();

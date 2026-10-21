@@ -98,6 +98,44 @@ public sealed class AccountFlowAlertPublisherTests
     }
 
     [ElectoralSchemaFact]
+    public async Task Subscribing_after_the_official_edition_but_before_the_cycle_gets_no_retroactive_notice()
+    {
+        var late = UniqueEmail("publisher-window");
+        var indicator = $"test.window_{Guid.NewGuid():N}";
+        var sha = Convert.ToHexString(Guid.NewGuid().ToByteArray()).ToLowerInvariant().PadRight(64, '0');
+        using var api = CreateApi();
+        using var browser = Browser(api);
+        try
+        {
+            await Scalar("""
+                INSERT INTO electoral.indicator (code, name, unit, provider, description)
+                VALUES (@code, 'Indicador de Teste', 'pessoas', 'Teste', 'Indicador sintético do teste do publicador.')
+                """, ("code", indicator));
+            await RunCycle(api);
+            // A edição oficial chega (coletada há uma hora, com a UF registrada pela ingestão) antes do ciclo do publicador...
+            await Scalar("""
+                INSERT INTO electoral.socioeconomic_source (indicator_code, period, provider, dataset, source_url, sha256, parser_version, retrieved_at, metadata)
+                VALUES (@code, 2022, 'Teste', 'fixture-janela', 'https://example.invalid/indicador', @sha, 'test', now() - interval '1 hour', '{"uf": "ce"}'::jsonb)
+                """, ("code", indicator), ("sha", sha));
+            // ...e a pessoa assina nesse intervalo: a edição já existia quando ela assinou.
+            var user = await SignInByMagicLink(api, browser, late);
+            Assert.Equal(HttpStatusCode.OK, (await Subscribe(browser, user, "indicator", indicator, "new_edition")).Status);
+            await RunCycle(api);
+
+            Assert.Equal(0, (await Inbox(browser, user)).GetArrayLength());
+            // A edição foi registrada; só não virou aviso para quem assinou depois dela.
+            Assert.Equal(1L, await Scalar("SELECT count(*) FROM account.alert_edition WHERE resource_key = @code", ("code", indicator)));
+        }
+        finally
+        {
+            await Cleanup(late);
+            await Scalar("DELETE FROM account.alert_edition WHERE resource_key = @code", ("code", indicator));
+            await Scalar("DELETE FROM electoral.socioeconomic_source WHERE indicator_code = @code", ("code", indicator));
+            await Scalar("DELETE FROM electoral.indicator WHERE code = @code", ("code", indicator));
+        }
+    }
+
+    [ElectoralSchemaFact]
     public async Task First_cycle_ever_turns_existing_history_into_a_silent_baseline()
     {
         var email = UniqueEmail("publisher-baseline");
