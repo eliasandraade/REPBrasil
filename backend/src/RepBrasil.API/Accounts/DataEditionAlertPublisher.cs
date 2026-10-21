@@ -28,7 +28,8 @@ public sealed class AlertEditionService(ApplicationDbContext db)
         SELECT 'socioeconomic_source:' || s.id, 'new_edition', 'indicator', s.indicator_code,
                left('Nova edição oficial: ' || i.name || ' (' || s.period || ')', 200),
                left(s.provider || ' — ' || s.dataset || COALESCE(' — ' || NULLIF(s.metadata->>'uf', ''), ''), 500),
-               '/dados?x=' || s.indicator_code || '&periodo=' || s.period,
+               '/dados?x=' || s.indicator_code || '&periodo=' || s.period
+                 || CASE WHEN s.metadata->>'uf' ~* '^[a-z]{2}$' THEN '&uf=' || upper(s.metadata->>'uf') ELSE '' END,
                jsonb_build_object('indicator', s.indicator_code, 'period', s.period, 'provider', s.provider, 'dataset', s.dataset,
                                   'sourceUrl', s.source_url, 'retrievedAt', s.retrieved_at)
           FROM electoral.socioeconomic_source s
@@ -124,7 +125,10 @@ public sealed class AlertEditionService(ApplicationDbContext db)
               FROM pending p
               JOIN account.alert_subscription s
                 ON s.resource_type = p.resource_type AND s.resource_key = p.resource_key AND s.event_kind = p.event_kind
-               AND s.enabled AND s.created_at <= p.first_seen_at
+               AND s.enabled
+               -- Quem assinou depois da edição oficial não recebe aviso dela: vale a hora da fonte (coleta ou captura),
+               -- não a hora em que o publicador a encontrou (até um ciclo depois, ou mais se ele falhou).
+               AND s.created_at <= COALESCE((p.payload->>'retrievedAt')::timestamptz, (p.payload->>'capturedAt')::timestamptz, p.first_seen_at)
               JOIN account.user_account u ON u.id = s.user_id AND u.disabled_at IS NULL
             ON CONFLICT (user_id, event_key) DO NOTHING
             RETURNING 1

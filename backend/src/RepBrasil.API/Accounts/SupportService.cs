@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using System.Net.Mail;
 using System.Text.Json;
@@ -63,6 +64,11 @@ public sealed class SupportService(ApplicationDbContext db)
         return id;
     }
 
+    private static SupportRequestRow Read(DbDataReader reader) =>
+        new(reader.GetGuid(0), reader.GetString(1), reader.NullableString(2), reader.GetString(3), reader.NullableString(4),
+            reader.NullableString(5), reader.NullableString(6), reader.GetString(7), reader.GetString(8),
+            reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.GetFieldValue<DateTimeOffset>(10), reader.GetFieldValue<DateTimeOffset>(11));
+
     public async Task<IReadOnlyList<SupportRequestRow>> ListAsync(string? status, CancellationToken ct)
     {
         var rows = new List<SupportRequestRow>();
@@ -77,15 +83,27 @@ public sealed class SupportService(ApplicationDbContext db)
                  LIMIT 200
                 """, ("status", Statuses.Contains(status ?? "", StringComparer.Ordinal) ? status : ""));
             await using var reader = await command.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-            {
-                rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.NullableString(2), reader.GetString(3), reader.NullableString(4),
-                    reader.NullableString(5), reader.NullableString(6), reader.GetString(7), reader.GetString(8),
-                    reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.GetFieldValue<DateTimeOffset>(10), reader.GetFieldValue<DateTimeOffset>(11)));
-            }
+            while (await reader.ReadAsync(ct)) rows.Add(Read(reader));
         }
         finally { await db.Database.CloseConnectionAsync(); }
         return rows;
+    }
+
+    /// <summary>Um pedido pelo id, fora da janela da caixa (que mostra só os 200 mais recentes).</summary>
+    private async Task<SupportRequestRow?> GetAsync(Guid id, CancellationToken ct)
+    {
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using var command = db.Command("""
+                SELECT id, category, name, email, organization, related_subject, source_reference, message, status, user_id, created_at, updated_at
+                  FROM account.support_request
+                 WHERE id = @id
+                """, ("id", id));
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            return await reader.ReadAsync(ct) ? Read(reader) : null;
+        }
+        finally { await db.Database.CloseConnectionAsync(); }
     }
 
     /// <summary>Muda o status de um pedido e registra a auditoria na mesma transação. Nulo se o pedido não existe.</summary>
@@ -120,7 +138,7 @@ public sealed class SupportService(ApplicationDbContext db)
             await transaction.CommitAsync(ct);
         }
         finally { await db.Database.CloseConnectionAsync(); }
-        return (await ListAsync(null, ct)).FirstOrDefault(r => r.Id == id);
+        return await GetAsync(id, ct);
     }
 
     private static string? Optional(string? value, int max, string field)
