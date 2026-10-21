@@ -100,28 +100,31 @@ function renderCompare(search: string) {
   );
 }
 
-describe("comparador: o arquivo exportado leva a mesma URL da página", () => {
-  it("municípios sem métricas na URL: grava as métricas e só então oferece o export", async () => {
-    renderCompare("tipo=municipio&uf=CE&itens=2304400,2312908&periodo=2022");
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(expect.stringContaining("metricas=ibge.population"), { scroll: false }));
-    // a URL do teste não muda sozinha: sem as métricas nela, o export não aparece
+const CASES = [
+  {
+    kind: "municípios",
+    partial: "tipo=municipio&uf=CE&itens=2304400,2312908&periodo=2022",
+    written: "metricas=ibge.population",
+    complete: "tipo=municipio&uf=CE&itens=2304400,2312908&periodo=2022&metricas=ibge.population",
+  },
+  {
+    kind: "partidos",
+    partial: "tipo=partido&uf=CE&itens=pt,pl",
+    written: "ano=2022",
+    complete: "tipo=partido&uf=CE&itens=pt,pl&ano=2022&turno=1&cargo=6",
+  },
+];
+
+describe.each(CASES)("comparador de $kind: o arquivo exportado leva a mesma URL da página", ({ partial, written, complete }) => {
+  it("sem o recorte na URL: grava o padrão e só então oferece o export", async () => {
+    renderCompare(partial);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(expect.stringContaining(written), { scroll: false }));
+    // a URL do teste não muda sozinha: sem o recorte nela, o export não aparece
     expect(screen.queryByTestId("export-actions")).toBeNull();
   });
 
-  it("municípios com a URL completa: o export aparece", async () => {
-    renderCompare("tipo=municipio&uf=CE&itens=2304400,2312908&periodo=2022&metricas=ibge.population");
-    expect(await screen.findByTestId("export-actions")).toBeTruthy();
-    expect(nav.replace).not.toHaveBeenCalled();
-  });
-
-  it("partidos sem recorte na URL: grava ano, turno e cargo e só então oferece o export", async () => {
-    renderCompare("tipo=partido&uf=CE&itens=pt,pl");
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(expect.stringContaining("ano=2022"), { scroll: false }));
-    expect(screen.queryByTestId("export-actions")).toBeNull();
-  });
-
-  it("partidos com a URL completa: o export aparece", async () => {
-    renderCompare("tipo=partido&uf=CE&itens=pt,pl&ano=2022&turno=1&cargo=6");
+  it("com a URL completa: o export aparece, sem reescrever a URL", async () => {
+    renderCompare(complete);
     expect(await screen.findByTestId("export-actions")).toBeTruthy();
     expect(nav.replace).not.toHaveBeenCalled();
   });
