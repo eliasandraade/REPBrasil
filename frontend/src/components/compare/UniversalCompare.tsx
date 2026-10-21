@@ -95,10 +95,12 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
   const round = Number(search.get("turno")) || fallback?.round || 0;
   const office = Number(search.get("cargo")) || fallback?.office || 0;
 
+  // Recorte completo na URL. Sem ele, o efeito abaixo grava o padrão; o export espera, para o arquivo levar a URL da página.
+  const urlComplete = Boolean(search.get("ano") && search.get("turno") && search.get("cargo"));
   useEffect(() => {
-    if (!fallback || (search.get("ano") && search.get("turno") && search.get("cargo"))) return;
+    if (!fallback || urlComplete) return;
     setParam({ ano: String(year), turno: String(round), cargo: String(office), uf });
-  }, [fallback, office, round, search, setParam, uf, year]);
+  }, [fallback, office, round, setParam, uf, urlComplete, year]);
 
   const parties = useMemo(() => data?.parties.filter((party) => selected.includes(party.slug)) ?? [], [data, selected]);
   const rows = useMemo(() => parties.map((party) => ({ party, result: resultFor(party, year, round, office) })), [office, parties, round, year]);
@@ -121,7 +123,7 @@ function PartyComparator({ setParam }: Readonly<{ setParam: (updates: Record<str
     return result;
   }, [rows]);
 
-  const report: ExportReport | null = data && rows.length >= 2 ? {
+  const report: ExportReport | null = urlComplete && data && rows.length >= 2 ? {
     filename: `repbrasil-partidos-${year}-${round}-${office}`,
     title: "REPBrasil — Comparação de partidos",
     subtitle: `${uf} · ${year} · ${round}º turno · cargo ${office}`,
@@ -238,7 +240,8 @@ function MunicipalityComparator({ setParam }: Readonly<{ setParam: (updates: Rec
     () => [...new Set((values.data ?? []).flatMap((group) => group.values.map((item) => `${item.provider} — ${item.dataset}`)))],
     [values.data],
   );
-  const report: ExportReport | null = values.isSuccess && picked.length >= 2 && metrics.length > 0 ? {
+  // Só com as métricas já na URL (o efeito acima as grava): o arquivo leva a mesma URL que a página mostra.
+  const report: ExportReport | null = values.isSuccess && picked.length >= 2 && metrics.length > 0 && metricCodes.length > 0 ? {
     filename: `repbrasil-municipios-${period}`,
     title: "REPBrasil — Comparação de municípios",
     subtitle: `${uf} · período ${period}`,
