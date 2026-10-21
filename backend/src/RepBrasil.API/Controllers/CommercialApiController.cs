@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using RepBrasil.API.Accounts;
 using RepBrasil.API.Infrastructure;
 using RepBrasil.Infrastructure.Persistence;
 
@@ -9,6 +10,7 @@ namespace RepBrasil.API.Controllers;
 public sealed class CommercialApiController(ApplicationDbContext db) : ControllerBase
 {
     [HttpGet("ping")]
+    [HeaderCredential("X-Api-Key", "Chave da API comercial (legado), escopo read:public")]
     public async Task<IActionResult> Ping(CancellationToken cancellationToken)
     {
         var secret = Request.Headers["X-Api-Key"].ToString();

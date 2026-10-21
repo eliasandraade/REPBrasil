@@ -40,6 +40,39 @@ public sealed class RequiresCapabilityAttribute(string capability) : Attribute, 
     }
 }
 
+/// <summary>
+/// Exige Super Admin (configuração <c>Auth:SuperadminEmails</c> ou entitlement <c>account.role = superadmin</c>), decidido
+/// no servidor: 401 sem sessão (ou sem CSRF em escrita), 403 <c>forbidden</c> para conta comum.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public sealed class SuperAdminAttribute : Attribute, IAsyncAuthorizationFilter
+{
+    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
+    {
+        var http = context.HttpContext;
+        var access = http.RequestServices.GetRequiredService<AccountAccessService>();
+        if (await access.AuthorizedSessionAsync(http, http.RequestAborted) is null)
+        {
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+        // Sem esquema de autenticação registrado, Forbid() lançaria (500); a recusa é um 403 explícito.
+        if (!(await access.AccessAsync(http, http.RequestAborted)).IsSuperadmin)
+            context.Result = new ObjectResult(new { error = "forbidden" }) { StatusCode = StatusCodes.Status403Forbidden };
+    }
+}
+
+/// <summary>
+/// Credencial fora da sessão (cabeçalho próprio), verificada dentro da ação. Só documenta a rota no catálogo da API;
+/// a verificação continua no código da ação.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class HeaderCredentialAttribute(string header, string description) : Attribute
+{
+    public string Header { get; } = header;
+    public string Description { get; } = description;
+}
+
 /// <summary>Limite do plano atingido ao criar um item novo. Itens que já existem nunca são apagados.</summary>
 public sealed class PlanLimitReachedException(string limit, int max)
     : InvalidOperationException($"Limite do plano atingido: {limit} = {max}.")

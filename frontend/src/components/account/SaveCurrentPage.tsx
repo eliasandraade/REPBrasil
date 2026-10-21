@@ -73,7 +73,8 @@ export function SaveCurrentPage() {
       await refreshAccount();
     } catch (error) {
       const plan = planRefusalOf(error);
-      setRefusal(plan ? { text: plan.message, plan: true } : { text: selected ? "Não foi possível remover agora. Tente de novo." : "Não foi possível salvar agora. Tente de novo.", plan: false });
+      const failure = selected ? "Não foi possível remover agora. Tente de novo." : "Não foi possível salvar agora. Tente de novo.";
+      setRefusal(plan ? { text: plan.message, plan: true } : { text: failure, plan: false });
     } finally {
       setBusy(null);
     }

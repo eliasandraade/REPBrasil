@@ -36,12 +36,14 @@ public static partial class HttpPipeline
     }
 
     /// <summary>
-    /// Uma linha estruturada por requisição (método, rota-modelo, status, duração) e o cabeçalho Server-Timing.
+    /// Uma linha estruturada por requisição (método, rota-modelo, status, duração), o cabeçalho Server-Timing e as
+    /// métricas por rota do diagnóstico do Super Admin (<see cref="RequestMetrics"/>).
     /// Rota-modelo e não caminho/consulta: nomes digitados na busca não vão para o log.
     /// </summary>
     public static IApplicationBuilder UseRequestTiming(this IApplicationBuilder app)
     {
         var logger = app.ApplicationServices.GetRequiredService<ILoggerFactory>().CreateLogger("RepBrasil.Http");
+        var metrics = app.ApplicationServices.GetService<RequestMetrics>();
         return app.Use(async (http, next) =>
         {
             var started = Stopwatch.GetTimestamp();
@@ -59,7 +61,11 @@ public static partial class HttpPipeline
             {
                 var ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                 if (!http.Request.Path.StartsWithSegments("/health"))
-                    LogRequest(logger, http.Request.Method, ApiExceptionHandler.RouteOf(http), http.Response.StatusCode, Math.Round(ms, 1));
+                {
+                    var route = ApiExceptionHandler.RouteOf(http);
+                    LogRequest(logger, http.Request.Method, route, http.Response.StatusCode, Math.Round(ms, 1));
+                    metrics?.Record(http.Request.Method, route, http.Response.StatusCode, ms);
+                }
             }
         });
     }

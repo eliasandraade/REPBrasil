@@ -42,6 +42,8 @@ internal static class AccountTestKit
             builder.UseSetting("Auth:SuperadminEmails", Superadmin);
             builder.UseSetting("Alerts:PublishToken", AlertsToken);
             builder.UseSetting("Alerts:Publisher:Enabled", "false");
+            // O diagnóstico do Super Admin não sonda o site de produção a partir dos testes.
+            builder.UseSetting("Admin:Diagnostics:ProbeFrontend", "false");
             configure?.Invoke(builder);
         });
 

@@ -84,11 +84,16 @@ builder.Services.AddScoped<OverviewService>();
 builder.Services.AddScoped<ITerritoryCatalogRepository, TerritoryCatalogRepository>();
 builder.Services.AddScoped<TerritoryCatalogService>();
 
+builder.Services.AddSingleton<RequestMetrics>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<AccountAccessService>();
 builder.Services.AddScoped<ProfileService>();
 builder.Services.AddScoped<AlertEditionService>();
 builder.Services.AddHostedService<DataEditionAlertPublisher>();
+builder.Services.AddScoped<AdminService>();
+builder.Services.AddScoped<AdminDiagnosticsService>();
+builder.Services.AddScoped<SupportService>();
+builder.Services.AddHttpClient(AdminDiagnosticsService.FrontendProbeClient, client => client.Timeout = TimeSpan.FromSeconds(10));
 // Sem provedor de pagamento contratado: nada é cobrado nem simulado (ver docs/ACCOUNTS_AND_COMMERCIAL_API.md).
 builder.Services.AddSingleton<IBillingProvider, NoBillingProvider>();
 builder.Services.AddScoped<AuthExternalService>();
@@ -118,16 +123,18 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
     o.KnownProxies.Clear();
 });
 
+// O documento OpenAPI é sempre gerado: alimenta o catálogo da API no Super Admin (GET /api/v1/admin/openapi).
+// A interface pública do Swagger (/swagger) continua só em desenvolvimento ou com Swagger:Enabled.
 var swaggerEnabled = builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enabled");
-if (swaggerEnabled)
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
 {
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new() { Title = "REPBrasil API", Version = "v1" });
-        c.CustomSchemaIds(SwaggerSchemaIds.For);
-    });
-}
+    c.SwaggerDoc("v1", new() { Title = "REPBrasil API", Version = "v1" });
+    c.CustomSchemaIds(SwaggerSchemaIds.For);
+    c.OperationFilter<AccessOperationFilter>();
+    var xml = Path.Combine(AppContext.BaseDirectory, "RepBrasil.API.xml");
+    if (File.Exists(xml)) c.IncludeXmlComments(xml);
+});
 
 var allowedOrigins = (builder.Configuration["AllowedOrigins"] ?? "http://localhost:3000")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

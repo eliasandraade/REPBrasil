@@ -25,6 +25,23 @@ public sealed class ElectoralLakeClient(HttpClient http) : IElectoralLakeClient
         public long ValidVotes { get; init; }
     }
 
+    public async Task<bool> HealthAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var response = await http.GetAsync("/health", ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Configura o token do worker (vazio ⇒ sem cabeçalho, para workers sem token).</summary>
     public static void ConfigureAuthorization(HttpClient client, string? token)
     {

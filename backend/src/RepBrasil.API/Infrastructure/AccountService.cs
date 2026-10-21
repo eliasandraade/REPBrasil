@@ -24,6 +24,9 @@ public sealed record AlertSubscriptionDto(Guid Id, string ResourceType, string R
 public sealed record NotificationDto(Guid Id, string EventKey, string ResourceType, string ResourceKey, string Title, string? Body, string? Href, JsonElement Payload, DateTimeOffset CreatedAt, DateTimeOffset? ReadAt);
 public sealed record ApiKeyDto(Guid Id, string Name, string Prefix, string[] Scopes, int DailyQuota, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, DateTimeOffset? ExpiresAt, bool Revoked);
 public sealed record CreatedApiKey(ApiKeyDto Key, string Secret);
+
+/// <summary>Login de conta suspensa pelo Super Admin: recusado em qualquer provedor (vira <c>/entrar?erro=conta-suspensa</c>).</summary>
+public sealed class AccountSuspendedException() : InvalidOperationException("Conta suspensa.");
 public sealed record EntitlementDto(string Key, string Value, string Source, DateTimeOffset StartsAt, DateTimeOffset? ExpiresAt);
 
 public sealed class AccountService(ApplicationDbContext db)
@@ -515,18 +518,47 @@ public sealed class AccountService(ApplicationDbContext db)
 
     private async Task<Guid> EnsureUserAsync(string email, string provider, string subject, string providerEmail, string? displayName, string? avatarUrl, CancellationToken cancellationToken, bool verified = true)
     {
-        await using var identity = Command("SELECT user_id FROM account.identity WHERE provider = @provider AND provider_subject = @subject LIMIT 1", ("provider", provider), ("subject", subject));
-        var existingIdentity = await identity.ExecuteScalarAsync(cancellationToken);
-        if (existingIdentity is Guid identityUser)
+        Guid? identityUser = null;
+        await using (var identity = Command("""
+            SELECT i.user_id, u.disabled_at IS NOT NULL
+              FROM account.identity i
+              JOIN account.user_account u ON u.id = i.user_id
+             WHERE i.provider = @provider AND i.provider_subject = @subject
+             LIMIT 1
+            """, ("provider", provider), ("subject", subject)))
+        await using (var found = await identity.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await found.ReadAsync(cancellationToken))
+            {
+                if (found.GetBoolean(1)) throw new AccountSuspendedException();
+                identityUser = found.GetGuid(0);
+            }
+        }
+        if (identityUser is not null)
         {
             await using var touch = Command("UPDATE account.identity SET last_used_at = now(), provider_email = @email WHERE provider = @provider AND provider_subject = @subject", ("email", providerEmail), ("provider", provider), ("subject", subject));
             await touch.ExecuteNonQueryAsync(cancellationToken);
-            return identityUser;
+            return identityUser.Value;
         }
 
-        await using var byEmail = Command("SELECT id FROM account.user_account WHERE email = @email AND disabled_at IS NULL LIMIT 1", ("email", email));
-        var existingUser = await byEmail.ExecuteScalarAsync(cancellationToken);
-        var userId = existingUser is Guid user ? user : Guid.NewGuid();
+        // Conta ativa com o e-mail, se houver; só uma conta suspensa com o e-mail recusa o login. Antes, um provedor
+        // novo (ex.: primeiro login Google) criava outra conta para o mesmo e-mail e escapava da suspensão.
+        Guid? existingUser = null;
+        await using (var byEmail = Command("""
+            SELECT id, disabled_at IS NOT NULL FROM account.user_account
+             WHERE email = @email
+             ORDER BY (disabled_at IS NULL) DESC, created_at
+             LIMIT 1
+            """, ("email", email)))
+        await using (var found = await byEmail.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await found.ReadAsync(cancellationToken))
+            {
+                if (found.GetBoolean(1)) throw new AccountSuspendedException();
+                existingUser = found.GetGuid(0);
+            }
+        }
+        var userId = existingUser ?? Guid.NewGuid();
         if (existingUser is null)
         {
             await using var insertUser = Command("""
@@ -564,7 +596,7 @@ public sealed class AccountService(ApplicationDbContext db)
             INSERT INTO account.session (id, user_id, token_hash, csrf_token, expires_at, user_agent_hash, ip_prefix_hash)
             VALUES (@id, @user_id, @token_hash, @csrf, @expires_at, @ua, @ip)
             """, ("id", Guid.NewGuid()), ("user_id", userId), ("token_hash", Hash(token)), ("csrf", csrf), ("expires_at", expires),
-            ("ua", HashOptional(userAgent)), ("ip", HashOptional(IpPrefix(ipAddress))));
+            ("ua", HashOptional(userAgent)), ("ip", HashedIpPrefix(ipAddress)));
         await command.ExecuteNonQueryAsync(cancellationToken);
         await using var user = Command("SELECT email, display_name, CASE WHEN avatar_hidden THEN NULL ELSE avatar_url END FROM account.user_account WHERE id = @id", ("id", userId));
         await using var reader = await user.ExecuteReaderAsync(cancellationToken);
@@ -677,6 +709,9 @@ public sealed class AccountService(ApplicationDbContext db)
     private static string CreateToken(int bytes) => Convert.ToBase64String(RandomNumberGenerator.GetBytes(bytes)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
     private static string? HashOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : Hash(value);
+
+    /// <summary>Hash do prefixo do IP (/24 no IPv4, 4 grupos no IPv6): limite técnico por origem sem guardar o endereço.</summary>
+    internal static string? HashedIpPrefix(string? ipAddress) => HashOptional(IpPrefix(ipAddress));
     private static string? IpPrefix(string? ip)
     {
         if (string.IsNullOrWhiteSpace(ip)) return null;
