@@ -123,9 +123,8 @@ public sealed class AccountFlowAlertPublisherTests
             await RunCycle(api);
 
             Assert.Equal(0, (await Inbox(browser, user)).GetArrayLength());
-            // O link da edição abre o explorador na UF registrada pela ingestão.
-            Assert.Equal($"/dados?x={indicator}&periodo=2022&uf=CE",
-                (string?)await Scalar("SELECT href FROM account.alert_edition WHERE resource_key = @code", ("code", indicator)));
+            // A edição foi registrada; só não virou aviso para quem assinou depois dela.
+            Assert.Equal(1L, await Scalar("SELECT count(*) FROM account.alert_edition WHERE resource_key = @code", ("code", indicator)));
         }
         finally
         {

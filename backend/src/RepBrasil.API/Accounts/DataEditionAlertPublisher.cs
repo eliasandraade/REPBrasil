@@ -28,8 +28,7 @@ public sealed class AlertEditionService(ApplicationDbContext db)
         SELECT 'socioeconomic_source:' || s.id, 'new_edition', 'indicator', s.indicator_code,
                left('Nova edição oficial: ' || i.name || ' (' || s.period || ')', 200),
                left(s.provider || ' — ' || s.dataset || COALESCE(' — ' || NULLIF(s.metadata->>'uf', ''), ''), 500),
-               '/dados?x=' || s.indicator_code || '&periodo=' || s.period
-                 || CASE WHEN s.metadata->>'uf' ~* '^[a-z]{2}$' THEN '&uf=' || upper(s.metadata->>'uf') ELSE '' END,
+               '/dados?x=' || s.indicator_code || '&periodo=' || s.period,
                jsonb_build_object('indicator', s.indicator_code, 'period', s.period, 'provider', s.provider, 'dataset', s.dataset,
                                   'sourceUrl', s.source_url, 'retrievedAt', s.retrieved_at)
           FROM electoral.socioeconomic_source s
