@@ -214,7 +214,7 @@ export function SocioElectoralPanel({ candidacy }: Readonly<{ candidacy: XrayCan
         </div>
       </section>
 
-      <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <section className="rounded-xl border border-warn/30 bg-warn/5 p-4">
         <p className="text-sm font-medium text-fg">Leitura territorial, não individual.</p>
         <p className="mt-1 text-sm leading-6 text-fg-muted">
           Uma associação entre votação e uma característica municipal não permite concluir que

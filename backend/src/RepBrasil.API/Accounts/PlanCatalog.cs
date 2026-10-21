@@ -43,6 +43,7 @@ public static class PlanCatalog
     public const string CorrelationMatrix = "data.correlation_matrix";
     public const string ExportCsv = "data.export_csv";
     public const string ExportBulk = "data.export_bulk";
+    public const string TerritorialDefault = "account.territorial_default";
 
     public static IReadOnlyList<CapabilityDefinition> Capabilities { get; } =
     [
@@ -50,6 +51,8 @@ public static class PlanCatalog
         new(WatchlistLimit, CapabilityDefinition.Limit, "Conta", "Watchlist", "Entidades que você acompanha de perto."),
         new(AlertsLimit, CapabilityDefinition.Limit, "Conta", "Alertas", "Aviso na conta quando uma nova edição oficial é carregada."),
         new(SavedFolders, CapabilityDefinition.Feature, "Conta", "Pastas", "Organizar favoritos e watchlist em pastas."),
+        new(TerritorialDefault, CapabilityDefinition.Feature, "Conta", "Abrir no meu território",
+            "As análises territoriais abrem na UF e no município do seu perfil. O atalho \"Meu estado\" é de todos."),
         new(CompareLimit, CapabilityDefinition.Limit, "Análise", "Candidaturas por comparação", "Quantas candidaturas entram numa mesma comparação."),
         new(AdvancedMapModes, CapabilityDefinition.Feature, "Dados e mapas", "Modos avançados do mapa",
             "Relevo 3D, intensidade (mapa de calor) e antes/depois com divisor. O mapa, a tabela e os valores continuam abertos a todos."),
@@ -115,7 +118,7 @@ public static class PlanCatalog
         Plans.OrderBy(p => p.Rank).FirstOrDefault(p => p.Limits.TryGetValue(limit, out var max) && max > current);
 
     /// <param name="folders">Pastas para favoritos e watchlist.</param>
-    /// <param name="analysis">Ferramentas de análise do mapa: modos avançados, linha do tempo, matriz e exportação do recorte.</param>
+    /// <param name="analysis">Ferramentas de análise: modos avançados do mapa, linha do tempo, matriz, exportação do recorte e abertura no território do perfil.</param>
     /// <param name="bulk">Exportação completa dos indicadores da UF.</param>
     private static Dictionary<string, bool> Features(bool folders, bool analysis, bool bulk) => new()
     {
@@ -125,6 +128,7 @@ public static class PlanCatalog
         [CorrelationMatrix] = analysis,
         [ExportCsv] = analysis,
         [ExportBulk] = bulk,
+        [TerritorialDefault] = analysis,
     };
 
     private static Dictionary<string, int> Limits(int favorites, int watchlist, int alerts, int compare) => new()

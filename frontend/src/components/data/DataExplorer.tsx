@@ -12,7 +12,8 @@ import { DataState, RetryButton } from "@/components/ui/DataState";
 import { getCoverage, type DataCoverage } from "@/lib/data-intelligence";
 import { loadMunicipalityMesh, loadUfMesh, type TerritoryCollection } from "@/lib/elections/geo";
 import { municipalityProfilePath, stateProfilePath } from "@/lib/entities";
-import { ADVANCED_MAP_MODES } from "@/lib/plans";
+import { ADVANCED_MAP_MODES, TERRITORIAL_DEFAULT } from "@/lib/plans";
+import { useAccount } from "@/lib/useAccount";
 import { ibgeCodeOfUf, territoriesApi, ufOfIbgeCode, type TerritoryMunicipality } from "@/lib/territories";
 import { availabilityText, hasData, MODE_LABEL, stateOf, statesWithData } from "@/lib/territory/coverage";
 import { coverageLayer, viewNote } from "@/lib/territory/layers";
@@ -85,6 +86,7 @@ export function DataExplorer() {
   const municipalities = useMemo(() => municipalitiesOf(meshQ.data, catalogQ.data, state.uf), [catalogQ.data, meshQ.data, state.uf]);
   const coverage = stateOf(coverageQ.data, state.uf);
   const coverageStatus = knownState(coverageQ);
+  const home = useHomeTerritory();
 
   const go = useCallback(
     (patch: Partial<ExplorerState>, push = false) => {
@@ -107,6 +109,14 @@ export function DataExplorer() {
     );
     if (holders.length === 1) go({ uf: holders[0].uf });
   }, [coverageQ.data, go, state.period, state.uf, state.x]);
+
+  // Plano com "abrir no meu território": a primeira visita da sessão sem território na URL abre no do perfil.
+  // Link que já traz um indicador (x) vale mais que a preferência: ele é recuperado pelo efeito acima.
+  const territorialDefault = useEntitlement(TERRITORIAL_DEFAULT);
+  useEffect(() => {
+    if (territorialDefault.allowed !== true || !home || state.uf || state.municipality || state.x || !claimTerritorialDefault()) return;
+    go({ uf: home.uf, municipality: home.municipality });
+  }, [go, home, state.municipality, state.uf, state.x, territorialDefault.allowed]);
 
   // vistas avançadas são do plano; quem não tem vê o mapa e o aviso do plano
   const requestedView: ExplorerView = state.view !== "mapa" && advanced.allowed !== true ? "mapa" : state.view;
@@ -167,12 +177,26 @@ export function DataExplorer() {
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <ExplorerTrail
-          stateName={state.uf ? ufName : null}
-          municipalityName={municipalityName}
-          onCountry={() => go({ uf: null, municipality: null }, true)}
-          onState={() => go({ municipality: null }, true)}
-        />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <ExplorerTrail
+            stateName={state.uf ? ufName : null}
+            municipalityName={municipalityName}
+            onCountry={() => go({ uf: null, municipality: null }, true)}
+            onState={() => go({ municipality: null }, true)}
+          />
+          {home && (home.uf !== state.uf || home.municipality !== state.municipality) && (
+            <button
+              type="button"
+              onClick={() => go({ uf: home.uf, municipality: home.municipality }, true)}
+              className="focus-ring mi-underline rounded text-micro font-medium text-accent-text"
+              data-testid="home-territory"
+            >
+              {home.municipalityName
+                ? `Meu município: ${home.municipalityName}`
+                : `Meu estado: ${coverageQ.data?.states.find((s) => s.uf === home.uf)?.name ?? home.uf}`}
+            </button>
+          )}
+        </div>
         <div role="group" aria-label="Modo do mapa" className="segmented" data-testid="explorer-modes">
           {EXPLORER_MODES.map((m) => (
             <button key={m} type="button" aria-pressed={state.mode === m} onClick={() => go({ mode: m })} className={SEGMENT}>
@@ -271,6 +295,27 @@ export function DataExplorer() {
       )}
     </main>
   );
+}
+
+/** Território do perfil da conta (UF e, se houver, município), para o atalho "Meu estado". */
+function useHomeTerritory(): { uf: string; municipality: string | null; municipalityName: string | null } | null {
+  const { data: me } = useAccount();
+  const uf = me?.profile?.stateCode;
+  if (!uf) return null;
+  return { uf, municipality: me.profile?.municipalityIbgeCode ?? null, municipalityName: me.profile?.municipalityName ?? null };
+}
+
+const DEFAULT_APPLIED = "repbrasil:dados:territorio-padrao";
+
+/** A abertura no território do perfil vale uma vez por sessão: depois disso, "Brasil" na trilha continua no Brasil. */
+function claimTerritorialDefault(): boolean {
+  try {
+    if (sessionStorage.getItem(DEFAULT_APPLIED)) return false;
+    sessionStorage.setItem(DEFAULT_APPLIED, "1");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const KIND: Record<ExplorerLevel, string> = { country: "País", state: "Unidade da federação", municipality: "Município" };

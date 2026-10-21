@@ -126,6 +126,7 @@ O catálogo de planos, capabilities e limites é código (`PlanCatalog`) e é se
 | `data.correlation_matrix` (todos os pares da UF de uma vez) | — | ✓ | ✓ |
 | `data.export_csv` (CSV do recorte, com proveniência por linha) | — | ✓ | ✓ |
 | `data.export_bulk` (todos os indicadores da UF em CSV) | — | — | ✓ |
+| `account.territorial_default` (análises abrem no território do perfil) | — | ✓ | ✓ |
 
 Preços mensais: Gratuito R$ 0; Avançado R$ 24,90 (recomendado); Profissional R$ 69,90. Não há plano anual.
 
@@ -140,7 +141,7 @@ Rotas do plano no explorador, todas com `401` sem sessão, `403 plan_required` c
 | `GET /api/v1/data/export/bulk?uf=&period=` | `data.export_bulk` |
 | `GET /api/v1/parliament/amendments/map-series?uf=` | `data.map_series` |
 
-`map.advanced_modes` é decidido na interface: os modos desenham dado que a API já entrega a todos.
+`map.advanced_modes` e `account.territorial_default` são decididos na interface: os modos desenham dado que a API já entrega a todos, e abrir no território do perfil é só o ponto de partida. O atalho "Meu estado" (para a UF e o município do perfil) é de todas as contas.
 
 ### Plano efetivo
 

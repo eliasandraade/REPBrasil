@@ -98,6 +98,7 @@ function PoliticosContent() {
           {/* Filtros */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <select
+              aria-label="Filtrar por estado"
               value={filters.state ?? ""}
               onChange={(e) => setFilter("state", e.target.value)}
               className={selectCls}
@@ -110,6 +111,7 @@ function PoliticosContent() {
 
             <input
               type="text"
+              aria-label="Filtrar por partido"
               placeholder="Partido (ex: PT)"
               value={filters.party ?? ""}
               onChange={(e) => setFilter("party", e.target.value)}
@@ -118,6 +120,7 @@ function PoliticosContent() {
 
             <input
               type="text"
+              aria-label="Filtrar por cargo"
               placeholder="Cargo (ex: SENADOR)"
               value={filters.office ?? ""}
               onChange={(e) => setFilter("office", e.target.value)}

@@ -248,7 +248,7 @@ export function ParliamentHub() {
         </div>
       </section>
 
-      {error && <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-500">{error}</div>}
+      {error && <div role="alert" className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{error}</div>}
 
       <AmendmentMap rows={mapRows} year={year} uf={uf} />
 

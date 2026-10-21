@@ -11,6 +11,20 @@ import {
   type PollsResponse,
 } from "@/lib/electoral-live";
 
+type SnapshotKind = "final" | "not_started" | "partial";
+
+/** Estado do retrato da apuração com tokens semânticos (positivo/aviso), legíveis nos dois temas. */
+const SNAPSHOT_STYLE: Record<SnapshotKind, { frame: string; badge: string; label: string }> = {
+  final: { frame: "border-positive/30 bg-positive/5", badge: "bg-positive/15 text-positive", label: "FINAL" },
+  not_started: { frame: "border-line bg-surface", badge: "bg-fg/[0.06] text-fg-muted", label: "NÃO INICIADA" },
+  partial: { frame: "border-warn/30 bg-warn/5", badge: "bg-warn/15 text-warn", label: "PARCIAL" },
+};
+
+function snapshotKind(final: boolean, notStarted: boolean): SnapshotKind {
+  if (final) return "final";
+  return notStarted ? "not_started" : "partial";
+}
+
 const offices = [
   { value: 1, label: "Presidente" },
   { value: 3, label: "Governador" },
@@ -98,17 +112,7 @@ function LivePanel({ data }: Readonly<{ data: LiveCountResponse | null }>) {
   const snapshot = data.snapshot;
   const final = snapshot.status === "final";
   const notStarted = snapshot.status === "not_started";
-  const frameClass = final
-    ? "border-emerald-500/30 bg-emerald-500/5"
-    : notStarted
-      ? "border-line bg-surface"
-      : "border-amber-500/30 bg-amber-500/5";
-  const badgeClass = final
-    ? "bg-emerald-500/15 text-emerald-500"
-    : notStarted
-      ? "bg-fg/[0.06] text-fg-muted"
-      : "bg-amber-500/15 text-amber-500";
-  const badge = final ? "FINAL" : notStarted ? "NÃO INICIADA" : "PARCIAL";
+  const { frame: frameClass, badge: badgeClass, label: badge } = SNAPSHOT_STYLE[snapshotKind(final, notStarted)];
 
   return (
     <div className="space-y-4" data-testid="live-snapshot">
@@ -242,7 +246,7 @@ export function ElectoralLiveHub() {
       </section>
 
       {loading && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">Carregando fontes oficiais…</div>}
-      {error && <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-500">{error}</div>}
+      {error && <div role="alert" className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{error}</div>}
 
       {!loading && !error && (
         <>

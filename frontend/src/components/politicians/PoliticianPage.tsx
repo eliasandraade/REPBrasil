@@ -190,6 +190,7 @@ export function PoliticianPage({ idOrSlug, initial }: Readonly<{ idOrSlug: strin
           sources={sourcesQ.data ?? []}
           score={score}
           status={{ elections: stateOf(electionsQ), assets: stateOf(assetsQ), sources: stateOf(sourcesQ) }}
+          retry={{ elections: () => void electionsQ.refetch(), assets: () => void assetsQ.refetch(), sources: () => void sourcesQ.refetch() }}
         />
       </div>
     </main>

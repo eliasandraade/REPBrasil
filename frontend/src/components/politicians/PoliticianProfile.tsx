@@ -60,8 +60,13 @@ interface PoliticianProfileProps {
   assets: AssetDeclarationItem[];
   sources: DataSourceItem[];
   score?: ScoreStatusItem;
-  status?: { elections: LoadState; assets: LoadState; sources: LoadState };
+  status?: Record<LegacyPart, LoadState>;
+  /** Tentar de novo cada base, quando a consulta falha. */
+  retry?: Partial<Record<LegacyPart, () => void>>;
 }
+
+/** Bases do perfil anteriores à camada eleitoral (consultas próprias). */
+type LegacyPart = "elections" | "assets" | "sources";
 
 function fromUrl(hasCamara: boolean): { tab: TabId; candidacy: string | null } {
   if (typeof window === "undefined") return { tab: "visao-geral", candidacy: null };
@@ -116,6 +121,7 @@ export function PoliticianProfile({
   sources,
   score,
   status = { elections: "ready", assets: "ready", sources: "ready" },
+  retry,
 }: Readonly<PoliticianProfileProps>) {
   const hasCamara = !!politician.camaraId;
   const [{ tab, candidacy: requested }, setView] = useState(() => fromUrl(hasCamara));
@@ -160,6 +166,17 @@ export function PoliticianProfile({
       Falha de comunicação não é ausência de dados.
     </DataState>
   );
+  /** Bases anteriores à camada eleitoral: consultando ≠ falhou ≠ não há registro (falha nunca vira ausência). */
+  const legacyOr = (part: LegacyPart, what: string, render: () => ReactNode) => {
+    if (status[part] === "pending") return <DataState kind="loading" title={`Carregando ${what}`} height="h-40" />;
+    if (status[part] === "error")
+      return (
+        <DataState kind="error" title={`Não foi possível carregar ${what}.`} action={retry?.[part] ? <RetryButton onRetry={retry[part]!} /> : undefined}>
+          Falha de comunicação não é ausência de dados.
+        </DataState>
+      );
+    return render();
+  };
   const electoralOr = (render: () => ReactNode, legacy: () => ReactNode) => {
     if (xrayState === "pending") return loading;
     if (xrayState === "error") return failed;
@@ -191,7 +208,7 @@ export function PoliticianProfile({
         {tab === "historico" &&
           electoralOr(
             () => <XrayTimeline data={xray!} onOpen={(id) => open("territorio", id)} />,
-            () => <ElectionTab elections={elections} />,
+            () => legacyOr("elections", "o histórico eleitoral", () => <ElectionTab elections={elections} />),
           )}
         {tab === "territorio" &&
           electoralOr(
@@ -243,7 +260,7 @@ export function PoliticianProfile({
                 )}
               </div>
             ),
-            () => (status.assets === "pending" ? loading : <AssetsTab assets={assets} />),
+            () => legacyOr("assets", "as declarações de bens", () => <AssetsTab assets={assets} />),
           )}
         {tab === "contas" &&
           electoralOr(
@@ -263,7 +280,7 @@ export function PoliticianProfile({
                 <RecordsPanel key={selected.candidacyId} c={selected} />
               </section>
             )}
-            <MetadataTab politician={politician} sources={sources} />
+            <MetadataTab politician={politician} sources={sources} sourcesState={status.sources} onRetrySources={retry?.sources} />
           </div>
         )}
         {tab === "score" && <ScoreTab score={score} />}

@@ -522,12 +522,15 @@ describe("aba Câmara", () => {
 describe("drawer de navegação móvel", () => {
   it("fechado é inerte; abre com foco no item da página atual; Esc fecha e devolve o foco ao botão", () => {
     nav.pathname = "/eleicoes";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ authenticated: false }), { status: 200 })));
     render(
-      <NavigationProvider>
-        <AppShell>
-          <p>conteúdo</p>
-        </AppShell>
-      </NavigationProvider>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <NavigationProvider>
+          <AppShell>
+            <p>conteúdo</p>
+          </AppShell>
+        </NavigationProvider>
+      </QueryClientProvider>,
     );
     const drawer = document.getElementById("mobile-nav")!;
     expect(drawer.hasAttribute("inert")).toBe(true);

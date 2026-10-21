@@ -7,7 +7,9 @@ import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { SearchProvider, SearchTrigger } from "@/components/search/GlobalSearch";
 import { OfflineNotice } from "@/components/pwa/OfflineNotice";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { TransitionLink } from "@/motion/navigation";
+import { NavAccount } from "./NavAccount";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +117,29 @@ function DataIcon({ className }: Readonly<{ className?: string }>) {
   );
 }
 
+/** Parlamento: atos e emendas como documentos (iconografia neutra — sem Congresso, brasão ou bandeira). */
+function DocumentsIcon({ className }: Readonly<{ className?: string }>) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+      <path d="M14 2v5h6" />
+      <path d="M8 13h8" />
+      <path d="M8 17h5" />
+    </svg>
+  );
+}
+
+/** Glossário: livro com a letra A (termos), distinto do Manifesto. */
+function GlossaryIcon({ className }: Readonly<{ className?: string }>) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
+      <path d="m8 13 4-7 4 7" />
+      <path d="M9.1 11h5.7" />
+    </svg>
+  );
+}
+
 function LifeBuoyIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -154,6 +179,7 @@ const NAV_SECTIONS = [
       { href: "/politicos", label: "Políticos", Icon: UserIcon, exact: false },
       { href: "/eleicoes", label: "Eleições", Icon: ResultsIcon, exact: false },
       { href: "/pesquisas", label: "Pesquisas", Icon: PollIcon, exact: false },
+      { href: "/parlamento", label: "Parlamento", Icon: DocumentsIcon, exact: false },
       { href: "/partidos", label: "Partidos", Icon: GroupIcon, exact: false },
       { href: "/rankings", label: "Rankings", Icon: RankIcon, exact: false },
       { href: "/comparar", label: "Comparar", Icon: CompareIcon, exact: false },
@@ -164,8 +190,8 @@ const NAV_SECTIONS = [
   {
     label: "Suporte",
     items: [
-      { href: "/glossario", label: "Glossário", Icon: BookOpenIcon, exact: false },
-      { href: "/suporte", label: "Central de Suporte", Icon: LifeBuoyIcon, exact: false },
+      { href: "/glossario", label: "Glossário", Icon: GlossaryIcon, exact: false },
+      { href: "/suporte", label: "Suporte", Icon: LifeBuoyIcon, exact: false },
     ],
   },
 ] as const;
@@ -175,20 +201,27 @@ const NAV_SECTIONS = [
 interface SidebarProps {
   pathname: string;
   onLinkClick?: () => void;
+  /** Só na gaveta móvel: botão de fechar dentro do diálogo. */
+  onClose?: () => void;
 }
 
-function Sidebar({ pathname, onLinkClick }: SidebarProps) {
+function Sidebar({ pathname, onLinkClick, onClose }: SidebarProps) {
   const isActive = (href: string, exact: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
 
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex items-center border-b border-line px-3 py-3">
+      <div className="flex items-center justify-between border-b border-line px-3 py-3">
         <TransitionLink href="/" onClick={onLinkClick} className="focus-ring rounded-lg" aria-label="REPBrasil — início">
           {/* Assinatura reduzida "[RB] REPBrasil" (≥ 112px) com área de proteção 1X */}
           <Logo variant="horizontal" height={34} alt="" priority clearSpaceIncluded />
         </TransitionLink>
+        {onClose && (
+          <button type="button" onClick={onClose} aria-label="Fechar menu" className="focus-ring rounded-md p-1.5 text-fg-muted hover:bg-fg/5 hover:text-fg-soft">
+            <XIcon className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* Busca global (abre o diálogo; atalho "/" ou Ctrl+K) */}
@@ -197,7 +230,7 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-3 py-4">
         {NAV_SECTIONS.map((section, idx) => (
           <div key={section.label} className={idx > 0 ? "mt-3 border-t border-line pt-3" : ""}>
             <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
@@ -229,8 +262,9 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="space-y-3 border-t border-line px-4 py-3">
+      {/* Conta e rodapé */}
+      <div className="space-y-3 border-t border-line px-3 py-3">
+        <NavAccount onLinkClick={onLinkClick} />
         <ThemeToggle />
         <p className="text-micro text-fg-muted">© 2026 Andrade Systems</p>
       </div>
@@ -240,14 +274,24 @@ function Sidebar({ pathname, onLinkClick }: SidebarProps) {
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
+/** O que recebe foco pelo Tab dentro da gaveta. */
+const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+
 function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
+  const desktop = useMediaQuery("(min-width: 1024px)");
 
-  // Drawer: foco entra ao abrir e volta ao botão ao fechar; Esc fecha.
+  // A gaveta é só do celular: se a tela passa a larga, ela fecha (senão o conteúdo ficaria inerte).
+  useEffect(() => {
+    if (desktop) setMobileOpen(false);
+  }, [desktop]);
+
+  // Drawer (diálogo modal): foco entra ao abrir e volta ao botão ao fechar; Esc fecha; Tab circula dentro da gaveta e,
+  // se o foco escapar por outro caminho (a pílula de salvar fica fora deste shell), volta para ela.
   useEffect(() => {
     if (mobileOpen) {
       // Foco no item da página atual (não no primeiro link do documento, que é o logo).
@@ -258,13 +302,43 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
     }
     wasOpen.current = mobileOpen;
     if (!mobileOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    const drawer = drawerRef.current;
+    const focusables = () => [...(drawer?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const edge = e.shiftKey ? items[0] : items[items.length - 1];
+      if (document.activeElement !== edge) return;
+      e.preventDefault();
+      (e.shiftKey ? items[items.length - 1] : items[0]).focus();
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (drawer && e.target instanceof Node && !drawer.contains(e.target)) focusables()[0]?.focus();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("focusin", onFocusIn);
+    };
   }, [mobileOpen]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-canvas">
+      {/* Primeiro elemento focável: pula a navegação e vai direto ao conteúdo */}
+      <a
+        href="#conteudo"
+        inert={mobileOpen}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-action focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-action-fg"
+      >
+        Pular para o conteúdo
+      </a>
+
       {/* Desktop static sidebar */}
       <aside className="vt-app-nav hidden w-56 flex-shrink-0 flex-col border-r border-line bg-surface lg:flex">
         <Sidebar pathname={pathname} />
@@ -284,14 +358,16 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
         ref={drawerRef}
         data-open={mobileOpen}
         inert={!mobileOpen}
-        aria-label="Navegação"
+        role={mobileOpen ? "dialog" : undefined}
+        aria-modal={mobileOpen ? true : undefined}
+        aria-label="Menu de navegação"
         className="drawer fixed inset-y-0 left-0 z-50 w-64 border-r border-line bg-surface lg:hidden"
       >
-        <Sidebar pathname={pathname} onLinkClick={() => setMobileOpen(false)} />
+        <Sidebar pathname={pathname} onLinkClick={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} />
       </div>
 
-      {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-auto">
+      {/* Main content: inerte com a gaveta aberta (o foco não escapa para trás do diálogo) */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-auto" inert={mobileOpen}>
         {/* Mobile topbar */}
         <div className="vt-app-topbar sticky top-0 z-30 flex h-14 flex-shrink-0 items-center gap-3 border-b border-line bg-surface px-4 lg:hidden">
           <button
@@ -316,7 +392,7 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
 
         <OfflineNotice />
 
-        <div data-route-frame className="flex min-w-0 flex-1 flex-col">
+        <div id="conteudo" tabIndex={-1} data-route-frame className="flex min-w-0 flex-1 flex-col focus:outline-none">
           {children}
         </div>
       </div>
