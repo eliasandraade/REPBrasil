@@ -103,6 +103,32 @@ describe("acessibilidade do shell", () => {
   });
 });
 
+describe("foco preso na gaveta modal", () => {
+  it("com a gaveta aberta, o Tab circula dentro dela e o 'pular para o conteúdo' fica inerte", async () => {
+    renderShell({ authenticated: false });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const drawer = document.getElementById("mobile-nav")!;
+    await within(drawer).findByRole("link", { name: "Entrar" });
+    const items = [...drawer.querySelectorAll<HTMLElement>("a[href], button:not([disabled])")];
+    const first = items[0];
+    const last = items[items.length - 1];
+
+    last.focus();
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+
+    expect(screen.getByRole("link", { name: "Pular para o conteúdo", hidden: true }).hasAttribute("inert")).toBe(true);
+    // foco que escapa por outro caminho volta para a gaveta
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    outside.focus();
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    outside.remove();
+  });
+});
+
 describe("honestidade e Manifesto", () => {
   it("o Manifesto traz a Sustentabilidade: dado público essencial fora de paywall", () => {
     render(<ManifestoPage />);

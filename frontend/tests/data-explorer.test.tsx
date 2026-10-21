@@ -507,6 +507,16 @@ describe("meu território", () => {
     expect(nav.replace).not.toHaveBeenCalled();
   });
 
+  it("com o plano, link que já traz um indicador vale mais que o território do perfil", async () => {
+    const plan = withProfile({ "account.territorial_default": true });
+    session = { ...plan, profile: { ...plan.profile, stateCode: "SP" } };
+    renderExplorer("x=ibge.population&periodo=2022");
+    // o indicador só tem dado no Ceará: o link abre lá, não em São Paulo (UF do perfil)
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/dados?uf=CE&x=ibge.population&periodo=2022", { scroll: false }));
+    await screen.findAllByTestId("home-territory");
+    expect(nav.replace).not.toHaveBeenCalledWith(expect.stringContaining("uf=SP"), expect.anything());
+  });
+
   it("sem o plano, nunca muda o território sozinho", async () => {
     session = withProfile();
     renderExplorer("");

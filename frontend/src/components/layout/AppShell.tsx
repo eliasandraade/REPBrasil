@@ -274,6 +274,9 @@ function Sidebar({ pathname, onLinkClick, onClose }: SidebarProps) {
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
+/** O que recebe foco pelo Tab dentro da gaveta. */
+const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+
 function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -287,7 +290,8 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
     if (desktop) setMobileOpen(false);
   }, [desktop]);
 
-  // Drawer: foco entra ao abrir e volta ao botão ao fechar; Esc fecha.
+  // Drawer (diálogo modal): foco entra ao abrir e volta ao botão ao fechar; Esc fecha; Tab circula dentro da gaveta e,
+  // se o foco escapar por outro caminho (a pílula de salvar fica fora deste shell), volta para ela.
   useEffect(() => {
     if (mobileOpen) {
       // Foco no item da página atual (não no primeiro link do documento, que é o logo).
@@ -298,9 +302,30 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
     }
     wasOpen.current = mobileOpen;
     if (!mobileOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    const drawer = drawerRef.current;
+    const focusables = () => [...(drawer?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const edge = e.shiftKey ? items[0] : items[items.length - 1];
+      if (document.activeElement !== edge) return;
+      e.preventDefault();
+      (e.shiftKey ? items[items.length - 1] : items[0]).focus();
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (drawer && e.target instanceof Node && !drawer.contains(e.target)) focusables()[0]?.focus();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("focusin", onFocusIn);
+    };
   }, [mobileOpen]);
 
   return (
@@ -308,6 +333,7 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
       {/* Primeiro elemento focável: pula a navegação e vai direto ao conteúdo */}
       <a
         href="#conteudo"
+        inert={mobileOpen}
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-action focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-action-fg"
       >
         Pular para o conteúdo
