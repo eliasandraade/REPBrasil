@@ -122,7 +122,7 @@ public sealed partial class LiveIngestionService(
     /// <summary>Uma UF de EA15 por vez: a volta completa leva StateAccompanimentInterval.</summary>
     private TimeSpan StateSweepInterval()
     {
-        var count = Math.Max(1, hub.Current?.Context.Ufs.Count() ?? 28);
+        var count = Math.Max(1, hub.Current is { } current ? LiveIngestionEngine.ElectionUfs(current).Count : 28);
         var interval = options.StateAccompanimentInterval / count;
         // Antes do início da totalização o EA15 não muda: volta lenta.
         if (hub.Current?.National?.Progress == "n") interval *= 4;
@@ -158,7 +158,7 @@ public sealed partial class LiveIngestionService(
             {
                 await engine.LoadFirstRoundAsync(ct);
                 var s = hub.Current;
-                if (s?.FirstRound?.National is not null && s.FirstRound.States.Count >= s.Context.Ufs.Count()) break;
+                if (s?.FirstRound?.National is not null && s.FirstRound.States.Count >= LiveIngestionEngine.ElectionUfs(s).Count) break;
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {

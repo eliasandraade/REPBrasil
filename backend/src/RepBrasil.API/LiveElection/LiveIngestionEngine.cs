@@ -405,8 +405,7 @@ public sealed partial class LiveIngestionEngine
         file ??= current.NationalAccompaniment;
 
         // UFs a buscar: EA14 indica totalização mais nova, mudou o nº de seções, ou ainda não temos o arquivo da UF.
-        var ufs = current.Context.Ufs.Select(u => u.Uf).ToList();
-        if (ufs.Count == 0 && file is not null) ufs = [.. file.Entries.Where(e => e.ScopeType == "uf").Select(e => e.Code)];
+        var ufs = ElectionUfs(current);
         var changed = new List<string>();
         foreach (var uf in ufs)
         {
@@ -491,7 +490,7 @@ public sealed partial class LiveIngestionEngine
     {
         var current = hub.Current;
         if (paths is null || current is null) return;
-        var ufs = current.Context.Ufs.Select(u => u.Uf).ToList();
+        var ufs = ElectionUfs(current);
         if (ufs.Count == 0) return;
         // UFs com visitantes olhando municípios vêm antes no rodízio.
         var wanted = demand.Where(d => time.GetUtcNow() - d.Value < TimeSpan.FromMinutes(10) && d.Key.StartsWith("uf:", StringComparison.Ordinal))
@@ -526,7 +525,7 @@ public sealed partial class LiveIngestionEngine
         if (ufInProgress)
         {
             var now = time.GetUtcNow();
-            foreach (var municipality in next.Context.Ufs.First(u => u.Uf == uf).Municipalities.Where(m => priority.Contains(m.TseCode)))
+            foreach (var municipality in next.Context.Ufs.FirstOrDefault(u => u.Uf == uf)?.Municipalities.Where(m => priority.Contains(m.TseCode)) ?? [])
                 if (!next.Municipalities.TryGetValue(municipality.TseCode, out var cached) || now - cached.IngestedAt > PriorityRefresh)
                     Enqueue(municipality.TseCode, urgent: true);
         }
@@ -733,7 +732,8 @@ public sealed partial class LiveIngestionEngine
     {
         var current = hub.Current;
         if (current is null || paths is null || current.Context.Election.FirstRoundElectionCode is not { } code) return;
-        if (current.FirstRound?.National is not null && current.FirstRound.States.Count >= current.Context.Ufs.Count()) return;
+        var ufs = ElectionUfs(current);
+        if (current.FirstRound?.National is not null && current.FirstRound.States.Count >= ufs.Count) return;
         var baseline = current.FirstRound ?? FirstRoundBaseline.Empty(code);
         var nationalResponse = await source.FetchAsync(paths.Result(code, options.OfficeCode), null, TsePriority.Background, ct);
         if (nationalResponse is { Status: TseFetchStatus.Ok, Body: not null })
@@ -741,7 +741,7 @@ public sealed partial class LiveIngestionEngine
             var parsed = TseParser.ParseEa20(nationalResponse.Body, options.OfficeCode);
             baseline = baseline with { National = TerritorySnapshot.From(parsed, TerritoryKey.National, null, nationalResponse.ReceivedAt, nationalResponse.Body, null, null) };
         }
-        foreach (var uf in current.Context.Ufs.Select(u => u.Uf))
+        foreach (var uf in ufs)
         {
             if (baseline.States.ContainsKey(uf)) continue;
             var response = await source.FetchAsync(paths.Result(code, options.OfficeCode, uf), null, TsePriority.Background, ct);
@@ -858,6 +858,16 @@ public sealed partial class LiveIngestionEngine
         {
             Publish(next, "national-update", LiveProjector.NationalUpdate(next));
         }
+    }
+
+    /// <summary>
+    /// UFs com a eleição: as do EA14 ("um abr uf para cada UF que tenha eleição ordinária"); sem EA14, as do EA12.
+    /// Buscar arquivo de UF fora dessa lista geraria 404.
+    /// </summary>
+    public static IReadOnlyList<string> ElectionUfs(LiveElectionState s)
+    {
+        var fromAccompaniment = s.NationalAccompaniment?.Entries.Where(e => e.ScopeType == "uf").Select(e => e.Code).ToList();
+        return fromAccompaniment is { Count: > 0 } ? fromAccompaniment : [.. s.Context.Ufs.Select(u => u.Uf)];
     }
 
     private LivePhase Phase(LiveElectionState s) =>
