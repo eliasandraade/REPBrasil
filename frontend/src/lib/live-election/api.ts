@@ -109,15 +109,12 @@ export function sendProductEvent(event: LiveProductEvent, options?: { once?: boo
   } catch {
     // beacon indisponível: segue para o fetch
   }
-  try {
-    void fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=UTF-8" },
-      body,
-      keepalive: true,
-      credentials: "omit",
-    }).catch(() => undefined);
-  } catch {
-    // analytics nunca derruba a página
-  }
+  // analytics nunca derruba a página: a rejeição do fetch é descartada.
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+    body,
+    keepalive: true,
+    credentials: "omit",
+  }).catch(() => undefined);
 }

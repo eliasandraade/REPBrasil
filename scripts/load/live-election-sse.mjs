@@ -75,8 +75,11 @@ async function client(i) {
   void i;
 }
 
+/** Valor vindo da rede vai para o log sem quebras de linha nem caracteres de controle. */
+const clean = (value) => String(value).replace(/[\u0000-\u001f\u007f]+/g, " ").slice(0, 80);
+
 const before = await health();
-console.log(`API ${API} · modo ${before.mode} · fase ${before.phase} · tseRequests=${before.tseRequests}`);
+console.log(`API ${clean(API)} · modo ${clean(before.mode)} · fase ${clean(before.phase)} · tseRequests=${Number(before.tseRequests)}`);
 console.log(`Abrindo ${CLIENTS} conexões em ${RAMP}s e mantendo por ${SECONDS}s…`);
 const t0 = performance.now();
 const runs = [];

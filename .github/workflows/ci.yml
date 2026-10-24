@@ -78,9 +78,9 @@ jobs:
       - name: Migrations up from zero
         working-directory: backend
         run: dotnet tool run dotnet-ef database update --no-build --configuration Release --project src/RepBrasil.Infrastructure --startup-project src/RepBrasil.API
-      - name: Check schema (43 electoral tables/views + 2 derived materialized views + PostGIS)
+      - name: Check schema (49 electoral tables/views + 2 derived materialized views + PostGIS)
         run: |
-          test "$($PSQL -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='electoral'")" = "43"
+          test "$($PSQL -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='electoral'")" = "49"
           test "$($PSQL -c "SELECT count(*) FROM pg_matviews WHERE schemaname='electoral'")" = "2"
           $PSQL -c "SELECT extversion FROM pg_extension WHERE extname='postgis'" | grep -q .
       - name: Migrations down to AddMandate
