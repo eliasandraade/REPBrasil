@@ -1,5 +1,8 @@
 # Pesquisas eleitorais e apuração oficial
 
+> A apuração **ao vivo** do 2º turno presidencial de 2026 (ingestão contínua, SSE e página `/apuracao`) está em
+> [LIVE_ELECTION_2026.md](LIVE_ELECTION_2026.md). Este documento cobre as pesquisas e os snapshots pontuais do ETL.
+
 O PR J adiciona ao REPBrasil duas leituras distintas do ciclo eleitoral: **pesquisas registradas** e **snapshots oficiais de totalização**. Elas compartilham proveniência auditável, mas não compartilham significado. Pesquisa é estimativa amostral; totalização é observação oficial do processo de apuração.
 
 ## Fontes oficiais

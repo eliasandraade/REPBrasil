@@ -1,0 +1,122 @@
+/*
+ * Apuração ao vivo — peças visuais próprias da página. Cores de DADO (A × B) vêm da paleta validada
+ * (src/lib/dataviz/palette.ts, AB): nunca cor de partido; A = primeiro na ordem oficial, B = segundo.
+ * Os blocos escuros (sistema e escolha) são idênticos, como em globals.css.
+ */
+
+:root {
+  --live-a: #2a78d6;
+  --live-b: #eb6834;
+  --live-tie: #8a96a3;
+  --live-land: #e4eaf0;
+  --live-border: rgb(95 113 132 / 0.45);
+  --live-hatch: rgb(255 255 255 / 0.55);
+}
+
+:root[data-theme="dark"] {
+  --live-a: #3987e5;
+  --live-b: #d95926;
+  --live-tie: #8597aa;
+  --live-land: #15304d;
+  --live-border: rgb(169 187 203 / 0.3);
+  --live-hatch: rgb(7 26 46 / 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --live-a: #3987e5;
+    --live-b: #d95926;
+    --live-tie: #8597aa;
+    --live-land: #15304d;
+    --live-border: rgb(169 187 203 / 0.3);
+    --live-hatch: rgb(7 26 46 / 0.5);
+  }
+}
+
+.live-fill-a { background-color: var(--live-a); }
+.live-fill-b { background-color: var(--live-b); }
+.live-fill-tie { background-color: var(--live-tie); }
+.live-text-a { color: var(--live-a); }
+.live-text-b { color: var(--live-b); }
+
+/* Faixa B: hachura sobre a cor (o mapa e a legenda não dependem só de cor). */
+.live-hatch {
+  background-image: repeating-linear-gradient(45deg, var(--live-hatch) 0 2px, transparent 2px 6px);
+}
+
+/* Selo AO VIVO: um ponto com pulso discreto (sem brilho). Reduced Motion: ponto fixo. */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: rgb(var(--danger));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot-pulse { animation: live-dot 2s var(--ease-precise) infinite; }
+}
+@keyframes live-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Valor que acabou de mudar: realce curto de fundo; o número já aparece pronto. */
+.live-flash {
+  background-color: rgb(var(--accent) / 0.16);
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-flash-target { transition: background-color var(--motion-reveal) var(--ease-precise); }
+}
+
+/* Barras proporcionais: troca de valor real para valor real (nunca enchem a partir do zero). */
+@media (prefers-reduced-motion: no-preference) {
+  .live-bar { transition: width var(--motion-traverse) var(--ease-precise); }
+}
+
+/* Mapa */
+.live-map-uf {
+  stroke: var(--live-border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  outline: none;
+}
+.live-map-uf:hover,
+.live-map-uf[data-active="true"] {
+  stroke: rgb(var(--focus));
+  stroke-width: 2.5;
+}
+.live-map-uf:focus-visible {
+  stroke: rgb(var(--focus));
+  stroke-width: 3;
+}
+.live-map-label {
+  font-size: 19px;
+  font-weight: 650;
+  fill: rgb(var(--text-primary));
+  paint-order: stroke;
+  stroke: rgb(var(--surface) / 0.85);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.live-map-guide {
+  stroke: rgb(var(--text-secondary) / 0.6);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* Gráficos */
+.live-chart-grid { stroke: rgb(var(--border)); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.live-chart-zero { stroke: rgb(var(--text-secondary)); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.live-chart-line { fill: none; stroke-width: 2.25; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.live-chart-axis { font-size: 11px; fill: rgb(var(--text-secondary)); }
+
+/* Cabeçalho de tabela fixo dentro do contêiner rolável. */
+.live-sticky-head th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: rgb(var(--surface));
+}

@@ -52,6 +52,15 @@ function ResultsIcon({ className }: { className?: string }) {
   );
 }
 
+/** Apuração ao vivo: traço de sinal contínuo (atualização em tempo real), sem cor de dado. */
+function LiveCountIcon({ className }: Readonly<{ className?: string }>) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12h4l3-8 4 16 3-8h4" />
+    </svg>
+  );
+}
+
 /** Pesquisas: série temporal neutra com observações publicadas. */
 function PollIcon({ className }: Readonly<{ className?: string }>) {
   return (
@@ -177,6 +186,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "/", label: "Início", Icon: HomeIcon, exact: true },
       { href: "/politicos", label: "Políticos", Icon: UserIcon, exact: false },
+      { href: "/apuracao/2026/presidente/segundo-turno", label: "Apuração 2026", Icon: LiveCountIcon, exact: false },
       { href: "/eleicoes", label: "Eleições", Icon: ResultsIcon, exact: false },
       { href: "/pesquisas", label: "Pesquisas", Icon: PollIcon, exact: false },
       { href: "/parlamento", label: "Parlamento", Icon: DocumentsIcon, exact: false },

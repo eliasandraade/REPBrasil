@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using RepBrasil.API.Accounts;
 using RepBrasil.API.Infrastructure;
+using RepBrasil.API.LiveElection;
 using RepBrasil.Application.Assets.Queries;
 using RepBrasil.Application.DataIntelligence;
 using RepBrasil.Application.Electoral;
@@ -108,6 +109,8 @@ builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
 builder.Services.AddApiRateLimits(builder.Configuration);
+// Apuração ao vivo (2º turno presidencial): desligada por padrão; ELECTION_LIVE_ENABLED=true liga (docs/LIVE_ELECTION_2026.md).
+builder.Services.AddLiveElection(builder.Configuration);
 builder.Services.AddOutputCache(o =>
 {
     o.SizeLimit = 128L * 1024 * 1024;
@@ -143,7 +146,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("App", policy => policy
         .WithOrigins(allowedOrigins)
         .WithMethods("GET", "POST", "DELETE", "OPTIONS")
-        .WithHeaders("Accept", "Content-Type", "X-RepBrasil-CSRF", "X-Api-Key", "X-Alerts-Token")
+        // Last-Event-ID: a reconexão nativa do EventSource (apuração ao vivo) retoma do último evento recebido.
+        .WithHeaders("Accept", "Content-Type", "X-RepBrasil-CSRF", "X-Api-Key", "X-Alerts-Token", "Last-Event-ID", "Cache-Control")
+        .SetPreflightMaxAge(TimeSpan.FromMinutes(10))
         .AllowCredentials()));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

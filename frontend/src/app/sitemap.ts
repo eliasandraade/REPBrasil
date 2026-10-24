@@ -9,7 +9,7 @@ import { INDEXING, SITE_URL } from "@/lib/site";
 /** Regerado a cada hora a partir do que está importado. Vazio enquanto a indexação não for liberada. */
 export const revalidate = 3600;
 
-const STATIC = ["/", "/eleicoes", "/pesquisas", "/politicos", "/partidos", "/rankings", "/comparar", "/dados", "/parlamento", "/eleicoes/comparar", "/glossario", "/manifesto", "/planos", "/suporte"];
+const STATIC = ["/", "/apuracao/2026/presidente/segundo-turno", "/eleicoes", "/pesquisas", "/politicos", "/partidos", "/rankings", "/comparar", "/dados", "/parlamento", "/eleicoes/comparar", "/glossario", "/manifesto", "/planos", "/suporte"];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!INDEXING || !SITE_URL) return [];
