@@ -146,7 +146,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("App", policy => policy
         .WithOrigins(allowedOrigins)
         .WithMethods("GET", "POST", "DELETE", "OPTIONS")
-        .WithHeaders("Accept", "Content-Type", "X-RepBrasil-CSRF", "X-Api-Key", "X-Alerts-Token")
+        // Last-Event-ID: a reconexão nativa do EventSource (apuração ao vivo) retoma do último evento recebido.
+        .WithHeaders("Accept", "Content-Type", "X-RepBrasil-CSRF", "X-Api-Key", "X-Alerts-Token", "Last-Event-ID", "Cache-Control")
+        .SetPreflightMaxAge(TimeSpan.FromMinutes(10))
         .AllowCredentials()));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
