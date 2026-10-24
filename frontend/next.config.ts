@@ -3,6 +3,19 @@ import path from "path";
 
 const revision = process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.REPBRASIL_REVISION ?? "unknown";
 
+/** Fotos oficiais das candidaturas: cópia em cache servida pela API do REPBrasil (nunca direto do TSE). */
+function apiImagePattern(): { protocol: "http" | "https"; hostname: string; port?: string; pathname: string } | null {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000");
+    const protocol = url.protocol === "https:" ? "https" : "http";
+    return { protocol, hostname: url.hostname, ...(url.port ? { port: url.port } : {}), pathname: "/api/v1/elections/**" };
+  } catch {
+    return null;
+  }
+}
+
+const apiImages = apiImagePattern();
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -44,6 +57,7 @@ const nextConfig: NextConfig = {
         hostname: "www.camara.leg.br",
         pathname: "/internet/deputado/bandep/**",
       },
+      ...(apiImages ? [apiImages] : []),
     ],
   },
 };
