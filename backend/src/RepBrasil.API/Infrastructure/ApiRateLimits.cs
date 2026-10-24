@@ -16,6 +16,9 @@ public static class ApiRateLimits
 {
     public const string Heavy = "heavy";
     public const string Support = "support";
+
+    /// <summary>Apuração ao vivo: leitura barata (estado em memória) e pico de acesso; teto próprio por IP, mais alto.</summary>
+    public const string Live = "live";
     public const string InternalTokenHeader = "X-Internal-Token";
 
     public static IServiceCollection AddApiRateLimits(this IServiceCollection services, IConfiguration config)
@@ -23,6 +26,8 @@ public static class ApiRateLimits
         var perMinute = Math.Max(1, config.GetValue("RateLimit:PerMinute", 300));
         var heavyPerMinute = Math.Max(1, config.GetValue("RateLimit:HeavyPerMinute", 60));
         var supportPerHour = Math.Max(1, config.GetValue("RateLimit:SupportPerHour", 6));
+        // Alto de propósito: muitos visitantes atrás do mesmo IP (CGNAT das operadoras móveis); a leitura é em memória.
+        var livePerMinute = Math.Max(1, config.GetValue("RateLimit:LivePerMinute", 6000));
         var internalToken = config["RateLimit:InternalToken"];
         bool Internal(HttpContext http) =>
             !string.IsNullOrEmpty(internalToken) && HttpPipeline.SecretEquals(http.Request.Headers[InternalTokenHeader], internalToken);
@@ -30,12 +35,15 @@ public static class ApiRateLimits
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
-                http.Request.Path.StartsWithSegments("/health") || Internal(http)
+                http.Request.Path.StartsWithSegments("/health") || Internal(http) || IsLive(http)
                     ? RateLimitPartition.GetNoLimiter("exempt")
                     : RateLimitPartition.GetTokenBucketLimiter(ClientKey(http), _ => Bucket(perMinute)));
             o.AddPolicy(Heavy, http => Internal(http)
                 ? RateLimitPartition.GetNoLimiter("exempt")
                 : RateLimitPartition.GetTokenBucketLimiter(ClientKey(http), _ => Bucket(heavyPerMinute)));
+            o.AddPolicy(Live, http => Internal(http)
+                ? RateLimitPartition.GetNoLimiter("exempt")
+                : RateLimitPartition.GetTokenBucketLimiter(ClientKey(http), _ => Bucket(livePerMinute)));
             // Formulário de suporte: poucos envios por origem e por hora, contra robôs (RateLimit:SupportPerHour).
             o.AddPolicy(Support, http => RateLimitPartition.GetFixedWindowLimiter(ClientKey(http), _ => new FixedWindowRateLimiterOptions
             {
@@ -62,6 +70,12 @@ public static class ApiRateLimits
             };
         });
     }
+
+    /// <summary>Rotas da apuração ao vivo: saem do limite global e ficam só com a política <see cref="Live"/> (e o stream SSE,
+    /// uma conexão longa por visitante, com o limite de conexões por IP do próprio hub).</summary>
+    private static bool IsLive(HttpContext http) =>
+        http.Request.Path.StartsWithSegments("/api/v1/elections", out var rest) &&
+        rest.Value?.Contains("/president/second-round", StringComparison.Ordinal) == true;
 
     /// <summary>IP de origem (após X-Forwarded-For do proxy confiável). Só particiona o limite técnico.</summary>
     private static string ClientKey(HttpContext http) => http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
