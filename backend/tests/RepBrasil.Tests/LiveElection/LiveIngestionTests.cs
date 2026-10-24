@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -131,6 +132,43 @@ public sealed class LiveIngestionTests
         frames.Clear();
         while (listener.Subscriber.Channel.Reader.TryRead(out var frame)) frames.Add(Encoding.UTF8.GetString(frame));
         Assert.Contains(frames, f => f.Contains("event: source-recovered", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Tse_client_and_its_block_cooldown_survive_session_restarts()
+    {
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(new LiveElectionOptions { Enabled = true, Mode = LiveModes.Official })
+            .AddSingleton<TimeProvider>(TimeProvider.System)
+            .AddSingleton<LiveElectionMetrics>()
+            .AddSingleton<LiveElectionHub>();
+        services.AddHttpClient(TseHttpSource.HttpClientName);
+        var provider = services.BuildServiceProvider();
+        var runtime = new LiveElectionRuntime();
+        var first = LiveElectionRegistration.CreateEngine(provider, runtime);
+        var second = LiveElectionRegistration.CreateEngine(provider, runtime);
+        Assert.Same(first.Source, second.Source);
+        Assert.Same(runtime.HttpSource, first.Source);
+    }
+
+    [Fact]
+    public async Task Rehydrated_states_version_follows_the_latest_state_snapshot()
+    {
+        var s = await StartAsync();
+        var sp = TseFixtures.Snapshot(TseFixtures.AtProgress(0.3) with { Scope = "uf", Code = "sp" });
+        var rj = TseFixtures.Snapshot(TseFixtures.AtProgress(0.3) with { Scope = "uf", Code = "rj" });
+        IReadOnlyList<(long, TerritorySnapshot)> history(long id, TerritorySnapshot snap) => [(id, snap)];
+        StoredLiveState Stored(long spId, long rjId) => new(
+            [],
+            new Dictionary<string, IReadOnlyList<(long, TerritorySnapshot)>> { ["sp"] = history(spId, sp), ["rj"] = history(rjId, rj) },
+            [],
+            [],
+            new Dictionary<string, TseConditional>());
+        var before = LiveIngestionEngine.Rehydrate(LiveElectionState.Initial(s.Hub.Current!.Context), Stored(10, 12));
+        var after = LiveIngestionEngine.Rehydrate(LiveElectionState.Initial(s.Hub.Current!.Context), Stored(10, 40));
+        Assert.Equal(12, before.StatesVersion);
+        Assert.Equal(40, after.StatesVersion);
     }
 
     [Fact]

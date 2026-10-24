@@ -48,14 +48,29 @@ public sealed class PgLiveElectionStore(NpgsqlDataSource db) : ILiveElectionStor
         return (int)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
+    /// <summary>
+    /// Grava se o conteúdo difere do ÚLTIMO snapshot da abrangência. Um retorno a um conteúdo anterior (A → B → A, por
+    /// reprocessamento do TSE) é gravado de novo: a ordem aceita é a autoridade, não a primeira aparição do conteúdo.
+    /// Só o líder grava, então a checagem e a inserção não disputam entre si.
+    /// </summary>
     public async Task<long?> SaveSnapshotAsync(int electionId, TerritorySnapshot snapshot, ReadOnlyMemory<byte>? raw, CancellationToken ct)
     {
+        await using (var last = db.CreateCommand("""
+            SELECT content_hash FROM electoral.live_snapshot
+             WHERE election_id = $1 AND scope_type = $2 AND scope_code = $3
+             ORDER BY id DESC LIMIT 1
+            """))
+        {
+            last.Parameters.AddWithValue(electionId);
+            last.Parameters.AddWithValue(snapshot.Key.ScopeName);
+            last.Parameters.AddWithValue(snapshot.Key.Code);
+            if (await last.ExecuteScalarAsync(ct) is string hash && hash == snapshot.ContentHash) return null;
+        }
         await using var cmd = db.CreateCommand("""
             INSERT INTO electoral.live_snapshot
                 (election_id, scope_type, scope_code, content_hash, payload_sha256, tse_generation_id, tse_generated_at,
                  tse_totalized_at, ingested_at, etag, last_modified, sections_totalized_pct, snapshot, raw)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            ON CONFLICT (election_id, scope_type, scope_code, content_hash) DO NOTHING
             RETURNING id
             """);
         cmd.Parameters.AddWithValue(electionId);

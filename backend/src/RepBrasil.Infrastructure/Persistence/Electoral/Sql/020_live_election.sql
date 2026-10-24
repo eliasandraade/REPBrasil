@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS live_election (
   UNIQUE (mode, environment, election_code, office_code)
 );
 
--- Snapshots normalizados (br e uf com o JSON oficial bruto; município/zona só normalizado).
+-- Snapshots normalizados (br e uf com o JSON oficial bruto). Deduplicação contra o ÚLTIMO snapshot da abrangência
+-- (feita na gravação): um retorno a um conteúdo anterior por reprocessamento do TSE é gravado de novo, na ordem.
 CREATE TABLE IF NOT EXISTS live_snapshot (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   election_id integer NOT NULL REFERENCES live_election(id),
@@ -36,8 +37,7 @@ CREATE TABLE IF NOT EXISTS live_snapshot (
   last_modified text,
   sections_totalized_pct numeric(13, 9),
   snapshot jsonb NOT NULL,
-  raw jsonb,
-  UNIQUE (election_id, scope_type, scope_code, content_hash)
+  raw jsonb
 );
 
 CREATE INDEX IF NOT EXISTS live_snapshot_scope_idx

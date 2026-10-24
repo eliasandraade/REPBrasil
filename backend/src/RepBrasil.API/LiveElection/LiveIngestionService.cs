@@ -45,6 +45,9 @@ public sealed partial class LiveIngestionService(
                 failures++;
                 runtime.LastError = $"{time.GetUtcNow():O} {e.GetType().Name}: {e.Message}";
                 var delay = TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, Math.Min(failures, 6))));
+                // TSE bloqueou (403/429): nova sessão só depois do fim da pausa — tentar antes renova o bloqueio.
+                if (runtime.HttpSource?.BlockedUntil is { } blocked && blocked > time.GetUtcNow())
+                    delay = blocked - time.GetUtcNow() + TimeSpan.FromSeconds(Random.Shared.Next(5, 30));
                 LogSessionFailed(logger, delay.TotalSeconds, e);
                 try { await Task.Delay(delay, time, stoppingToken); }
                 catch (OperationCanceledException) { break; }
@@ -213,6 +216,10 @@ public sealed partial class LiveIngestionService(
         var store = services.GetRequiredService<ILiveElectionStore>();
         var context = hub.Current!.Context;
         var electionId = await store.EnsureElectionAsync(context, ct);
+        // Sem polling: o motor da seguidora só atende pedidos explícitos (município, zona, foto, 1º turno), com o mesmo
+        // limite e cache; o que ela busca vai para o banco e o líder e as demais réplicas passam a ter.
+        runtime.Engine = engine;
+        var firstRound = FirstRoundAsync(engine, ct);
         LogFollower(logger, runtime.InstanceId);
         var signal = new SemaphoreSlim(0);
         using var listen = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -225,7 +232,8 @@ public sealed partial class LiveIngestionService(
                 while (signal.CurrentCount > 0) await signal.WaitAsync(ct);
                 var before = hub.Current!;
                 var stored = await store.LoadAsync(electionId, ct);
-                var next = LiveIngestionEngine.Rehydrate(LiveElectionState.Initial(context) with { FirstRound = before.FirstRound, NationalAccompaniment = before.NationalAccompaniment, StateAccompaniment = before.StateAccompaniment }, stored);
+                var latest = hub.Current!;
+                var next = LiveIngestionEngine.Rehydrate(LiveElectionState.Initial(context) with { FirstRound = latest.FirstRound, NationalAccompaniment = latest.NationalAccompaniment, StateAccompaniment = latest.StateAccompaniment }, stored);
                 next = next with { Phase = LivePhases.Resolve(new PhaseInput(next.National, false, false, time.GetUtcNow(), context.TotalizationStartsAt)) };
                 hub.Replace(next);
                 if (next.NationalVersion != before.NationalVersion)
@@ -238,8 +246,11 @@ public sealed partial class LiveIngestionService(
         }
         finally
         {
+            runtime.Engine = null;
             await listen.CancelAsync();
             try { await listener; }
+            catch (OperationCanceledException) { /* encerramento */ }
+            try { await firstRound; }
             catch (OperationCanceledException) { /* encerramento */ }
         }
     }

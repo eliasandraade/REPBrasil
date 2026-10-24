@@ -212,7 +212,8 @@ public sealed partial class LiveIngestionEngine
         {
             National = national,
             NationalVersion = version,
-            StatesVersion = states.Count,
+            // Maior id de snapshot de UF: muda a cada snapshot novo (réplicas seguidoras publicam state-update por ela).
+            StatesVersion = stored.StateHistories.Count == 0 ? 0 : stored.StateHistories.Values.Max(h => h[^1].Id),
             States = states.ToImmutable(),
             StateTimelines = stateTimelines.ToImmutable(),
             Municipalities = municipalities.ToImmutable(),

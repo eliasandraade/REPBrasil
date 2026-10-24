@@ -140,6 +140,9 @@ public sealed class LiveElectionRuntime
 
     public ReplaySource? Replay { get; set; }
 
+    /// <summary>Cliente do TSE do processo (não da sessão): o bloqueio de 11 min e os recuos valem entre sessões.</summary>
+    public TseHttpSource? HttpSource { get; set; }
+
     public PgLiveCoordinator? Coordinator { get; init; }
 
     public bool IsLeader { get; set; }
@@ -229,8 +232,13 @@ public static class LiveElectionRegistration
         }
         else
         {
-            var http = services.GetRequiredService<IHttpClientFactory>().CreateClient(TseHttpSource.HttpClientName);
-            source = new TseHttpSource(http, options, metrics, time, services.GetRequiredService<ILogger<TseHttpSource>>());
+            runtime.HttpSource ??= new TseHttpSource(
+                services.GetRequiredService<IHttpClientFactory>().CreateClient(TseHttpSource.HttpClientName),
+                options,
+                metrics,
+                time,
+                services.GetRequiredService<ILogger<TseHttpSource>>());
+            source = runtime.HttpSource;
         }
         var engine = new LiveIngestionEngine(
             source,

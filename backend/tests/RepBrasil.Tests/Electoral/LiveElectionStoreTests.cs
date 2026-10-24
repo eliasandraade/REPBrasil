@@ -51,6 +51,22 @@ public sealed class LiveElectionStoreTests
     }
 
     [ElectoralSchemaFact]
+    public async Task Return_to_a_previous_result_is_persisted_in_order()
+    {
+        await using var db = Db();
+        var store = new PgLiveElectionStore(db);
+        var id = await store.EnsureElectionAsync(Context(), Ct);
+        var a = TseFixtures.Snapshot(TseFixtures.AtProgress(0.6));
+        var b = TseFixtures.Snapshot(TseFixtures.AtProgress(0.61));
+        Assert.NotNull(await store.SaveSnapshotAsync(id, a, null, Ct));
+        Assert.NotNull(await store.SaveSnapshotAsync(id, b, null, Ct));
+        Assert.NotNull(await store.SaveSnapshotAsync(id, a, null, Ct)); // reprocessamento: o TSE voltou ao resultado A
+        var loaded = await store.LoadAsync(id, Ct);
+        Assert.Equal(3, loaded.NationalHistory.Count);
+        Assert.Equal(a.ContentHash, loaded.NationalHistory[^1].Snapshot.ContentHash);
+    }
+
+    [ElectoralSchemaFact]
     public async Task Audit_trail_is_immutable()
     {
         await using var db = Db();
