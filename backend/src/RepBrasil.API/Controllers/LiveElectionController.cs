@@ -243,7 +243,7 @@ public sealed class LiveElectionController(LiveElectionHub hub, LiveElectionRunt
     /// source-recovered e timeline-event, cada um com id. Comentários a cada 15 s mantêm a conexão viva.
     /// </summary>
     [HttpGet("stream")]
-    [DisableRateLimiting]
+    [EnableRateLimiting(ApiRateLimits.LiveStream)]
     public async Task Stream(int year, CancellationToken ct)
     {
         if (!TryState(year, out var s))
@@ -251,9 +251,9 @@ public sealed class LiveElectionController(LiveElectionHub hub, LiveElectionRunt
             Response.StatusCode = options.Enabled && year == options.Year ? StatusCodes.Status503ServiceUnavailable : StatusCodes.Status404NotFound;
             return;
         }
-        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var origin = LiveClientKey.For(HttpContext.Connection.RemoteIpAddress);
         var lastEventId = Request.Headers["Last-Event-ID"].FirstOrDefault() ?? Request.Query["lastEventId"].FirstOrDefault();
-        var subscription = hub.Subscribe(ip, lastEventId);
+        var subscription = hub.Subscribe(origin, lastEventId);
         if (subscription is null)
         {
             Response.StatusCode = StatusCodes.Status429TooManyRequests;

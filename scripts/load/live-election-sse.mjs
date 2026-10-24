@@ -7,7 +7,8 @@
  * o número de visitantes não pode aumentar as requisições ao TSE (condição arquitetural).
  *
  * Uso (API local em modo replay — nunca contra produção sem combinar):
- *   ELECTION_SSE_MAX_PER_IP=20000 (na API, porque todas as conexões saem do mesmo IP)
+ *   ELECTION_SSE_MAX_PER_IP=20000 e RateLimit__LiveStreamPerMinute=100000 (na API, porque todas as conexões saem
+ *   do mesmo IP e abrem quase juntas)
  *   node scripts/load/live-election-sse.mjs --api http://localhost:5320 --clients 1000 --seconds 60
  *   node scripts/load/live-election-sse.mjs --api http://localhost:5320 --clients 5000 --seconds 60
  *   node scripts/load/live-election-sse.mjs --api http://localhost:5320 --clients 10000 --seconds 90 --ramp 20

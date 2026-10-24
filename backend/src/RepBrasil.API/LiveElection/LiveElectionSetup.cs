@@ -124,9 +124,12 @@ public static class LiveElectionConfiguration
             StaleAfter = Duration("ELECTION_STALE_AFTER", "StaleAfter", defaults.StaleAfter, TimeSpan.FromSeconds(30), TimeSpan.FromHours(1)),
             ReplaySpeed = speed,
             ReplayOutage = outage,
+            ReplayEnvironment = string.IsNullOrWhiteSpace(Raw("ELECTION_REPLAY_ENVIRONMENT", "ReplayEnvironment")) ? null : Raw("ELECTION_REPLAY_ENVIRONMENT", "ReplayEnvironment")!.Trim(),
             ReplayStep = Duration("ELECTION_REPLAY_STEP", "ReplayStep", defaults.ReplayStep, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(30)),
             MaxSseConnections = Int("ELECTION_SSE_MAX_CONNECTIONS", "MaxSseConnections", defaults.MaxSseConnections, 10, 200_000),
             MaxSsePerIp = Int("ELECTION_SSE_MAX_PER_IP", "MaxSsePerIp", defaults.MaxSsePerIp, 1, 200_000),
+            MaxSsePerIpUnderPressure = Int("ELECTION_SSE_MAX_PER_IP_UNDER_PRESSURE", "MaxSsePerIpUnderPressure", defaults.MaxSsePerIpUnderPressure, 1, 200_000),
+            FollowerSyncInterval = Duration("ELECTION_FOLLOWER_SYNC_INTERVAL", "FollowerSyncInterval", defaults.FollowerSyncInterval, TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(30)),
         };
     }
 }
@@ -146,6 +149,10 @@ public sealed class LiveElectionRuntime
     public PgLiveCoordinator? Coordinator { get; init; }
 
     public bool IsLeader { get; set; }
+
+    /// <summary>"leader" (grava), "uncoordinated" (banco fora: ingere sem gravar), "follower" (lê do banco), "standalone"
+    /// (sem banco configurado) ou "idle" (entre sessões).</summary>
+    public string Role { get; set; } = "idle";
 
     public string? LastError { get; set; }
 
@@ -205,8 +212,10 @@ public static class LiveElectionRegistration
                 CommandTimeout = 15,
             };
             services.AddKeyedSingleton<NpgsqlDataSource>("live-election", (_, _) => NpgsqlDataSource.Create(builder.ConnectionString));
-            services.AddSingleton<ILiveElectionStore>(sp => new PgLiveElectionStore(sp.GetRequiredKeyedService<NpgsqlDataSource>("live-election")));
-            services.AddSingleton(sp => new LiveElectionRuntime { Coordinator = new PgLiveCoordinator(sp.GetRequiredKeyedService<NpgsqlDataSource>("live-election")) });
+            services.AddSingleton(sp => new PgLiveCoordinator(sp.GetRequiredKeyedService<NpgsqlDataSource>("live-election")));
+            // A trilha só é gravada pela conexão do advisory lock (a do coordenador): só a líder escreve.
+            services.AddSingleton<ILiveElectionStore>(sp => new PgLiveElectionStore(sp.GetRequiredKeyedService<NpgsqlDataSource>("live-election"), sp.GetRequiredService<PgLiveCoordinator>()));
+            services.AddSingleton(sp => new LiveElectionRuntime { Coordinator = sp.GetRequiredService<PgLiveCoordinator>() });
         }
         else
         {
@@ -217,8 +226,9 @@ public static class LiveElectionRegistration
         return services;
     }
 
-    /// <summary>Monta o motor da sessão: fonte HTTP do TSE (official/simulation) ou replay sintético.</summary>
-    public static LiveIngestionEngine CreateEngine(IServiceProvider services, LiveElectionRuntime runtime)
+    /// <summary>Monta o motor da sessão: fonte HTTP do TSE (official/simulation) ou replay sintético. Só a líder
+    /// coordenada grava (<paramref name="persist"/>).</summary>
+    public static LiveIngestionEngine CreateEngine(IServiceProvider services, LiveElectionRuntime runtime, bool persist = true)
     {
         var options = services.GetRequiredService<LiveElectionOptions>();
         var time = services.GetRequiredService<TimeProvider>();
@@ -247,7 +257,10 @@ public static class LiveElectionRegistration
             effective,
             metrics,
             time,
-            services.GetRequiredService<ILoggerFactory>().CreateLogger("RepBrasil.LiveElection"));
+            services.GetRequiredService<ILoggerFactory>().CreateLogger("RepBrasil.LiveElection"))
+        {
+            Persist = persist,
+        };
         if (runtime.Replay is not null) engine.ReplayEnvironment = runtime.Replay.EnvironmentName;
         return engine;
     }

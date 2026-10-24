@@ -38,10 +38,19 @@ public sealed record LiveElectionOptions
     public double ReplaySpeed { get; init; } = 10;
     public TimeSpan ReplayStep { get; init; } = TimeSpan.FromSeconds(60);
     public int MaxSseConnections { get; init; } = 20_000;
-    /// <summary>Alto de propósito: operadoras móveis usam CGNAT e muitos visitantes compartilham um IP.</summary>
-    public int MaxSsePerIp { get; init; } = 256;
+    /// <summary>
+    /// Por origem (IPv4, ou o /64 de um IPv6). Alto de propósito: operadoras móveis usam CGNAT e muitos visitantes
+    /// compartilham um IP. Com o servidor sob pressão (80% de <see cref="MaxSseConnections"/>), vale o teto menor
+    /// <see cref="MaxSsePerIpUnderPressure"/>: as vagas que restam ficam para origens distintas.
+    /// </summary>
+    public int MaxSsePerIp { get; init; } = 2_000;
+    public int MaxSsePerIpUnderPressure { get; init; } = 256;
+    /// <summary>Réplica seguidora: leitura incremental do banco a cada aviso da líder ou, sem aviso, neste intervalo.</summary>
+    public TimeSpan FollowerSyncInterval { get; init; } = TimeSpan.FromSeconds(2);
     /// <summary>Replay: quadros em que a "fonte" fica fora do ar (teste de fonte indisponível e recuperação).</summary>
     public (int From, int To)? ReplayOutage { get; init; }
+    /// <summary>Só para testes com mais de uma réplica em replay: nome fixo do ambiente (todas leem e gravam a mesma eleição).</summary>
+    public string? ReplayEnvironment { get; init; }
     public TimeSpan SseHeartbeat { get; init; } = TimeSpan.FromSeconds(15);
 
     public int EffectiveMaxRequestsPerSecond => Math.Clamp(MaxRequestsPerSecond, 1, HardMaxRequestsPerSecond);
@@ -198,6 +207,11 @@ public sealed record MathTracking(
     public static readonly MathTracking Empty = new(null, null, null, null);
 }
 
+/// <summary>
+/// Saúde do arquivo nacional. Três instantes distintos: LastCheckedAt = última tentativa (qualquer resultado);
+/// LastSuccessAt = última resposta válida (200 ou 304); LastChangeAt = última vez em que o CONTEÚDO mudou (hash do
+/// snapshot). Respostas 200 repetidas com o mesmo conteúdo não contam como mudança: é ela que define a defasagem.
+/// </summary>
 public sealed record SourceHealth(
     bool Healthy,
     bool Stale,
@@ -306,29 +320,65 @@ public interface ITseSource
     Task<TseFetchResult> FetchAsync(Uri url, TseConditional? conditional, TsePriority priority, CancellationToken ct);
 }
 
-/// <summary>Estado persistido carregado na partida (ou por réplicas seguidoras).</summary>
-public sealed record StoredLiveState(
-    IReadOnlyList<(long Id, TerritorySnapshot Snapshot)> NationalHistory,
-    IReadOnlyDictionary<string, IReadOnlyList<(long Id, TerritorySnapshot Snapshot)>> StateHistories,
+/// <summary>Posição da leitura incremental: maior id (snapshots, eventos) ou revision (último valor) já aplicado.</summary>
+public sealed record LiveCursor(long Snapshot, long Event, long Territory, long Accompaniment, long Source)
+{
+    public static readonly LiveCursor Start = new(0, 0, 0, 0, 0);
+}
+
+/// <summary>Evento persistido com o id do snapshot nacional que o originou (evidência do md=e, votos da troca de liderança).</summary>
+public sealed record StoredEvent(LiveEvent Event, long? SnapshotId);
+
+/// <summary>
+/// Linhas gravadas depois de um cursor, em ordem de gravação e numa única leitura consistente do banco. A partida
+/// lê do início (em páginas); a réplica seguidora lê só o que veio depois do último cursor — o custo de cada
+/// sincronização depende do que mudou, nunca do tamanho do histórico.
+/// </summary>
+public sealed record StoredChanges(
+    IReadOnlyList<(long Id, TerritorySnapshot Snapshot)> Snapshots,
+    IReadOnlyList<StoredEvent> Events,
     IReadOnlyList<TerritorySnapshot> Territories,
-    IReadOnlyList<LiveEvent> Events,
-    IReadOnlyDictionary<string, TseConditional> Conditionals);
+    IReadOnlyList<(string Scope, AccompanimentFile File)> Accompaniments,
+    SourceHealth? Source,
+    LiveCursor Cursor,
+    bool More)
+{
+    public static StoredChanges Empty(LiveCursor cursor) => new([], [], [], [], null, cursor, false);
+
+    public int Rows => Snapshots.Count + Events.Count + Territories.Count + Accompaniments.Count + (Source is null ? 0 : 1);
+}
+
+/// <summary>Gravação recusada porque esta réplica não detém a liderança: só a líder escreve na trilha.</summary>
+public sealed class LiveLeadershipLostException(string message, Exception? inner = null) : InvalidOperationException(message, inner);
 
 public interface ILiveElectionStore
 {
     Task<int> EnsureElectionAsync(LiveElectionContext context, CancellationToken ct);
 
-    /// <summary>Grava o snapshot se o conteúdo for novo (hash). Retorna o id, ou null quando já existia (deduplicado).</summary>
+    /// <summary>Só leitura (réplicas seguidoras): id da eleição registrada pela líder, ou null se ainda não existe.</summary>
+    Task<int?> FindElectionAsync(LiveElectionContext context, CancellationToken ct);
+
+    /// <summary>Grava o snapshot se o conteúdo difere do último da abrangência. Retorna o id, ou null (deduplicado).</summary>
     Task<long?> SaveSnapshotAsync(int electionId, TerritorySnapshot snapshot, ReadOnlyMemory<byte>? raw, CancellationToken ct);
 
     Task SaveTerritoryLatestAsync(int electionId, TerritorySnapshot snapshot, CancellationToken ct);
+
+    /// <summary>Último EA14 ('br') ou EA15 (UF) recebido; as seguidoras o leem em vez de consultar o TSE.</summary>
+    Task SaveAccompanimentAsync(int electionId, string scope, AccompanimentFile file, string contentHash, DateTimeOffset ingestedAt, CancellationToken ct);
+
+    /// <summary>Saúde da fonte vista pela líder (as seguidoras exibem a mesma fase).</summary>
+    Task SaveSourceHealthAsync(int electionId, SourceHealth health, CancellationToken ct);
 
     /// <summary>Grava o evento (imutável). Retorna o id, ou null quando a chave de deduplicação já existia.</summary>
     Task<long?> SaveEventAsync(int electionId, LiveEvent liveEvent, long? snapshotId, CancellationToken ct);
 
     Task SaveSourceStateAsync(int electionId, string url, TseConditional conditional, int httpStatus, DateTimeOffset at, bool changed, CancellationToken ct);
 
-    Task<StoredLiveState> LoadAsync(int electionId, CancellationToken ct);
+    /// <summary>O que foi gravado depois de <paramref name="after"/> (no máximo <paramref name="limit"/> linhas por tabela).</summary>
+    Task<StoredChanges> LoadChangesAsync(int electionId, LiveCursor after, int limit, CancellationToken ct);
+
+    /// <summary>ETag/Last-Modified por URL (o GET condicional sobrevive a reinícios).</summary>
+    Task<IReadOnlyDictionary<string, TseConditional>> LoadConditionalsAsync(int electionId, CancellationToken ct);
 
     Task<(byte[] Content, string ContentType)?> LoadPhotoAsync(string sqcand, CancellationToken ct);
 

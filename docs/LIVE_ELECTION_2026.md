@@ -44,15 +44,43 @@ O Railway do REPBrasil não tem Redis. A coordenação usa o PostgreSQL existent
 | Função | Mecanismo |
 |---|---|
 | Poller único entre réplicas | `pg_try_advisory_lock` numa conexão dedicada; caiu a conexão, caiu a liderança |
-| Aviso às réplicas seguidoras | `NOTIFY repbrasil_live_election` → seguidoras recarregam o estado do banco |
-| Estado atual | memória da réplica (troca atômica) + PostgreSQL (reidratação em reinício/deploy) |
+| Única escritora | a trilha (snapshots, eventos, municípios/zonas, EA14/EA15, saúde da fonte) só é gravada **pela conexão que detém o lock**, uma gravação por vez |
+| Aviso às réplicas seguidoras | `NOTIFY repbrasil_live_election` → a seguidora lê do banco só o que veio depois do último cursor (e, sem aviso, a cada 2 s) |
+| Estado atual | memória da réplica (troca atômica) + PostgreSQL (carga em páginas na partida, deploy ou promoção) |
 | ETag / Last-Modified | memória + `electoral.live_source_state` |
 | Limite de requisições ao TSE | ritmo uniforme na própria réplica líder (só ela lê o TSE) |
 
-**Banco fora do ar** não para a apuração. A réplica segue em memória, registra alerta e volta a disputar o lock a cada 30 s.
-A eleição é registrada no banco assim que ele voltar.
+**Por que a conexão do lock é a única escritora.** O lock e a gravação são a mesma sessão do PostgreSQL:
+- se a sessão cai (rede, reinício do banco), o servidor solta o lock **e** nenhuma gravação dela é mais confirmada;
+- enquanto ela vive, nenhuma outra réplica obtém o lock;
+- não existe janela em que duas réplicas gravem, nem nos segundos depois de o banco voltar de uma queda;
+- como as gravações são sequenciais, a ordem dos ids/revisions é a ordem de commit — é o que deixa a seguidora ler
+  "depois do cursor" sem perder linha.
 
-Os snapshots e eventos do período sem banco ficam só em memória: os eventos ganham id negativo e o alerta registra a lacuna.
+Sem a liderança, toda gravação é recusada (`LiveLeadershipLostException`, alerta `leadership` uma vez); a réplica continua
+servindo da memória até o vigia da liderança (5 s) reiniciar a sessão.
+
+**Banco fora do ar** não para a apuração:
+- a réplica ingere do TSE e serve da memória, **sem gravar nada** (sessão "uncoordinated"), e registra alerta;
+- a cada 30 s ela tenta o lock;
+- quando o banco volta, essa sessão é descartada. Com o lock, a réplica reinicia como líder, carregando o estado do banco;
+  as transições do período sem banco (`md=e`, marcos, final) são detectadas de novo contra o que está gravado e gravadas
+  com a evidência. Sem o lock, reinicia como seguidora.
+
+Duas réplicas que ingeriram sem coordenação nunca gravam a mesma transição: só a dona do lock grava.
+
+**Seguidora (leitura incremental).** Ela não consulta o TSE por conta própria e não grava nada. Numa única leitura
+REPEATABLE READ, ela lê:
+- snapshots `br`/`uf` com id maior que o cursor;
+- eventos novos, com o snapshot que os originou;
+- municípios/zonas e arquivos EA14/EA15 com revision nova;
+- a saúde da fonte gravada pela líder.
+
+O custo de cada sincronização é o que mudou, nunca o tamanho do histórico. A seguidora publica no SSE os mesmos eventos
+que a líder (`national-update`, `state-update`, `candidate-update`, `timeline-event`, `lead-change`,
+`mathematically-defined`, `finalized`, `source-stale`/`source-recovered`), com a mesma fase.
+
+Pedidos de visitantes que a seguidora atende sob demanda (município, zona, foto, 1º turno) ficam na memória dela.
 
 ## Fontes oficiais do TSE
 
@@ -131,7 +159,13 @@ No pré-eleição, o EA15 do Ceará (`dg` 10/10) trazia 4,47 milhões de eleitor
   - recuo exponencial com jitter por URL (1 s a 60 s);
   - disjuntor global após 8 falhas seguidas (30 s);
   - erro determinístico (contrato) não é repetido.
-- **Fonte falhando (3 falhas seguidas no nacional) ou sem arquivo novo por 5 min durante a apuração:**
+- **Três instantes distintos da fonte:**
+  - `LastCheckedAt`: última tentativa, qualquer resultado;
+  - `LastSuccessAt`: última resposta válida (200 ou 304);
+  - `LastChangeAt`: última vez em que o **conteúdo** mudou (hash do snapshot).
+
+  Um 200 com o mesmo conteúdo (arquivo regerado) avança as duas primeiras e não a última.
+- **Fonte falhando (3 falhas seguidas no nacional) ou conteúdo nacional parado por 5 min durante a apuração:**
   - a fase vira `LIVE_STALE`;
   - o último snapshot continua no ar;
   - a página mostra "Última atualização oficial recebida às HH:mm. Aguardando nova atualização da fonte.";
@@ -146,17 +180,20 @@ No pré-eleição, o EA15 do Ceará (`dg` 10/10) trazia 4,47 milhões de eleitor
 
 | Tabela | Conteúdo |
 |---|---|
-| `live_election` | uma linha por modo + ambiente + eleição (oficial, simulado e cada sessão de replay nunca se misturam) |
+| `live_election` | uma linha por modo + ambiente + eleição (oficial, simulado e cada sessão de replay nunca se misturam), com a saúde da fonte vista pela líder (`source_health`, `source_revision`) |
 | `live_snapshot` | snapshots `br` e `uf` normalizados + JSON oficial bruto; único por hash de conteúdo; **imutável** (trigger) |
-| `live_territory_latest` | último resultado de cada município/zona (alta cardinalidade, sem histórico completo) |
+| `live_territory_latest` | último resultado de cada município/zona (alta cardinalidade, sem histórico completo); `revision` para a leitura incremental |
+| `live_accompaniment` | último EA14 (`br`) e EA15 (cada UF); `revision` para a leitura incremental |
 | `live_event` | trilha de auditoria (troca de liderança, `md=e`, `tf=s`, reprocessamento, correção, alertas internos); idempotente por chave; **imutável** |
 | `live_source_state` | ETag/Last-Modified por URL |
 | `live_candidate_photo` | foto oficial (bytea), uma por `sqcand` |
 
 **Volume esperado:**
-- um snapshot nacional por mudança real (centenas na noite);
+- um snapshot nacional por mudança real (centenas a alguns milhares na noite);
 - UFs: 28 × centenas;
 - municípios: 5.571 linhas sobrescritas.
+
+O que foi medido no teste de longa duração está na seção "Teste de longa duração".
 
 **Auditoria do `md=e`:** o evento `md-e` guarda:
 - horário do TSE (`dt`/`ht`) e horário de recebimento;
@@ -270,10 +307,26 @@ A `meta` traz:
 - **Ids:** cada evento tem id `boot:seq`.
 - **Reconexão com `Last-Event-ID`** desta instância ainda no buffer (512 eventos): só os perdidos são reenviados. Fora disso, um `snapshot` completo é enviado.
 - **No cliente:** ao reconectar ou voltar do segundo plano, ele relê `/summary` e `/states`. Nunca depende só de eventos perdidos.
-- **Limites:**
-  - 20.000 conexões por réplica;
-  - 256 por IP, alto de propósito por causa do CGNAT das operadoras móveis;
-  - conexão lenta (fila cheia) é fechada, e o cliente reconecta e recebe o snapshot.
+- **Linha do tempo servida:** no máximo 480 pontos (um por faixa de tempo, mais o primeiro e o último). Horas de
+  apuração com um arquivo novo por segundo não viram megabytes por visitante.
+
+### Limites de conexão (decisão)
+
+Objetivo: não barrar visitantes atrás de CGNAT (operadoras móveis, redes corporativas) e ainda conter abuso.
+
+| Camada | Regra | Padrão |
+|---|---|---|
+| Teto global por réplica | protege a memória; acima dele, 429 | `ELECTION_SSE_MAX_CONNECTIONS=20000` |
+| Por origem, normal | origem = endereço IPv4, ou o **/64** de um IPv6 (quem tem um /64 trocaria de endereço à vontade) | `ELECTION_SSE_MAX_PER_IP=2000` |
+| Por origem, sob pressão | com a réplica acima de 80% do teto global, uma origem que já tem esse número não abre mais: as vagas restantes ficam para origens distintas | `ELECTION_SSE_MAX_PER_IP_UNDER_PRESSURE=256` |
+| Aberturas do stream | balde por origem contra laço de reconexão e abre-e-fecha para baixar o snapshot (a conexão aberta conta uma vez) | `RateLimit:LiveStreamPerMinute=1200` |
+| REST da apuração | balde por origem (IPv6 por /64); leitura em memória, ETag e `max-age=2` | `RateLimit:LivePerMinute=6000` |
+| Conexão lenta | fila de 64 mensagens por conexão; cheia, a conexão é fechada (o cliente reconecta e recebe snapshot ou só o que perdeu); o Kestrel também derruba quem lê abaixo de 240 B/s | — |
+| Cliente recusado | o navegador tenta de novo com recuo (até 30 s); a partir da 2ª recusa seguida, relê `/summary` e `/states` a cada tentativa e continua atualizado sem SSE | — |
+
+Por que não um teto baixo por IP: um IP de CGNAT pode reunir centenas de visitantes legítimos. Por que não só o global:
+um único cliente com defeito ocuparia tudo. O teto sob pressão divide a capacidade que resta entre origens distintas.
+Ataque distribuído (muitos IPs) é assunto da borda (Railway/CDN), não destes limites.
 
 ## Modos
 
@@ -308,8 +361,9 @@ A `meta` traz:
 | `ELECTION_TOTALIZATION_START` | `17:00` |
 | `ELECTION_EXPECTED_CODE` / `ELECTION_EXPECTED_PLEITO` / `ELECTION_EXPECTED_FIRST_ROUND_CODE` | `6258` / `3221` / `6257` (só para alerta) |
 | `ELECTION_REPLAY_SPEED` / `ELECTION_REPLAY_STEP` / `ELECTION_REPLAY_OUTAGE` | `10` / `60s` / — |
-| `ELECTION_SSE_MAX_CONNECTIONS` / `ELECTION_SSE_MAX_PER_IP` | `20000` / `256` |
-| `RateLimit:LivePerMinute` | `6000` por IP nas rotas da apuração |
+| `ELECTION_SSE_MAX_CONNECTIONS` / `ELECTION_SSE_MAX_PER_IP` / `ELECTION_SSE_MAX_PER_IP_UNDER_PRESSURE` | `20000` / `2000` / `256` |
+| `ELECTION_FOLLOWER_SYNC_INTERVAL` | `2s` (leitura incremental da seguidora sem aviso da líder) |
+| `RateLimit:LivePerMinute` / `RateLimit:LiveStreamPerMinute` | `6000` / `1200` por origem (IPv4, ou /64 do IPv6) |
 
 Nenhuma chave de API: os arquivos do TSE são públicos.
 
@@ -338,6 +392,22 @@ REPBRASIL_WEB_URL=http://localhost:3100 REPBRASIL_API_URL=http://localhost:5320 
 node scripts/load/live-election-sse.mjs --api http://localhost:5320 --clients 5000 --seconds 60
 ```
 
+## Teste de longa duração
+
+`LiveElectionLongRunTests` roda no job de banco do CI, contra PostgreSQL 18 + PostGIS:
+- cerca de 4 h de apuração simulada (replay com `durationScale` 70 e quadros de 2 s);
+- milhares de arquivos nacionais novos (um por quadro) e de snapshots de UF;
+- líder gravando pela conexão do lock, seguidora lendo por cursor, um assinante SSE em cada réplica.
+
+O teste falha se:
+- o fim custar mais que 3× o começo, por ciclo da líder ou da seguidora;
+- a memória crescer mais de 256 MB;
+- uma sincronização ler mais de 64 linhas, ou o total lido passar do que foi gravado;
+- a seguidora (ou uma réplica nova reidratada do banco) terminar diferente da líder;
+- a linha do tempo servida passar de 256 KB ou o `national-update` crescer com o histórico.
+
+Os números de cada execução saem no log do teste.
+
 ## Ativação em produção (Railway, serviço `back-v2`)
 
 1. **Deploy** desta versão. A migration `AddLiveElection` é aplicada na partida (`MigrateOnStartup=true`).
@@ -360,6 +430,7 @@ node scripts/load/live-election-sse.mjs --api http://localhost:5320 --clients 50
 | Fase `LIVE_STALE` | TSE sem arquivo novo há 5 min, ou falhas seguidas | health interno → `source`; pode ser só a cadência do TSE |
 | Alerta `tse_blocked` | 403/429 do TSE | **não** reiniciar em laço: a pausa de 11 min evita renovar o bloqueio; reduzir `ELECTION_MAX_RPS` |
 | Alerta `tse_404_burst` | URLs inexistentes (ex.: código fora do EA12) | conferir o EA12 da eleição; a varredura de fundo já pausou |
-| Alerta `postgres` | banco indisponível | a apuração segue em memória; investigar o `postgis18` |
+| Alerta `postgres` | banco indisponível | a apuração segue em memória sem gravar; ao voltar, a réplica reinicia como líder ou seguidora; investigar o `postgis18` |
+| Alerta `leadership` | esta réplica perdeu o lock e teve uma gravação recusada | esperado numa troca de liderança; a sessão reinicia sozinha (health: `role`) |
 | Alerta `contract` | arquivo fora do leiaute | ver o evento `contract-error`; o último snapshot válido continua no ar |
 | Municípios com resultado defasado | EA15 desatualizado no TSE | capitais e maiores eleitorados renovam por tempo; detalhe sob demanda usa TTL de 20 s |

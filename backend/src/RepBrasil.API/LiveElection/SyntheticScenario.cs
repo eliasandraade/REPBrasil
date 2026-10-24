@@ -87,6 +87,7 @@ public sealed class SyntheticScenario
     };
 
     private readonly DateTimeOffset start;
+    private readonly int scale;
     private readonly int lastCountingFrame;
     private readonly int finalFrame;
     private readonly int? thresholdFrame;
@@ -95,10 +96,13 @@ public sealed class SyntheticScenario
 
     /// <param name="start">Horário (Brasília) do quadro 0, antes da divulgação.</param>
     /// <param name="step">Intervalo de tempo "oficial" entre quadros.</param>
-    public SyntheticScenario(DateTimeOffset start, TimeSpan step)
+    /// <param name="durationScale">Multiplica a duração da apuração em quadros (teste de longa duração: com 140 e quadros
+    /// de 1 s, são cerca de 4 h e mais de 14 mil mudanças do arquivo nacional).</param>
+    public SyntheticScenario(DateTimeOffset start, TimeSpan step, int durationScale = 1)
     {
         this.start = start.ToOffset(TseValues.BrasiliaOffset);
         Step = step;
+        scale = Math.Max(1, durationScale);
         var index = 0;
         foreach (var (uf, thousands, lean, _, _) in Ufs)
         {
@@ -117,7 +121,7 @@ public sealed class SyntheticScenario
             municipalitiesByUf[uf] = list;
             index++;
         }
-        lastCountingFrame = Ufs.Max(u => u.Delay + u.Duration);
+        lastCountingFrame = Ufs.Max(u => u.Delay + u.Duration) * scale;
         finalFrame = lastCountingFrame + 2;
         thresholdFrame = Enumerable.Range(0, lastCountingFrame + 1).Cast<int?>().FirstOrDefault(f => IndependentlyIrreversible(f!.Value));
     }
@@ -151,10 +155,10 @@ public sealed class SyntheticScenario
 
     // ------------------------------------------------------------------ modelo
 
-    private static double Fraction(string uf, int frame)
+    private double Fraction(string uf, int frame)
     {
         var u = Ufs.First(x => x.Uf == uf);
-        var p = Math.Clamp((frame - u.Delay) / (double)u.Duration, 0, 1);
+        var p = Math.Clamp((frame - (u.Delay * scale)) / (double)(u.Duration * scale), 0, 1);
         return p <= 0 ? 0 : p >= 1 ? 1 : 1 - Math.Pow(1 - p, 1.6);
     }
 
@@ -195,14 +199,16 @@ public sealed class SyntheticScenario
 
     private DateTimeOffset FrameTime(int frame) => start + Step * frame;
 
+    /// <summary>Último quadro em que a UF mudou: antes do início, nenhum; depois do fim, o quadro final dela.</summary>
     private int LastChange(string? uf, int frame)
     {
         if (frame <= 0) return 0;
         var f = Math.Min(frame, lastCountingFrame);
         if (uf is null) return f;
-        var p = Fraction(uf, f);
-        while (f > 0 && Math.Abs(Fraction(uf, f - 1) - p) < 1e-12) f--;
-        return f;
+        var u = Ufs.First(x => x.Uf == uf);
+        var begin = u.Delay * scale;
+        var end = (u.Delay + u.Duration) * scale;
+        return f <= begin ? 0 : Math.Min(f, end);
     }
 
     // ------------------------------------------------------------------ arquivos

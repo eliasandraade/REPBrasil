@@ -158,15 +158,9 @@ public sealed class LiveIngestionTests
         var s = await StartAsync();
         var sp = TseFixtures.Snapshot(TseFixtures.AtProgress(0.3) with { Scope = "uf", Code = "sp" });
         var rj = TseFixtures.Snapshot(TseFixtures.AtProgress(0.3) with { Scope = "uf", Code = "rj" });
-        IReadOnlyList<(long, TerritorySnapshot)> history(long id, TerritorySnapshot snap) => [(id, snap)];
-        StoredLiveState Stored(long spId, long rjId) => new(
-            [],
-            new Dictionary<string, IReadOnlyList<(long, TerritorySnapshot)>> { ["sp"] = history(spId, sp), ["rj"] = history(rjId, rj) },
-            [],
-            [],
-            new Dictionary<string, TseConditional>());
-        var before = LiveIngestionEngine.Rehydrate(LiveElectionState.Initial(s.Hub.Current!.Context), Stored(10, 12));
-        var after = LiveIngestionEngine.Rehydrate(LiveElectionState.Initial(s.Hub.Current!.Context), Stored(10, 40));
+        StoredChanges Stored(long spId, long rjId) => StoredChanges.Empty(LiveCursor.Start) with { Snapshots = [(spId, sp), (rjId, rj)] };
+        var before = LiveIngestionEngine.Apply(LiveElectionState.Initial(s.Hub.Current!.Context), Stored(10, 12), adoptSourceHealth: false).State;
+        var after = LiveIngestionEngine.Apply(LiveElectionState.Initial(s.Hub.Current!.Context), Stored(10, 40), adoptSourceHealth: false).State;
         Assert.Equal(12, before.StatesVersion);
         Assert.Equal(40, after.StatesVersion);
     }

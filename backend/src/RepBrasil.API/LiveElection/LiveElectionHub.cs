@@ -23,7 +23,7 @@ public sealed class LiveElectionHub(LiveElectionOptions options, LiveElectionMet
     private readonly ConcurrentDictionary<string, int> perIp = new(StringComparer.Ordinal);
     private readonly (long Seq, byte[] Frame)[] ring = new (long, byte[])[RingSize];
     private readonly object ringLock = new();
-    private readonly string boot = Guid.NewGuid().ToString("N")[..8];
+    private string boot = Guid.NewGuid().ToString("N")[..8];
     private LiveElectionState? state;
     private Views? views;
     private long sequence;
@@ -32,7 +32,17 @@ public sealed class LiveElectionHub(LiveElectionOptions options, LiveElectionMet
 
     public LiveElectionState? Current => Volatile.Read(ref state);
 
-    public string BootId => boot;
+    public string BootId => Volatile.Read(ref boot);
+
+    /// <summary>
+    /// Nova época do estado servido: a versão vai recomeçar abaixo da que os clientes têm (outra eleição no replay, ou o
+    /// estado do banco atrás do que a réplica serviu da memória durante uma queda do banco). Com outro prefixo nos ids
+    /// SSE, o cliente trata como reinício do servidor e aceita o próximo snapshot, em vez de descartar as versões menores.
+    /// </summary>
+    public void NewEpoch()
+    {
+        lock (ringLock) Volatile.Write(ref boot, Guid.NewGuid().ToString("N")[..8]);
+    }
 
     public int Subscribers => subscribers.Count;
 
@@ -142,17 +152,27 @@ public sealed class LiveElectionHub(LiveElectionOptions options, LiveElectionMet
     /// <summary>
     /// Abre uma assinatura. Com Last-Event-ID desta instância ainda no buffer, devolve as mensagens perdidas; senão o
     /// cliente recebe um snapshot completo antes de continuar (nunca depende só de eventos perdidos).
-    /// null = limite de conexões atingido.
+    /// null = limite de conexões atingido: o global (memória), o da origem ou, com o servidor acima de 80% do global, o
+    /// da origem sob pressão (as vagas restantes ficam para origens distintas). O cliente recusado segue pelo REST.
     /// </summary>
-    public Subscription? Subscribe(string ip, string? lastEventId)
+    public Subscription? Subscribe(string clientKey, string? lastEventId)
     {
-        if (subscribers.Count >= options.MaxSseConnections) return null;
-        var count = perIp.AddOrUpdate(ip, 1, (_, c) => c + 1);
-        if (count > options.MaxSsePerIp)
+        var total = subscribers.Count;
+        if (total >= options.MaxSseConnections)
         {
-            Release(ip);
+            metrics.SseRejected("global");
             return null;
         }
+        var underPressure = total >= options.MaxSseConnections * 0.8;
+        var cap = underPressure ? Math.Min(options.MaxSsePerIp, options.MaxSsePerIpUnderPressure) : options.MaxSsePerIp;
+        var count = perIp.AddOrUpdate(clientKey, 1, (_, c) => c + 1);
+        if (count > cap)
+        {
+            Release(clientKey);
+            metrics.SseRejected(underPressure ? "per-ip-pressure" : "per-ip");
+            return null;
+        }
+        var ip = clientKey;
         var subscriber = new Subscriber
         {
             Id = Guid.NewGuid(),
@@ -206,7 +226,7 @@ public sealed class LiveElectionHub(LiveElectionOptions options, LiveElectionMet
     /// <summary>Frame SSE com id próprio, sem guardar no buffer (snapshot inicial de uma conexão).</summary>
     public byte[] Frame(string eventName, ReadOnlySpan<byte> json)
     {
-        var id = $"{boot}:{Interlocked.Read(ref sequence)}";
+        var id = $"{BootId}:{Interlocked.Read(ref sequence)}";
         return Encode(id, eventName, json);
     }
 

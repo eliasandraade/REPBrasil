@@ -21,6 +21,8 @@ public sealed class LiveElectionMetrics : IDisposable
     private readonly Counter<long> snapshotWrites;
     private readonly Counter<long> snapshotDeduplicated;
     private readonly ConcurrentDictionary<string, long> productEvents = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, long> sseRejected = new(StringComparer.Ordinal);
+    private readonly Counter<long> sseRejectedCounter;
     private long requestTotal;
     private long notModifiedTotal;
     private long errorTotal;
@@ -43,6 +45,7 @@ public sealed class LiveElectionMetrics : IDisposable
         rateLimited = meter.CreateCounter<long>("tse_rate_limit_total");
         snapshotWrites = meter.CreateCounter<long>("snapshot_write_total");
         snapshotDeduplicated = meter.CreateCounter<long>("snapshot_deduplicated_total");
+        sseRejectedCounter = meter.CreateCounter<long>("sse_rejected_total");
         meter.CreateObservableGauge("sse_connections_active", () => Interlocked.Read(ref sseConnections));
         meter.CreateObservableGauge("tse_last_success_timestamp", () => Interlocked.Read(ref lastSuccessUnixMs) / 1000.0);
         meter.CreateObservableGauge("election_data_age_seconds", () => DataAgeSeconds ?? 0);
@@ -102,6 +105,13 @@ public sealed class LiveElectionMetrics : IDisposable
 
     public void SseMessage(int subscribers) => Interlocked.Add(ref sseMessages, subscribers);
 
+    /// <summary>Conexão SSE recusada por limite ("global", "per-ip" ou "per-ip-pressure").</summary>
+    public void SseRejected(string reason)
+    {
+        sseRejected.AddOrUpdate(reason, 1, (_, v) => v + 1);
+        sseRejectedCounter.Add(1, new KeyValuePair<string, object?>("reason", reason));
+    }
+
     public void ProductEvent(string name) => productEvents.AddOrUpdate(name, 1, (_, v) => v + 1);
 
     public long SseConnections => Interlocked.Read(ref sseConnections);
@@ -121,6 +131,7 @@ public sealed class LiveElectionMetrics : IDisposable
         electionIngestionLagSeconds = IngestionLagSeconds,
         sseConnectionsActive = Interlocked.Read(ref sseConnections),
         sseMessagesDelivered = Interlocked.Read(ref sseMessages),
+        sseRejected = sseRejected.ToDictionary(kv => kv.Key, kv => kv.Value),
         snapshotWriteTotal = Interlocked.Read(ref snapshotWriteTotal),
         snapshotDeduplicatedTotal = Interlocked.Read(ref snapshotDedupTotal),
         contractErrorTotal = Interlocked.Read(ref contractErrors),

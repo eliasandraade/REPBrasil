@@ -294,13 +294,27 @@ public static class LiveProjector
         foreach (var minutes in VelocityWindows)
         {
             var from = Time(latest) - TimeSpan.FromMinutes(minutes);
-            var inWindow = points.Where(p => Time(p) >= from).ToList();
+            // Do fim para o começo até sair da janela: o custo é o da janela, não o de horas de histórico.
+            var samples = 0;
+            TimelinePoint? firstInWindow = null;
+            TimelinePoint? before = null;
+            for (var i = points.Count - 1; i >= 0; i--)
+            {
+                var p = points[i];
+                if (Time(p) < from)
+                {
+                    before = p;
+                    break;
+                }
+                samples++;
+                firstInWindow = p;
+            }
             // Ponto de partida: o último antes da janela (se houver), para medir a janela inteira.
-            var anchor = points.LastOrDefault(p => Time(p) < from) ?? inWindow.FirstOrDefault();
+            var anchor = before ?? firstInWindow;
             var covered = anchor is not null && Time(latest) - Time(anchor) >= TimeSpan.FromMinutes(minutes) / 2;
             if (anchor is null || !covered || ReferenceEquals(anchor, latest) || Time(latest) <= Time(anchor))
             {
-                windows.Add(new VelocityWindowDto(minutes, null, null, null, inWindow.Count));
+                windows.Add(new VelocityWindowDto(minutes, null, null, null, samples));
                 continue;
             }
             var elapsed = Time(latest) - Time(anchor);
@@ -309,7 +323,7 @@ public static class LiveProjector
                 Round2(ElectionMath.PerMinute(anchor.TotalVotes, latest.TotalVotes, elapsed)),
                 Round2(ElectionMath.PerMinute(anchor.SectionsTotalized, latest.SectionsTotalized, elapsed)),
                 Round2(ElectionMath.PerMinute(anchor.ElectorateInTotalized, latest.ElectorateInTotalized, elapsed)),
-                inWindow.Count));
+                samples));
         }
 
         EtaDto? eta = null;
@@ -751,16 +765,55 @@ public static class LiveProjector
         p.LeadVotes,
         p.LeadPp);
 
+    /// <summary>
+    /// Teto de pontos por linha do tempo servida: horas de apuração com um snapshot por segundo não viram megabytes por
+    /// visitante. O gráfico recebe um ponto por faixa de tempo (o último de cada faixa), mais o primeiro e o último.
+    /// </summary>
+    public const int MaxTimelinePoints = 480;
+
     public static LiveTimelinePayloadDto Timeline(LiveElectionState state, string scope, string code)
     {
-        IEnumerable<TimelinePoint> points = scope == "uf" && state.StateTimelines.TryGetValue(code.ToLowerInvariant(), out var list)
+        IReadOnlyList<TimelinePoint> points = scope == "uf" && state.StateTimelines.TryGetValue(code.ToLowerInvariant(), out var list)
             ? list
             : scope == "uf" ? [] : state.Timeline;
         return new LiveTimelinePayloadDto(
             scope,
             scope == "uf" ? code.ToUpperInvariant() : "br",
-            [.. points.Select(PointDto)],
-            scope == "uf" ? [] : [.. state.LeadChanges.Select(l => new LeadChangeDto(l.Id, l.At, l.DetectedAt, l.PreviousLeaderKey, l.NewLeaderKey, l.SectionsPct, [.. l.Votes.Select(v => new CandidateVotesDto(v.Key, v.Votes, v.Percent))], l.LeadVotes, l.SnapshotVersion))]);
+            [.. Downsample(points, MaxTimelinePoints).Select(PointDto)],
+            scope == "uf" ? [] : [.. state.LeadChanges.Select(LeadChange)]);
+    }
+
+    public static LeadChangeDto LeadChange(LeadChangeRecord l) =>
+        new(l.Id, l.At, l.DetectedAt, l.PreviousLeaderKey, l.NewLeaderKey, l.SectionsPct, [.. l.Votes.Select(v => new CandidateVotesDto(v.Key, v.Votes, v.Percent))], l.LeadVotes, l.SnapshotVersion);
+
+    /// <summary>No máximo <paramref name="max"/> pontos, em faixas iguais de tempo (a ordem de versão é mantida).</summary>
+    public static IReadOnlyList<TimelinePoint> Downsample(IReadOnlyList<TimelinePoint> points, int max)
+    {
+        if (points.Count <= max || max < 3) return points;
+        static DateTimeOffset Time(TimelinePoint p) => p.At ?? p.IngestedAt;
+        var first = points[0];
+        var last = points[^1];
+        var span = (Time(last) - Time(first)).Ticks;
+        var buckets = max - 2;
+        if (span <= 0)
+        {
+            // Sem eixo de tempo útil: amostragem uniforme por posição.
+            var step = (points.Count - 1) / (double)(max - 1);
+            return [.. Enumerable.Range(0, max).Select(i => points[(int)Math.Round(i * step)])];
+        }
+        var chosen = new TimelinePoint?[buckets];
+        var index = 0;
+        foreach (var p in points)
+        {
+            index++;
+            if (index == 1 || index == points.Count) continue;
+            var bucket = (int)Math.Clamp((Time(p) - Time(first)).Ticks * buckets / span, 0, buckets - 1);
+            chosen[bucket] = p; // o último da faixa
+        }
+        var result = new List<TimelinePoint>(max) { first };
+        result.AddRange(chosen.Where(p => p is not null).Select(p => p!).OrderBy(p => p.Version));
+        result.Add(last);
+        return result;
     }
 
     // ---------------------------------------------------------------- 1º turno

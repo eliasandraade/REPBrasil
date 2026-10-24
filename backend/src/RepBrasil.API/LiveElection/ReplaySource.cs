@@ -14,15 +14,20 @@ public sealed class ReplaySource : ITseSource
     private readonly LiveElectionMetrics? metrics;
     private readonly TimeSpan baseStep;
     private readonly (int From, int To)? outage;
+    private readonly int durationScale;
+    private readonly string? fixedEnvironment;
     private readonly object gate = new();
     private SyntheticScenario scenario;
     private DateTimeOffset startedAt;
     private double speed;
 
-    public ReplaySource(TimeProvider time, LiveElectionOptions options, LiveElectionMetrics? metrics = null)
+    /// <summary>Fonte de replay; <c>durationScale</c> multiplica a duração da apuração em quadros (teste de longa duração).</summary>
+    public ReplaySource(TimeProvider time, LiveElectionOptions options, LiveElectionMetrics? metrics = null, int durationScale = 1)
     {
         this.time = time;
         this.metrics = metrics;
+        this.durationScale = durationScale;
+        fixedEnvironment = options.ReplayEnvironment;
         baseStep = options.ReplayStep <= TimeSpan.Zero ? TimeSpan.FromSeconds(60) : options.ReplayStep;
         outage = options.ReplayOutage;
         (scenario, startedAt, speed) = Build(options.ReplaySpeed);
@@ -39,7 +44,7 @@ public sealed class ReplaySource : ITseSource
     public int? OfficialDefinitionFrame { get { lock (gate) return scenario.OfficialDefinitionFrame; } }
 
     /// <summary>Nome do ambiente desta sessão de replay (linha própria em live_election).</summary>
-    public string EnvironmentName { get { lock (gate) return $"replay-{startedAt.UtcDateTime:yyyyMMdd't'HHmmss}"; } }
+    public string EnvironmentName { get { lock (gate) return fixedEnvironment ?? $"replay-{startedAt.UtcDateTime:yyyyMMdd't'HHmmss}"; } }
 
     public int CurrentFrame
     {
@@ -64,7 +69,7 @@ public sealed class ReplaySource : ITseSource
         var now = time.GetUtcNow();
         var step = newSpeed <= 0 ? TimeSpan.FromSeconds(1) : TimeSpan.FromTicks((long)(baseStep.Ticks / newSpeed));
         if (step < TimeSpan.FromMilliseconds(200)) step = TimeSpan.FromMilliseconds(200);
-        return (new SyntheticScenario(now, step), now, newSpeed);
+        return (new SyntheticScenario(now, step, durationScale), now, newSpeed);
     }
 
     /// <summary>Conta como requisição à "fonte" (mesma métrica do TSE real), para o teste de carga provar que visitantes

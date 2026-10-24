@@ -9,6 +9,8 @@ import type { LiveEnvelope, LiveStatesPayload, LiveStreamEventName, LiveSummary 
  *   voltar a rede, o cliente relê /summary e /states ANTES de confiar nos eventos (nunca depende só dos perdidos).
  * - O EventSource reconecta sozinho (enviando Last-Event-ID); se o navegador desistir (CLOSED), o cliente
  *   reabre com recuo exponencial e jitter.
+ * - Stream recusado (limite de conexões do servidor) ou caindo seguidamente: a cada nova tentativa o cliente relê o
+ *   snapshot pelo REST, então continua atualizado (no ritmo do recuo) mesmo sem conexão SSE.
  * - Evento com versão anterior à vigente é descartado pelo store (atomicidade).
  */
 
@@ -218,6 +220,8 @@ export class LiveStreamClient {
     const base = Math.min(MAX_BACKOFF_MS, MIN_BACKOFF_MS * 2 ** this.attempts);
     const delay = Math.round(base / 2 + Math.random() * (base / 2));
     this.attempts += 1;
+    // Segunda falha seguida (ex.: 429 por limite de conexões): os dados seguem pelo REST até o stream voltar.
+    if (this.attempts >= 2) void this.resync();
     if (this.reconnectTimer !== null) this.opts.clearTimer(this.reconnectTimer);
     this.reconnectTimer = this.opts.setTimer(() => {
       this.reconnectTimer = null;

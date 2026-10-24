@@ -198,6 +198,22 @@ describe("stream SSE", () => {
     client.stop();
   });
 
+  it("stream recusado seguidamente (limite de conexões): os dados seguem pelo REST a cada tentativa", async () => {
+    const { client, timers, loadSummary, loadStates } = setup();
+    client.start();
+    FakeEventSource.instances[0].fail(true); // 1ª recusa: só reagenda
+    expect(loadSummary).not.toHaveBeenCalled();
+    timers[0]();
+    FakeEventSource.instances[1].fail(true); // 2ª recusa seguida: relê pelo REST
+    await vi.waitFor(() => expect(loadSummary).toHaveBeenCalledTimes(1));
+    expect(loadStates).toHaveBeenCalledTimes(1);
+    await new Promise((resolve) => setTimeout(resolve, 0)); // a releitura anterior termina antes da próxima falha
+    timers[1]();
+    FakeEventSource.instances[2].fail(true);
+    await vi.waitFor(() => expect(loadSummary).toHaveBeenCalledTimes(2));
+    client.stop();
+  });
+
   it("apuração desligada (404) e sem snapshot: marca indisponível e tenta de novo sozinha", async () => {
     const { store, client, loadSummary, timers } = setup(initialLiveState(null, null));
     loadSummary.mockRejectedValue(new ApiError(404, "API error 404: /summary"));

@@ -22,10 +22,12 @@ namespace RepBrasil.Infrastructure.Migrations
                 DROP TABLE IF EXISTS electoral.live_candidate_photo;
                 DROP TABLE IF EXISTS electoral.live_source_state;
                 DROP TABLE IF EXISTS electoral.live_event;
+                DROP TABLE IF EXISTS electoral.live_accompaniment;
                 DROP TABLE IF EXISTS electoral.live_territory_latest;
                 DROP TABLE IF EXISTS electoral.live_snapshot;
                 DROP TABLE IF EXISTS electoral.live_election;
                 DROP FUNCTION IF EXISTS electoral.live_audit_immutable();
+                DROP SEQUENCE IF EXISTS electoral.live_revision_seq;
                 """);
         }
     }

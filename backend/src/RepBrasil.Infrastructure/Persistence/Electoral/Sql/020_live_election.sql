@@ -3,6 +3,13 @@
 -- Fonte única: arquivos de divulgação do TSE (EA11/EA12/EA14/EA15/EA20). Snapshots só entram quando o conteúdo
 -- relevante muda (hash); o histórico nunca é reescrito. Eventos são a trilha de auditoria: imutáveis.
 -- Modos official, simulation e replay ficam em linhas separadas de live_election e nunca se misturam.
+--
+-- Uma única escritora: só a réplica líder grava, e só pela conexão que detém o advisory lock da coordenação. Assim
+-- (1) uma réplica sem a liderança nunca grava, nem logo depois de o banco voltar de uma queda, e (2) ids e revisions
+-- são atribuídos e confirmados na mesma ordem — as réplicas seguidoras leem só o que veio depois do último valor visto.
+
+-- Ordem de gravação das tabelas de "último valor" (municípios/zonas, acompanhamento, saúde da fonte).
+CREATE SEQUENCE IF NOT EXISTS live_revision_seq;
 
 CREATE TABLE IF NOT EXISTS live_election (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -17,6 +24,9 @@ CREATE TABLE IF NOT EXISTS live_election (
   election_date date,
   discovered_at timestamptz NOT NULL DEFAULT now(),
   config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  -- Saúde da fonte vista pela líder (falhas, bloqueio, última verificação e última mudança de conteúdo).
+  source_health jsonb,
+  source_revision bigint NOT NULL DEFAULT 0,
   UNIQUE (mode, environment, election_code, office_code)
 );
 
@@ -43,6 +53,9 @@ CREATE TABLE IF NOT EXISTS live_snapshot (
 CREATE INDEX IF NOT EXISTS live_snapshot_scope_idx
   ON live_snapshot (election_id, scope_type, scope_code, id DESC);
 
+-- Leitura incremental das seguidoras: só os ids depois do último visto.
+CREATE INDEX IF NOT EXISTS live_snapshot_election_idx ON live_snapshot (election_id, id);
+
 -- Último resultado recebido por município/zona (alta cardinalidade: sem histórico completo por arquivo).
 CREATE TABLE IF NOT EXISTS live_territory_latest (
   election_id integer NOT NULL REFERENCES live_election(id),
@@ -51,9 +64,26 @@ CREATE TABLE IF NOT EXISTS live_territory_latest (
   content_hash char(64) NOT NULL,
   tse_totalized_at timestamptz,
   ingested_at timestamptz NOT NULL,
+  revision bigint NOT NULL,
   snapshot jsonb NOT NULL,
   PRIMARY KEY (election_id, scope_type, scope_code)
 );
+
+CREATE INDEX IF NOT EXISTS live_territory_latest_revision_idx ON live_territory_latest (election_id, revision);
+
+-- Último arquivo de acompanhamento recebido: 'br' (EA14) e cada UF (EA15). As seguidoras não consultam o TSE.
+CREATE TABLE IF NOT EXISTS live_accompaniment (
+  election_id integer NOT NULL REFERENCES live_election(id),
+  scope_code text NOT NULL CHECK (scope_code ~ '^[a-z]{2}$'),
+  content_hash char(64) NOT NULL,
+  tse_generated_at timestamptz,
+  ingested_at timestamptz NOT NULL,
+  revision bigint NOT NULL,
+  file jsonb NOT NULL,
+  PRIMARY KEY (election_id, scope_code)
+);
+
+CREATE INDEX IF NOT EXISTS live_accompaniment_revision_idx ON live_accompaniment (election_id, revision);
 
 -- Trilha de auditoria: troca de liderança, definição matemática (md=e), totalização final, correções, alertas.
 CREATE TABLE IF NOT EXISTS live_event (

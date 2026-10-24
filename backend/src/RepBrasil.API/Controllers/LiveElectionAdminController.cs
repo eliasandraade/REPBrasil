@@ -39,6 +39,11 @@ public sealed class LiveElectionAdminController(
             instance = runtime.InstanceId,
             pollerLeader = runtime.IsLeader ? runtime.InstanceId : null,
             isLeader = runtime.IsLeader,
+            // leader = grava; uncoordinated = banco fora, ingere sem gravar; follower = lê do banco por cursor.
+            role = runtime.Role,
+            persists = runtime.Engine?.Persist,
+            cursor = runtime.Engine?.Cursor,
+            lastSync = runtime.Engine?.LastSync is { } sync ? new { rows = sync.Rows, milliseconds = sync.Milliseconds, at = sync.At } : null,
             sessionStartedAt = runtime.SessionStartedAt,
             lastSessionError = runtime.LastError,
             phase = s?.Phase.ToString(),
