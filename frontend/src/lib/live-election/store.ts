@@ -34,6 +34,8 @@ export interface LiveState {
   lastEventAt: number | null;
   lastSyncAt: number | null;
   syncError: string | null;
+  /** Status HTTP da última releitura que falhou (0 = rede); 404 = apuração ao vivo desligada no servidor. */
+  syncStatus: number | null;
   /** Cresce a cada snapshot nacional aplicado (invalida leituras dependentes, como a linha do tempo). */
   nationalRevision: number;
   /** Cresce a cada atualização de UFs aplicada. */
@@ -53,7 +55,7 @@ export type LiveAction =
   | { type: "timeline-event"; envelope: LiveEnvelope<LiveTimelineEvent> }
   | { type: "connection"; status: ConnectionStatus }
   | { type: "synced"; at: number }
-  | { type: "sync-error"; message: string | null };
+  | { type: "sync-error"; message: string | null; status?: number | null };
 
 const MAX_EVENTS = 200;
 const MAX_LEAD_CHANGES = 200;
@@ -90,6 +92,7 @@ export function initialLiveState(summary?: LiveEnvelope<LiveSummary> | null, sta
     lastEventAt: null,
     lastSyncAt: null,
     syncError: null,
+    syncStatus: null,
     nationalRevision: summary ? 1 : 0,
     statesRevision: states ? 1 : 0,
   };
@@ -184,9 +187,11 @@ export function reduceLive(state: LiveState, action: LiveAction, now: number): L
     case "connection":
       return state.connection === action.status ? state : { ...state, connection: action.status };
     case "synced":
-      return { ...state, lastSyncAt: action.at, syncError: null };
-    case "sync-error":
-      return state.syncError === action.message ? state : { ...state, syncError: action.message };
+      return { ...state, lastSyncAt: action.at, syncError: null, syncStatus: null };
+    case "sync-error": {
+      const status = action.status ?? null;
+      return state.syncError === action.message && state.syncStatus === status ? state : { ...state, syncError: action.message, syncStatus: status };
+    }
   }
 }
 

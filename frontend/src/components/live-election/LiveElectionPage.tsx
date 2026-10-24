@@ -64,8 +64,27 @@ function TechnicalFacts() {
   );
 }
 
+/**
+ * Sem snapshot e com a API respondendo 404: a apuração ao vivo está desligada no servidor (antes da ativação).
+ * Mensagem neutra no lugar dos esqueletos; a página continua tentando e troca sozinha quando os dados chegarem.
+ */
+function LiveUnavailable() {
+  return (
+    <section className="rounded-3xl border border-line bg-surface p-6 sm:p-8" data-testid="live-unavailable" aria-live="polite">
+      <p className="text-label uppercase text-fg-muted">Apuração presidencial 2026 · 2º turno</p>
+      <h1 className="mt-2 text-heading-md text-fg">Acompanhamento em tempo real ainda não disponível</h1>
+      <p className="mt-3 max-w-2xl text-body-md text-fg-soft">
+        A página passa a exibir os dados oficiais do TSE assim que o acompanhamento ao vivo do 2º turno for ativado.
+        Ela se atualiza sozinha: não é preciso recarregar.
+      </p>
+      <p className="mt-2 text-body-sm text-fg-muted">Eleição: 25 de outubro de 2026. Divulgação oficial a partir das 17h (horário de Brasília).</p>
+    </section>
+  );
+}
+
 function PageBody({ mapShapes }: Readonly<{ mapShapes: BrazilMapShapes }>) {
   const hasSummary = useLive((s) => s.summary !== null);
+  const unavailable = useLive((s) => s.summary === null && s.syncStatus === 404);
   const hasStates = useLive((s) => s.states !== null);
   const [drawerUf, setDrawerUf] = useState<string | null>(null);
   const [explorerUf, setExplorerUf] = useState("SP");
@@ -78,6 +97,17 @@ function PageBody({ mapShapes }: Readonly<{ mapShapes: BrazilMapShapes }>) {
     setExplorerUf(uf.toUpperCase());
     requestAnimationFrame(() => explorerRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" }));
   }, []);
+
+  if (unavailable) {
+    return (
+      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:py-8 lg:px-8" data-testid="live-election-page">
+        <LiveUnavailable />
+        <div className="flex flex-wrap items-center gap-2">
+          <MethodologyButton />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:py-8 lg:px-8" data-testid="live-election-page">

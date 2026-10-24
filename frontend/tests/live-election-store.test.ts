@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLiveStore, initialLiveState, isNewerMeta, reduceLive, type LiveAction, type LiveState } from "@/lib/live-election/store";
 import { LiveStreamClient } from "@/lib/live-election/stream";
@@ -194,6 +195,21 @@ describe("stream SSE", () => {
     expect(FakeEventSource.instances).toHaveLength(2);
     FakeEventSource.instances[1].open();
     await vi.waitFor(() => expect(loadSummary).toHaveBeenCalled());
+    client.stop();
+  });
+
+  it("apuração desligada (404) e sem snapshot: marca indisponível e tenta de novo sozinha", async () => {
+    const { store, client, loadSummary, timers } = setup(initialLiveState(null, null));
+    loadSummary.mockRejectedValue(new ApiError(404, "API error 404: /summary"));
+    client.start({ resync: true });
+    await vi.waitFor(() => expect(store.getState().syncStatus).toBe(404));
+    expect(store.getState().summary).toBeNull();
+    // Uma releitura agendada (o stream também responde 404 e não abre).
+    const retry = timers.at(-1)!;
+    loadSummary.mockResolvedValue(envelope(SCENARIOS.ninetyNine, 21));
+    retry();
+    await vi.waitFor(() => expect(store.getState().summary).not.toBeNull());
+    expect(store.getState().syncStatus).toBeNull();
     client.stop();
   });
 

@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api";
 import { fetchStates, fetchSummary, LIVE_STREAM_URL } from "./api";
 import type { LiveAction, LiveStore } from "./store";
 import type { LiveEnvelope, LiveStatesPayload, LiveStreamEventName, LiveSummary } from "./types";
@@ -60,6 +61,9 @@ export class LiveStreamClient {
   private hiddenAt: number | null = null;
   private attempts = 0;
   private reconnectTimer: unknown = null;
+  /** Sem nenhum snapshot ainda (API desligada ou fora do ar): nova releitura com recuo, sem depender do stream. */
+  private retryTimer: unknown = null;
+  private retries = 0;
   private syncing: Promise<void> | null = null;
   private stopped = true;
   private readonly opts: Required<Omit<LiveStreamOptions, "EventSourceImpl">> & { EventSourceImpl: EventSourceCtor | undefined };
@@ -101,6 +105,8 @@ export class LiveStreamClient {
     }
     if (this.reconnectTimer !== null) this.opts.clearTimer(this.reconnectTimer);
     this.reconnectTimer = null;
+    if (this.retryTimer !== null) this.opts.clearTimer(this.retryTimer);
+    this.retryTimer = null;
     this.source?.close();
     this.source = null;
   }
@@ -115,9 +121,12 @@ export class LiveStreamClient {
         if (states.status === "fulfilled") this.store.dispatch({ type: "states", envelope: states.value, force });
         if (summary.status === "fulfilled") this.firstSync = false;
         if (summary.status === "fulfilled") {
+          this.retries = 0;
           this.store.dispatch({ type: "synced", at: this.opts.now() });
         } else {
-          this.store.dispatch({ type: "sync-error", message: "Não foi possível atualizar agora. Mantendo a última atualização recebida." });
+          const status = summary.reason instanceof ApiError ? summary.reason.status : 0;
+          this.store.dispatch({ type: "sync-error", message: "Não foi possível atualizar agora. Mantendo a última atualização recebida.", status });
+          this.scheduleRetry();
         }
         this.store.flush();
       } finally {
@@ -125,6 +134,17 @@ export class LiveStreamClient {
       }
     })();
     return this.syncing;
+  }
+
+  /** Só enquanto não há snapshot: 5 s, 10 s, 20 s… até 60 s. Com snapshot, o stream e a volta do segundo plano bastam. */
+  private scheduleRetry(): void {
+    if (this.stopped || this.retryTimer !== null || this.store.getState().summary !== null) return;
+    const delay = Math.min(60_000, 5000 * 2 ** Math.min(this.retries, 4));
+    this.retries++;
+    this.retryTimer = this.opts.setTimer(() => {
+      this.retryTimer = null;
+      void this.resync();
+    }, delay);
   }
 
   private connect(): void {
