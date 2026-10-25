@@ -1,6 +1,14 @@
 # Apuração ao vivo — 2º turno presidencial 2026
 
 Página: `/apuracao/2026/presidente/segundo-turno` (`/apuracao` redireciona para ela).
+Modo Apresentação (telão/TV): `/apuracao/2026/presidente/segundo-turno/apresentacao` — botão "Modo apresentação"
+na página. Usa a mesma fonte dela: ISR de 5 s, o mesmo stream SSE e a mesma ressincronização REST, sem chamada ao
+TSE e sem endpoint novo. Fica fora do índice de busca (`noindex`).
+- **Abertura:** tela cheia e tela sempre ligada depois do clique em "Iniciar apresentação".
+- **Parâmetros:** `?nacional=25&estado=10&estados=5&rotacao=0&iniciar=1&efeitos=reduzidos`.
+- **Atalhos:** F, Esc, Espaço, ←/→, A, R, M.
+
+Movimento e exceção visual: `docs/MOTION_SYSTEM.md` e `docs/BRAND.md`.
 API: `/api/v1/elections/2026/president/second-round/*`.
 Desligada por padrão: `ELECTION_LIVE_ENABLED=true` liga.
 

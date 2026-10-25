@@ -2,6 +2,7 @@
 
 import "./live-election.css";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sendProductEvent } from "@/lib/live-election/api";
 import type { BrazilMapShapes } from "@/lib/live-election/map-shapes";
@@ -32,6 +33,22 @@ const RankingsPanel = dynamic(() => import("./Rankings").then((m) => m.RankingsP
 const MunicipalityExplorer = dynamic(() => import("./MunicipalityExplorer").then((m) => m.MunicipalityExplorer), { ssr: false, loading: listSkeleton });
 const FirstRoundSection = dynamic(() => import("./FirstRound").then((m) => m.FirstRoundSection), { ssr: false, loading: listSkeleton });
 const StateDrawer = dynamic(() => import("./StateDrawer").then((m) => m.StateDrawer), { ssr: false });
+
+/** A mesma apuração em tela cheia, para TV, telão ou sala de reunião (rota própria, sem a moldura do site). */
+function PresentationLink() {
+  return (
+    <Link
+      href="/apuracao/2026/presidente/segundo-turno/apresentacao"
+      className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-body-sm font-medium text-fg-soft hover:bg-subtle"
+      data-testid="live-presentation-link"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+      </svg>
+      Modo apresentação
+    </Link>
+  );
+}
 
 /** Campos especializados da eleição e da fonte (nível técnico). */
 function TechnicalFacts() {
@@ -120,6 +137,7 @@ function PageBody({ mapShapes }: Readonly<{ mapShapes: BrazilMapShapes }>) {
         <div className="flex flex-wrap items-center gap-2">
           <MethodologyButton />
           <NotifyButton />
+          <PresentationLink />
         </div>
         <LiveAnnouncer />
       </div>

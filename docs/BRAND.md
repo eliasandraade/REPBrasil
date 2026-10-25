@@ -197,6 +197,21 @@ Glassmorphism, neon, gradientes decorativos de SaaS, glow, blobs, partículas, e
 genéricos, gráficos ou números falsos, estética "gerada por IA". (Removidos nesta etapa: gradiente de texto,
 gradiente radial do hero, brilho "glow-brand", ícone de urna e números não verificados nas telas.)
 
+### Exceção contida: Modo Apresentação (telão)
+
+A rota `/apuracao/2026/presidente/segundo-turno/apresentacao` é um palco de transmissão: TV ou 4K, em sala
+escura e vista de longe. Só dentro de `.pm-root` (`presentation.css`) ela usa:
+
+- fundo navy profundo com luz de palco (gradientes radiais suaves e vinheta);
+- mapa com perspectiva CSS e sombra projetada;
+- um halo teal discreto na UF em foco (teal continua significando seleção).
+
+Continuam proibidos ali: neon, glassmorphism/`backdrop-filter`, gradiente em texto, partículas, contagem
+animada de números e qualquer número que não venha da API oficial.
+
+A marca é a mesma do produto: logo oficial, Inter, navy dominante, A em azul e B em laranja com hachura
+(pista que não depende de cor). O efeito nunca vem antes do dado (`docs/MOTION_SYSTEM.md`, "Modo Apresentação").
+
 ## 13. Open Graph, exports, PWA
 
 - **OG** (`src/lib/og/render.tsx`): 1200×630, canvas claro, assinatura oficial, título em Inter, fonte dos
