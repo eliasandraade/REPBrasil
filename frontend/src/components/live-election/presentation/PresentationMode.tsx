@@ -10,7 +10,7 @@ import { LiveStreamClient } from "@/lib/live-election/stream";
 import type { LiveEnvelope, LiveStatesPayload, LiveSummary, TerritoryResult } from "@/lib/live-election/types";
 import { useReducedMotion } from "@/motion/reduced-motion";
 import { LiveAnnouncer } from "../Extras";
-import { LiveStoreProvider, useLive } from "../LiveContext";
+import { LiveStoreProvider, useLive, useSlotAColor } from "../LiveContext";
 import { PresentationControls, PresentationHeader, PresentationIntro, PresentationStatusOverlay, PresentationTicker } from "./Chrome";
 import { useFrameBudget, useFullscreen, useIdle, useParallax, usePresentationKeys, useRotation, useWakeLock } from "./hooks";
 import { NationalProgressPanel, PresentationKpis, StateSpotlight, StateStrip } from "./Panels";
@@ -52,6 +52,7 @@ export function PresentationStage({ mapShapes }: Readonly<{ mapShapes: BrazilMap
 
   const states = useLive((s) => s.states?.states ?? NO_STATES);
   const tone = useLive((s) => (s.summary ? stageStatus(s.summary).tone : "calm"));
+  const slotA = useSlotAColor();
   const ufs = useMemo(() => mapShapes.shapes.map((s) => s.uf), [mapShapes.shapes]);
   const rotate = useRotation({ states, ufs, config, enabled: started && rotation, paused });
   const leadScene = useLeadScene();
@@ -118,6 +119,7 @@ export function PresentationStage({ mapShapes }: Readonly<{ mapShapes: BrazilMap
       data-idle={started && idle ? "true" : undefined}
       data-effects={reduced ? "reduced" : "full"}
       data-tone={tone}
+      data-live-slot-a={slotA}
       data-started={started ? "true" : undefined}
       data-testid="presentation-root"
     >

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { type CandidateColor, slotColors } from "@/lib/live-election/candidate-colors";
 import type { LiveState, LiveStore } from "@/lib/live-election/store";
 
 const LiveStoreContext = createContext<LiveStore | null>(null);
@@ -26,6 +27,14 @@ export function useLive<T>(selector: (state: LiveState) => T): T {
     () => selector(store.getState()),
     () => selector(store.getInitialState()),
   );
+}
+
+/**
+ * Cor que o slot A veste (o B veste a outra), pelo NÚMERO da candidatura: vai em `data-live-slot-a` na raiz
+ * da página e do Modo Apresentação, e o CSS troca --live-a/--live-b quando o 22 estiver no slot A.
+ */
+export function useSlotAColor(): CandidateColor {
+  return useLive((s) => slotColors(s.summary?.candidates ?? []).a);
 }
 
 /**

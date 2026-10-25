@@ -29,8 +29,11 @@
   --danger: 255 138 128;
   --info: 124 180 240;
   --positive: 76 195 138;
-  --live-a: #3987e5;
-  --live-b: #d95926;
+  /* Cor por candidatura (13 = vermelho, 22 = azul), como na página: ver live-election.css. */
+  --live-red: #d95926;
+  --live-blue: #3987e5;
+  --live-a: var(--live-red);
+  --live-b: var(--live-blue);
   --live-tie: #8597aa;
   --live-land: #173554;
   --live-border: rgb(213 224 234 / 0.42);
@@ -58,6 +61,12 @@
   font-feature-settings: "tnum" 1, "cv11" 1;
   -webkit-font-smoothing: antialiased;
   isolation: isolate;
+}
+
+/* 22 no slot A: os slots trocam de cor, a candidatura não. */
+.pm-root[data-live-slot-a="blue"] {
+  --live-a: var(--live-blue);
+  --live-b: var(--live-red);
 }
 .pm-root[data-idle="true"] {
   cursor: none;
