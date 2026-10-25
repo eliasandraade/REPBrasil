@@ -182,6 +182,36 @@ Um mapa persistente de Brasil → UF → município (`src/components/territory/T
   - Esc fecha;
   - o foco entra no drawer ao abrir e volta ao botão ao fechar.
 
+### Apuração — Modo Apresentação (telão)
+
+Rota `/apuracao/2026/presidente/segundo-turno/apresentacao`. É um palco fixo (`100dvh`, sem rolagem), a única tela do produto que é assim de propósito. Código em `src/components/live-election/presentation/`.
+
+Regra: **dado primeiro, cena depois.** Todo valor novo já entra renderizado no commit em que chega pelo stream. O efeito apenas sinaliza a mudança depois disso: nada conta, nada enche e nada atrasa o número.
+
+| Nível | Faixa | Onde | Token |
+|---|---|---|---|
+| MICRO | 100–250 ms | valor que mudou: chega pronto (`pm-arrive`, 180 ms) e um traço curto aponta a mudança (`pm-trace`, 240 ms), dentro dos 120–250 ms da atualização numérica; hover das células de UF | `settle` (180) |
+| UI | 180–350 ms | célula de UF selecionada (sobe 0,6u); opacidade das outras UFs no mapa em foco; transições de sombra e fundo | `traverse` (280) |
+| CENA | 350–650 ms | UF em foco sobe no mapa (`pm-lift`); painel da UF entra (`pm-enter`); banners (`pm-banner`); cor das UFs (`fill`); troca de liderança (`pm-pulse` + `pm-sweep`); véu de definição ou final (`pm-veil`) | `reveal` (420), `survey` (560) |
+| Ambiente | contínuo | ticker (linear, duração em degraus de 15 s); barra de permanência da vista (linear, igual ao tempo configurado); ponto AO VIVO (2 s); luz do palco que respira (14 s, só ao vivo) | — |
+
+**Gatilhos**
+
+- **Troca de liderança nacional.** O novo líder já está na tela (selo NA FRENTE/ATRÁS e régua) quando a cena começa. Então o divisor central da régua pulsa e uma varredura atravessa o mapa (560 ms). A fica sempre à esquerda e B à direita: a liderança muda a hierarquia, nunca o lado.
+- **md = e** (sinal oficial do TSE). Véu curto e banner por 9 s. O selo ELEIÇÃO DEFINIDA e o item do ticker permanecem. A validação independente do REPBrasil nunca aciona essa cena.
+- **FINAL.** Véu e banner por 9 s. "AO VIVO" sai do cabeçalho e do ticker; a vantagem passa a se chamar "DIFERENÇA FINAL".
+- **Fonte parada** (`LIVE_STALE`). Aviso âmbar permanente. Os números continuam na tela: são os últimos válidos.
+- **Rotação editorial.** Visão nacional por 25 s, depois até 5 UFs por 10 s cada (atualização recente → disputa mais apertada → sequência por eleitorado) e volta ao nacional. A rotação só escolhe o que mostrar: nenhuma projeção.
+  - Ajustes: `?nacional=`, `?estado=`, `?estados=`, `?rotacao=0`.
+  - Teclas: Espaço pausa, A liga ou desliga a rotação, ←/→ trocam de UF, R volta ao nacional.
+
+**Fallback**
+
+- **Efeitos reduzidos.** Com `prefers-reduced-motion: reduce` ou `?efeitos=reduzidos` saem perspectiva, paralaxe, luz, véu, varredura, pulso e subida. Valores, mapa e hierarquia ficam iguais.
+- **Aparelho lento.** O palco mede os quadros durante 4 s depois da entrada. Abaixo de 32 fps, passa sozinho para efeitos reduzidos.
+- **Custo de animação.** Só `transform` e `opacity` animam; o `fill` das UFs é uma transição de cor, sem layout. Nenhum estado React muda por quadro: a paralaxe grava variáveis CSS no máximo uma vez por quadro.
+- **Mouse parado.** Cursor e controles somem depois de 3,5 s, e o realce de passagem no mapa também desliga. Um mouse esquecido sobre o mapa não deixa uma UF marcada no telão.
+
 ## 8. Microinterações (classes utilitárias)
 
 | Classe | Comportamento |
@@ -220,6 +250,9 @@ Um mapa persistente de Brasil → UF → município (`src/components/territory/T
 - Em JS, `prefersReducedMotion()`/`useReducedMotion()` (`src/motion/reduced-motion.ts`, via `useSyncExternalStore`) fazem `navigate()` não iniciar View Transition, o painel e as abas não animarem, e a câmera do mapa cortar seco. Os locais aparecem de imediato.
 - No mapa territorial, `cameraMotion`/`paintTransition` devolvem duração 0 e `pulseMotion` devolve nulo.
 - Testes: `tests/motion.test.tsx`, `tests/electoral-tab.test.tsx` e `tests/territory-lib.test.ts`.
+- Modo Apresentação:
+  - `tests/live-presentation.test.tsx` (regras de fase, md = e, placar, rotação, ticker e atalhos);
+  - `.github/scripts/presentation-local.mjs` (Playwright: cenários, tamanhos de tela, latência SSE → DOM, reconexão, teclado e Reduced Motion).
 
 ## 12. Antipadrões (não fazer)
 

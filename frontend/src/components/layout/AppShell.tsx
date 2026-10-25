@@ -410,7 +410,19 @@ function ShellLayout({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
+/**
+ * Rotas de tela inteira (modo apresentação da apuração): a página é a composição toda — sem barra lateral, topo,
+ * gaveta nem os atalhos da busca global, que disputariam as teclas da apresentação.
+ */
+export const BARE_ROUTES = ["/apuracao/2026/presidente/segundo-turno/apresentacao"] as const;
+
+export function isBareRoute(pathname: string | null): boolean {
+  return Boolean(pathname && BARE_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`)));
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  if (isBareRoute(pathname)) return <>{children}</>;
   return (
     <SearchProvider>
       <ShellLayout>{children}</ShellLayout>
