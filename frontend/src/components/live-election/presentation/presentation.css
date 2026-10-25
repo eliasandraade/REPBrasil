@@ -1360,6 +1360,28 @@
   color: rgb(var(--text-primary));
   font: inherit;
 }
+/* Toque: área mínima de 44 × 44 px por controle, em qualquer tamanho de tela. */
+@media (pointer: coarse) {
+  .pm-controls {
+    gap: max(4px, calc(var(--pm-u) * 0.5));
+  }
+  .pm-ctrl {
+    min-width: max(44px, calc(var(--pm-u) * 4.2));
+    height: max(44px, calc(var(--pm-u) * 4.2));
+  }
+}
+/* Tela estreita (celular em pé): a barra ocupa a largura útil e quebra em até duas linhas, centrada — nenhum
+   controle sai da tela. Os separadores somem; a ordem e os grupos continuam os mesmos. */
+@media (max-width: 599px) {
+  .pm-controls {
+    left: var(--pm-pad-x);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .pm-ctrl-sep {
+    display: none;
+  }
+}
 /* ---------------------------------------------------------------- entrada */
 
 .pm-intro {
