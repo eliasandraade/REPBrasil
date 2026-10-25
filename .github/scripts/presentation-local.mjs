@@ -257,6 +257,46 @@ const scrollCheck = () => {
   return { documentScrolls: se.scrollHeight > se.clientHeight + 1, horizontal: se.scrollWidth > se.clientWidth + 1, scrollers, outside, covered, overlaps, kpiLabels, ellipsis };
 };
 
+/**
+ * Barra de controles (só leitura): cada botão/link inteiro na viewport; nada cortado nem coberto (o centro e os
+ * pontos médios das bordas caem no próprio controle — imunes ao raio dos cantos); sem sobreposição entre controles;
+ * tamanhos para a área de toque; e se a barra transborda por dentro.
+ */
+const controlsCheck = () => {
+  const bar = document.querySelector('[data-testid="presentation-controls"]');
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+  const rects = [...bar.querySelectorAll("button, a")].map((el) => ({ el, label: el.getAttribute("aria-label") ?? el.textContent.trim(), r: el.getBoundingClientRect() }));
+  const outside = rects.filter(({ r }) => r.left < -0.5 || r.top < -0.5 || r.right > vw + 0.5 || r.bottom > vh + 0.5).map((x) => x.label);
+  const cut = rects
+    .filter(({ el, r }) => {
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      return [[cx, cy], [cx, r.top + 2], [cx, r.bottom - 2], [r.left + 2, cy], [r.right - 2, cy]].some(([x, y]) => {
+        const hit = document.elementFromPoint(x, y);
+        return !hit || !el.contains(hit);
+      });
+    })
+    .map((x) => x.label);
+  const overlaps = [];
+  rects.forEach((a, i) =>
+    rects.slice(i + 1).forEach((b) => {
+      if (a.r.left < b.r.right - 0.5 && b.r.left < a.r.right - 0.5 && a.r.top < b.r.bottom - 0.5 && b.r.top < a.r.bottom - 0.5) overlaps.push(`${a.label} × ${b.label}`);
+    }),
+  );
+  const box = bar.getBoundingClientRect();
+  return {
+    hidden: bar.dataset.hidden === "true" || getComputedStyle(bar).opacity === "0",
+    outside,
+    cut,
+    overlaps,
+    sizes: rects.map(({ label, r }) => ({ label, width: Math.round(r.width * 10) / 10, height: Math.round(r.height * 10) / 10 })),
+    overflow: bar.scrollWidth > bar.clientWidth + 1,
+    rows: new Set(rects.map(({ r }) => Math.round(r.top))).size,
+    bar: { left: Math.round(box.left), right: Math.round(box.right), top: Math.round(box.top), bottom: Math.round(box.bottom) },
+  };
+};
+
 /** Tela cheia recusada pelo navegador (política, sem gesto, quiosque): a apresentação tem de seguir no viewport. */
 function denyFullscreen() {
   Element.prototype.requestFullscreen = () => Promise.reject(new DOMException("recusada no teste", "NotAllowedError"));
@@ -598,6 +638,60 @@ try {
     assert.equal(dom.documentScrolls, false, "sem rolagem no viewport comum");
     assert.deepEqual(errors, [], "a recusa não vira erro na página");
     record("tela cheia recusada: a apresentação segue no viewport");
+    await context.close();
+  }
+
+  // 9) Barra de controles em cada tamanho (celulares em pé e deitado, notebook, Full HD e 4K): cada controle inteiro
+  //    na tela, sem corte nem sobreposição, com área de toque, sem rolagem — e clicável de verdade.
+  for (const [w, h, mobile] of [[390, 844, true], [393, 852, true], [412, 915, true], [430, 932, true], [844, 390, true], [1366, 768], [1920, 1080], [3840, 2160]]) {
+    api.set("p50");
+    const { context, page, errors } = await openStage(browser, { width: w, height: h }, { mobile: Boolean(mobile) });
+    await statusIs(page, "AO VIVO");
+    const size = `${w}x${h}`;
+    const controls = page.locator('[data-testid="presentation-controls"]');
+    const items = controls.locator("button, a");
+    const awake = () => page.mouse.move(8 + Math.random() * 4, 8);
+    await awake();
+    await page.waitForTimeout(350);
+    const bar = await page.evaluate(controlsCheck);
+    const dom = await page.evaluate(scrollCheck);
+    assert.equal(bar.hidden, false, `${size}: controles visíveis`);
+    assert.deepEqual(bar.outside, [], `${size}: controles fora da viewport (${bar.outside.join(", ")})`);
+    assert.deepEqual(bar.cut, [], `${size}: controles cortados ou cobertos (${bar.cut.join(", ")})`);
+    assert.deepEqual(bar.overlaps, [], `${size}: controles sobrepostos (${bar.overlaps.join(", ")})`);
+    const minTarget = mobile ? 44 : 40;
+    const small = bar.sizes.filter((s) => s.width < minTarget - 0.5 || s.height < minTarget - 0.5).map((s) => `${s.label} ${s.width}×${s.height}`);
+    assert.deepEqual(small, [], `${size}: área de toque abaixo de ${minTarget} px (${small.join(", ")})`);
+    assert.equal(bar.overflow, false, `${size}: a barra não transborda por dentro`);
+    assert.equal(dom.documentScrolls, false, `${size}: documento não rola`);
+    assert.deepEqual(dom.scrollers, [], `${size}: nenhum contêiner rolável`);
+    assert.equal(dom.horizontal, false, `${size}: sem overflow horizontal`);
+    assert.deepEqual(dom.covered, [], `${size}: nenhuma UF coberta pelos controles (${dom.covered.join(", ")})`);
+    // Clicáveis: checagem de ação do Playwright em todos (visível, estável, recebe o clique) e cliques reais.
+    const count = await items.count();
+    for (let i = 0; i < count; i++) {
+      await awake();
+      await items.nth(i).click({ trial: true, timeout: 3_000 });
+    }
+    const spotlight = () => page.evaluate(() => document.querySelector('[data-testid="presentation-spotlight"]')?.getAttribute("data-uf"));
+    await awake();
+    await controls.locator('button[aria-label^="Pausar"]').click();
+    assert.equal(await controls.locator('button[aria-label^="Retomar"]').count(), 1, `${size}: pausar pelo botão`);
+    await awake();
+    await controls.locator('button[aria-label^="Retomar"]').click();
+    await awake();
+    await controls.locator('button[aria-label^="Próxima UF"]').click();
+    assert.equal(await spotlight(), "AC", `${size}: próxima UF pelo botão`);
+    await awake();
+    await controls.locator('button[aria-label^="Visão nacional"]').click();
+    assert.equal(await spotlight(), "BR", `${size}: visão nacional pelo botão`);
+    if (mobile && h > w) {
+      await awake();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `${OUT}/controles-${size}.png` });
+    }
+    assert.deepEqual(errors, [], `${size}: sem erro de JavaScript`);
+    record(`controles ${size}: dentro da tela, sem corte/sobreposição, toque ≥ ${minTarget} px, clicáveis`, { rows: bar.rows, bar: bar.bar, count });
     await context.close();
   }
 } catch (error) {
