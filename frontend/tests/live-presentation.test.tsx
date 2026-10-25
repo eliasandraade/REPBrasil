@@ -17,6 +17,7 @@ import {
   stageStatus,
   stepUf,
   tickerItems,
+  type RotationPick,
 } from "@/lib/live-election/presentation";
 import { createLiveStore, initialLiveState, type LiveStore } from "@/lib/live-election/store";
 import type { LeadChange, LiveSummary } from "@/lib/live-election/types";
@@ -127,6 +128,58 @@ describe("rotação editorial (rotationOrder, stepUf)", () => {
     const { picks } = rotationOrder(statesPayload().states, { now, count: 27, cursor: 0, exclude: ["SP", "RJ"] });
     expect(picks.some((p) => p.uf === "SP" || p.uf === "RJ")).toBe(false);
     expect(picks).toHaveLength(25);
+  });
+
+  /**
+   * Ciclos seguidos como o palco faz (cursor persistente entre ciclos), no pior caso editorial: todas as UFs com
+   * atualização recente o tempo todo (as mesmas vencem sempre o desempate) e o DF empatado em todos os ciclos.
+   */
+  function simulate(count: number, cycles: number) {
+    let cursor = 0;
+    const seen = new Set<string>();
+    const perCycle: RotationPick[][] = [];
+    for (let cycle = 0; cycle < cycles; cycle++) {
+      const at = now + cycle * 60_000;
+      const states = statesPayload().states.map((s) => ({ ...s, ingestedAt: new Date(at - 1_000).toISOString() }));
+      const result = rotationOrder(states, { now: at, count, cursor });
+      perCycle.push(result.picks);
+      for (const pick of result.picks) seen.add(pick.uf);
+      cursor = result.cursor;
+    }
+    return { seen, perCycle };
+  }
+
+  it("1 UF por ciclo: só a sequência (justiça antes do mais apertado) e as 27 UFs em 27 ciclos, sem repetir", () => {
+    const { seen, perCycle } = simulate(1, 27);
+    expect(perCycle.every((picks) => picks.length === 1 && picks[0].reason === "sequence")).toBe(true);
+    expect(seen.size).toBe(27);
+  });
+
+  it.each([2, 3, 5])("%i UFs por ciclo: sempre uma vaga da sequência, nada repetido no ciclo e as 27 UFs aparecem", (count) => {
+    const { seen, perCycle } = simulate(count, 27);
+    for (const picks of perCycle) {
+      expect(picks).toHaveLength(count);
+      expect(picks.some((p) => p.reason === "sequence")).toBe(true);
+      expect(new Set(picks.map((p) => p.uf)).size).toBe(count);
+    }
+    // Os critérios editoriais continuam valendo nas outras vagas.
+    expect(perCycle[0].filter((p) => p.reason !== "sequence")).toHaveLength(count - 1);
+    expect(seen.size).toBe(27);
+  });
+
+  it.each([2, 3])("disputa apertada constante não prende a rotação com %i UFs por ciclo (sem atualizações recentes)", (count) => {
+    const states = statesPayload().states.map((s) => ({ ...s, ingestedAt: new Date(now - 60 * 60_000).toISOString() }));
+    const seen = new Set<string>();
+    let cursor = 0;
+    for (let cycle = 0; cycle < 27; cycle++) {
+      const { picks, cursor: next } = rotationOrder(states, { now, count, cursor });
+      expect(picks.slice(0, count - 1).every((p) => p.reason === "close")).toBe(true);
+      expect(picks[0].uf).toBe("DF");
+      expect(picks.at(-1)?.reason).toBe("sequence");
+      for (const pick of picks) seen.add(pick.uf);
+      cursor = next;
+    }
+    expect(seen.size).toBe(27);
   });
 
   it("← e → percorrem as siglas em ordem alfabética, com volta", () => {
@@ -288,6 +341,25 @@ describe("palco", () => {
     expect(requestFullscreen).toHaveBeenCalledWith({ navigationUI: "hide" });
     await waitFor(() => expect(wakeRequest).toHaveBeenCalledWith("screen"));
     await waitFor(() => expect(screen.queryByTestId("presentation-intro")).toBeNull(), { timeout: 2_000 });
+  });
+
+  it.each([
+    [
+      "recusada",
+      () =>
+        Object.defineProperty(document.documentElement, "requestFullscreen", {
+          value: vi.fn(async () => Promise.reject(new DOMException("recusada", "NotAllowedError"))),
+          configurable: true,
+        }),
+    ],
+    ["sem suporte", () => Reflect.deleteProperty(document.documentElement, "requestFullscreen")],
+  ])("tela cheia %s: a entrada fecha e o palco segue no viewport", async (_case, setup) => {
+    setup();
+    stage(SCENARIOS.half);
+    start();
+    await waitFor(() => expect(screen.queryByTestId("presentation-intro")).toBeNull(), { timeout: 2_000 });
+    expect(screen.getByTestId("presentation-root").getAttribute("data-started")).toBe("true");
+    expect(screen.getByTestId("presentation-pct-a").textContent).toBe(pct((40 / 78) * 100));
   });
 
   it("atualização do stream entra no commit seguinte: troca de líder sem trocar de lado", () => {

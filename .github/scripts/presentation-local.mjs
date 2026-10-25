@@ -56,8 +56,9 @@ function createApi() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://api.test");
     requests.push(`${new Date().toISOString().slice(11, 23)} ${req.method} ${url.pathname.replace(BASE, "")}`);
-    // Origem ecoada + credenciais: o layout do site consulta a sessão da conta com cookies (fora do modo).
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin ?? "*");
+    // Só a origem do site sob teste (fixa, nunca a que veio na requisição), com credenciais: o layout do site
+    // consulta a sessão da conta com cookies.
+    res.setHeader("Access-Control-Allow-Origin", WEB.origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Access-Control-Allow-Headers", "Accept, Cache-Control, Last-Event-ID, Content-Type");
     res.setHeader("Vary", "Origin");
@@ -256,9 +257,15 @@ const scrollCheck = () => {
   return { documentScrolls: se.scrollHeight > se.clientHeight + 1, horizontal: se.scrollWidth > se.clientWidth + 1, scrollers, outside, covered, overlaps, kpiLabels, ellipsis };
 };
 
-async function openStage(browser, viewport, { reducedMotion = "no-preference", start = true, mobile = false } = {}) {
+/** Tela cheia recusada pelo navegador (política, sem gesto, quiosque): a apresentação tem de seguir no viewport. */
+function denyFullscreen() {
+  Element.prototype.requestFullscreen = () => Promise.reject(new DOMException("recusada no teste", "NotAllowedError"));
+}
+
+async function openStage(browser, viewport, { reducedMotion = "no-preference", start = true, mobile = false, query = "", fullscreen = true } = {}) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion, locale: "pt-BR", timezoneId: "America/Sao_Paulo", isMobile: mobile, hasTouch: mobile });
   await context.addInitScript(instrument);
+  if (!fullscreen) await context.addInitScript(denyFullscreen);
   const page = await context.newPage();
   const errors = [];
   page.__log = [];
@@ -268,7 +275,7 @@ async function openStage(browser, viewport, { reducedMotion = "no-preference", s
     if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(m.text().slice(0, 200));
   });
   page.on("requestfailed", (r) => page.__log.push(`[requestfailed] ${r.url()} ${r.failure()?.errorText ?? ""}`));
-  await page.goto(new URL(ROUTE, WEB).href, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.goto(new URL(`${ROUTE}${query}`, WEB).href, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForSelector('[data-testid="presentation-intro"]', { timeout: 30_000 });
   if (start) {
     await page.click('[data-testid="presentation-start"]');
@@ -322,6 +329,7 @@ await mkdir(OUT, { recursive: true });
 const api = createApi();
 await api.listen();
 const browser = await chromium.launch();
+let failure = null;
 try {
   // 1) Cenários visuais em 1920×1080 + regras de correção na tela + DOM sem segundo scroll.
   const expectations = {
@@ -553,10 +561,57 @@ try {
     record("Reduced Motion: efeitos reduzidos, dado atualizado", { runningAnimations: running, writtenAt });
     await context.close();
   }
+
+  // 7) Rotação automática nos tempos pedidos pela URL: nacional → 2 UFs → nacional, sem tocar no teclado.
+  {
+    api.set("p50");
+    const { context, page } = await openStage(browser, HD, { query: "?nacional=10&estado=5&estados=2" });
+    await statusIs(page, "AO VIVO");
+    const focus = () => page.evaluate(() => document.querySelector('[data-testid="presentation-spotlight"]')?.getAttribute("data-uf"));
+    const changesFrom = (uf, timeout) =>
+      page.waitForFunction((u) => document.querySelector('[data-testid="presentation-spotlight"]')?.getAttribute("data-uf") !== u, uf, { timeout });
+    assert.equal(await focus(), "BR", "começa na visão nacional");
+    const t0 = Date.now();
+    await changesFrom("BR", 15_000);
+    const nationalMs = Date.now() - t0;
+    const first = await focus();
+    await changesFrom(first, 9_000);
+    const second = await focus();
+    assert.notEqual(second, "BR", "a segunda UF do ciclo entra antes da volta");
+    assert.notEqual(second, first, "UFs diferentes no mesmo ciclo");
+    await changesFrom(second, 9_000);
+    assert.equal(await focus(), "BR", "o ciclo volta à visão nacional");
+    assert.ok(nationalMs > 6_000 && nationalMs < 13_000, `visão nacional pelo tempo da URL (${nationalMs} ms)`);
+    metrics.rotation = { first, second, nationalMs };
+    record("rotação automática: nacional → 2 UFs → nacional, nos tempos da URL", metrics.rotation);
+    await context.close();
+  }
+
+  // 8) Tela cheia recusada: a entrada fecha e o palco segue no viewport, com o dado.
+  {
+    api.set("p50");
+    const { context, page, errors } = await openStage(browser, HD, { fullscreen: false });
+    await statusIs(page, "AO VIVO");
+    assert.equal(await page.evaluate(() => Boolean(document.fullscreenElement)), false, "sem tela cheia");
+    assert.equal(await page.locator('[data-testid="presentation-root"]').getAttribute("data-started"), "true", "o palco começou mesmo assim");
+    const dom = await page.evaluate(scrollCheck);
+    assert.equal(dom.documentScrolls, false, "sem rolagem no viewport comum");
+    assert.deepEqual(errors, [], "a recusa não vira erro na página");
+    record("tela cheia recusada: a apresentação segue no viewport");
+    await context.close();
+  }
+} catch (error) {
+  failure = error;
 } finally {
   await browser.close();
   await api.close();
 }
 
-await writeFile(`${OUT}/report.json`, `${JSON.stringify({ generatedAt: new Date().toISOString(), web: WEB.href, results, metrics }, null, 2)}\n`, "utf8");
+// Relatório também na falha (evidência no CI): o que passou, as métricas e o erro.
+await writeFile(
+  `${OUT}/report.json`,
+  `${JSON.stringify({ generatedAt: new Date().toISOString(), web: WEB.href, ok: !failure, error: failure ? String(failure.stack ?? failure).slice(0, 4000) : null, results, metrics }, null, 2)}\n`,
+  "utf8",
+);
+if (failure) throw failure;
 console.log(JSON.stringify(metrics, null, 2));

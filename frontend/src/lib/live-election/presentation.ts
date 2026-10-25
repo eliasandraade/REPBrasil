@@ -159,8 +159,12 @@ export interface RotationPick {
 
 /**
  * Quais UFs entram em foco no próximo ciclo e em que ordem: (1) mudança recente, (2) disputa mais apertada,
- * (3) sequência por eleitorado (cursor circular, para que todas apareçam ao longo dos ciclos). Serve SÓ para
- * escolher o que mostrar: nenhuma projeção, nenhuma sugestão de resultado futuro.
+ * (3) sequência por eleitorado (cursor circular). Serve SÓ para escolher o que mostrar: nenhuma projeção, nenhuma
+ * sugestão de resultado futuro.
+ *
+ * Pelo menos uma vaga de cada ciclo é sempre da sequência: o cursor anda a cada ciclo e, em no máximo 27 ciclos,
+ * todas as UFs aparecem — mesmo com poucas UFs por ciclo e atualizações recentes ou disputas apertadas contínuas.
+ * Com 1 UF por ciclo, só a sequência (a justiça da rotação vem antes do "mais apertado").
  */
 export function rotationOrder(
   states: readonly TerritoryResult[],
@@ -168,10 +172,11 @@ export function rotationOrder(
 ): { picks: RotationPick[]; cursor: number } {
   const ufs = states.filter((s) => s.code.length === 2 && s.code.toUpperCase() !== "ZZ");
   const count = Math.max(1, Math.min(options.count, ufs.length));
+  const editorial = count - 1;
   const taken = new Set<string>(options.exclude ?? []);
   const picks: RotationPick[] = [];
-  const take = (uf: string, reason: RotationReason) => {
-    if (taken.has(uf) || picks.length >= count) return;
+  const take = (uf: string, reason: RotationReason, limit: number) => {
+    if (taken.has(uf) || picks.length >= limit) return;
     taken.add(uf);
     picks.push({ uf, reason });
   };
@@ -180,16 +185,17 @@ export function rotationOrder(
     .filter((s) => s.available && s.ingestedAt && options.now - Date.parse(s.ingestedAt) >= 0 && options.now - Date.parse(s.ingestedAt) <= window && hasVotes(s))
     .sort((x, y) => Date.parse(y.ingestedAt ?? "") - Date.parse(x.ingestedAt ?? ""))
     .slice(0, 2)
-    .forEach((s) => take(s.code.toUpperCase(), "recent"));
+    .forEach((s) => take(s.code.toUpperCase(), "recent", editorial));
   ufs
     .filter((s) => hasVotes(s) && (s.sections.totalizedPct ?? 0) >= 1 && typeof s.leadPp === "number")
     .sort((x, y) => Math.abs(x.leadPp ?? 0) - Math.abs(y.leadPp ?? 0) || (y.electorate.total ?? 0) - (x.electorate.total ?? 0))
     .slice(0, 2)
-    .forEach((s) => take(s.code.toUpperCase(), "close"));
+    .forEach((s) => take(s.code.toUpperCase(), "close", editorial));
   const sequence = [...ufs].sort((x, y) => (y.electorate.total ?? 0) - (x.electorate.total ?? 0) || x.code.localeCompare(y.code)).map((s) => s.code.toUpperCase());
   let cursor = sequence.length ? options.cursor % sequence.length : 0;
+  // Uma UF que já entrou neste ciclo (ou excluída) é pulada, e o cursor anda assim mesmo: a volta segue.
   for (let guard = 0; picks.length < count && guard < sequence.length; guard++) {
-    take(sequence[cursor], "sequence");
+    take(sequence[cursor], "sequence", count);
     cursor = (cursor + 1) % sequence.length;
   }
   return { picks, cursor };
@@ -198,7 +204,7 @@ export function rotationOrder(
 /** UF anterior/seguinte na ordem alfabética das siglas (navegação manual, previsível). */
 export function stepUf(ufs: readonly string[], current: string | null, delta: number): string | null {
   if (ufs.length === 0) return null;
-  const ordered = [...ufs].sort();
+  const ordered = [...ufs].sort((a, b) => a.localeCompare(b));
   const i = current ? ordered.indexOf(current) : -1;
   if (i < 0) return delta >= 0 ? ordered[0] : ordered[ordered.length - 1];
   return ordered[(i + delta + ordered.length) % ordered.length];
