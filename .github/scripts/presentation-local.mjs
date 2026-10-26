@@ -111,9 +111,13 @@ function createApi() {
         server.close(() => resolve());
         server.closeAllConnections();
       }),
-    /** Troca o cenário servido pelo REST (versão nova: o cliente aceita na ressincronização). */
-    set(name) {
+    /**
+     * Troca o cenário servido pelo REST (versão nova: o cliente aceita na ressincronização). `identity` troca número e
+     * nome de urna por slot ({ a: {...}, b: {...} }); votos e chaves ficam.
+     */
+    set(name, identity = null) {
       current = buildScenario(name);
+      if (identity) current.summary.candidates = current.summary.candidates.map((c) => ({ ...c, ...identity[c.slot] }));
       version += 1;
       return current;
     },
@@ -258,6 +262,42 @@ const scrollCheck = () => {
 };
 
 /** Tela cheia recusada pelo navegador (política, sem gesto, quiosque): a apresentação tem de seguir no viewport. */
+/**
+ * Cores como o navegador pintou (computed style): barra por slot, card de cada candidatura (nome → slot) e matiz de
+ * cada UF do mapa (palco: por UF; página: por slot à frente). Matiz: vermelho < 40° ou > 330°, azul 190°–245°.
+ */
+function paintCheck() {
+  const hueOf = (color) => {
+    const nums = (color.match(/-?[\d.]+/g) ?? []).map(Number).slice(0, 3);
+    const [r, g, b] = color.startsWith("color(") ? nums : nums.map((v) => v / 255);
+    const max = Math.max(r, g, b);
+    const d = max - Math.min(r, g, b);
+    if (!(d > 0.08)) return "neutral";
+    const h = ((max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60 + 360) % 360;
+    if (h < 40 || h > 330) return "red";
+    return h > 190 && h < 245 ? "blue" : `other(${Math.round(h)})`;
+  };
+  const stage = document.querySelector('[data-testid="presentation-root"]');
+  const root = stage ?? document.querySelector('[data-testid="live-election-page"]');
+  const theme = document.documentElement.dataset.theme;
+  const dark = Boolean(stage) || theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+  const paint = {};
+  const bars = stage ? stage.querySelectorAll(".pm-split-seg") : document.querySelectorAll('[data-testid="live-proportional-bar"] .live-bar');
+  for (const el of bars) {
+    const slot = el.dataset.slot ?? (el.classList.contains("live-fill-a") ? "a" : el.classList.contains("live-fill-b") ? "b" : null);
+    if (slot) paint[slot] = getComputedStyle(el).backgroundColor;
+  }
+  const cards = {};
+  for (const el of document.querySelectorAll(stage ? ".pm-candidate" : '[data-testid="live-candidate-a"], [data-testid="live-candidate-b"]')) {
+    const name = el.querySelector(stage ? ".pm-name" : "h3")?.textContent?.trim();
+    if (name) cards[name] = stage ? el.dataset.slot : el.dataset.testid.slice(-1);
+  }
+  const ufs = {};
+  for (const el of document.querySelectorAll(".pm-uf[data-uf]")) ufs[el.dataset.uf] = hueOf(getComputedStyle(el).fill);
+  const standings = [...document.querySelectorAll(".live-map-uf[data-standing]")].map((el) => [el.dataset.standing, hueOf(getComputedStyle(el).fill)]);
+  return { attr: root?.dataset.liveSlotA ?? null, dark, paint, cards, ufs, standings };
+}
+
 function denyFullscreen() {
   Element.prototype.requestFullscreen = () => Promise.reject(new DOMException("recusada no teste", "NotAllowedError"));
 }
@@ -599,6 +639,73 @@ try {
     assert.deepEqual(errors, [], "a recusa não vira erro na página");
     record("tela cheia recusada: a apresentação segue no viewport");
     await context.close();
+  }
+
+  // 9) Cor por candidatura (regra editorial do 2º turno de 2026): 13 = vermelho e 22 = azul pelo NÚMERO, nos dois
+  //    sentidos da ordem do TSE (o slot vem do `seq` e pode mudar) — placar, barras e mapa, no palco (1920×1080 e
+  //    celular) e na página (claro no desktop, escuro no celular). A hachura continua no slot B.
+  {
+    const RGB = { red: { light: "rgb(235, 104, 52)", dark: "rgb(217, 89, 38)" }, blue: { light: "rgb(42, 120, 214)", dark: "rgb(57, 135, 229)" } };
+    const PAGE_ROUTE = "/apuracao/2026/presidente/segundo-turno";
+    const covered = [];
+    // Os dois cards já mostram os nomes do cenário atual (o HTML em cache pode ser do anterior até o stream chegar).
+    const named = ([where, want]) =>
+      Object.entries(want).every(([slot, n]) =>
+        [...document.querySelectorAll(where === "stage" ? `.pm-candidate[data-slot="${slot}"]` : `[data-testid="live-candidate-${slot}"]`)].some(
+          (el) => el.querySelector(where === "stage" ? ".pm-name" : "h3")?.textContent?.trim() === `CANDIDATURA ${n}`,
+        ),
+      );
+    for (const [a, b] of [[13, 22], [22, 13]]) {
+      const { summary, states } = api.set("p50", { a: { number: a, ballotName: `CANDIDATURA ${a}` }, b: { number: b, ballotName: `CANDIDATURA ${b}` } });
+      const slotOf = Object.fromEntries(summary.candidates.map((c) => [c.number, c.slot]));
+      const slotOfKey = Object.fromEntries(summary.candidates.map((c) => [c.key, c.slot]));
+      const colorOfSlot = { [slotOf[13]]: "red", [slotOf[22]]: "blue" };
+      const ufColor = Object.fromEntries(states.states.filter((st) => st.leaderKey).map((st) => [st.code, colorOfSlot[slotOfKey[st.leaderKey]]]));
+      const order = `13 em ${slotOf[13].toUpperCase()}, 22 em ${slotOf[22].toUpperCase()}`;
+      const verify = (seen, where) => {
+        const tone = seen.dark ? "dark" : "light";
+        assert.equal(seen.attr, colorOfSlot.a, `${where} (${order}): data-live-slot-a`);
+        assert.equal(seen.cards["CANDIDATURA 13"], slotOf[13], `${where} (${order}): card do 13 no slot ${slotOf[13]}`);
+        assert.equal(seen.cards["CANDIDATURA 22"], slotOf[22], `${where} (${order}): card do 22 no slot ${slotOf[22]}`);
+        assert.equal(seen.paint[slotOf[13]], RGB.red[tone], `${where} (${order}): 13 pintado de vermelho`);
+        assert.equal(seen.paint[slotOf[22]], RGB.blue[tone], `${where} (${order}): 22 pintado de azul`);
+        return tone;
+      };
+
+      for (const viewport of [HD, { width: 390, height: 844 }]) {
+        const { context, page } = await openStage(browser, viewport, { mobile: viewport.width < 600 });
+        await statusIs(page, "AO VIVO");
+        await page.waitForFunction(named, ["stage", { a, b }], { timeout: 15_000 });
+        const seen = await page.evaluate(paintCheck);
+        verify(seen, `palco ${viewport.width}×${viewport.height}`);
+        const wrongUfs = Object.entries(ufColor).filter(([uf, color]) => seen.ufs[uf] !== color);
+        assert.deepEqual(wrongUfs, [], `palco (${order}): cada UF na cor de quem está à frente nela`);
+        await page.screenshot({ path: `${OUT}/cores-palco-${viewport.width}-13${slotOf[13]}.png` });
+        covered.push(`palco ${viewport.width}×${viewport.height}, ${order}: ${Object.keys(ufColor).length} UFs`);
+        await context.close();
+      }
+
+      for (const [scheme, viewport] of [["light", { width: 1440, height: 900 }], ["dark", { width: 390, height: 844 }]]) {
+        const mobile = viewport.width < 600;
+        const context = await browser.newContext({ viewport, colorScheme: scheme, deviceScaleFactor: 1, locale: "pt-BR", timezoneId: "America/Sao_Paulo", isMobile: mobile, hasTouch: mobile });
+        const page = await context.newPage();
+        await page.goto(new URL(PAGE_ROUTE, WEB).href, { waitUntil: "domcontentloaded", timeout: 60_000 });
+        await page.waitForFunction(named, ["page", { a, b }], { timeout: 20_000 });
+        await page.waitForSelector(".live-map-uf[data-standing]", { timeout: 20_000 });
+        const seen = await page.evaluate(paintCheck);
+        const tone = verify(seen, `página ${scheme} ${viewport.width}×${viewport.height}`);
+        assert.equal(tone, scheme, `página no tema ${scheme}`);
+        const leading = seen.standings.filter(([standing]) => standing === "a" || standing === "b");
+        assert.ok(leading.length > 0, "o mapa da página tem UFs com liderança");
+        const wrong = leading.filter(([standing, color]) => color !== colorOfSlot[standing]);
+        assert.deepEqual(wrong, [], `página (${order}): cada UF na cor de quem está à frente nela`);
+        await page.screenshot({ path: `${OUT}/cores-pagina-${scheme}-${viewport.width}-13${slotOf[13]}.png` });
+        await page.locator('[data-testid="live-brazil-map"]').screenshot({ path: `${OUT}/cores-pagina-mapa-${scheme}-${viewport.width}-13${slotOf[13]}.png` });
+        covered.push(`página ${scheme} ${viewport.width}×${viewport.height}, ${order}: ${leading.length} UFs`);
+        await context.close();
+      }
+    }
+    record("cor por candidatura: 13 vermelho e 22 azul nas duas ordens do TSE (palco e página, claro e escuro)", { covered });
   }
 } catch (error) {
   failure = error;

@@ -1,12 +1,17 @@
 /*
- * Apuração ao vivo — peças visuais próprias da página. Cores de DADO (A × B) vêm da paleta validada
- * (src/lib/dataviz/palette.ts, AB): nunca cor de partido; A = primeiro na ordem oficial, B = segundo.
+ * Apuração ao vivo — peças visuais próprias da página. As duas cores de DADO são as da paleta validada
+ * (src/lib/dataviz/palette.ts, AB), sem tom novo. Regra editorial do 2º turno de 2026: a cor segue a
+ * CANDIDATURA, pelo número — 13 = vermelho (--live-red), 22 = azul (--live-blue) —, nunca o slot (a ordem
+ * do TSE pode mudar). --live-a/--live-b continuam por slot e vestem a cor certa pelo atributo
+ * data-live-slot-a da raiz (src/lib/live-election/candidate-colors.ts).
  * Os blocos escuros (sistema e escolha) são idênticos, como em globals.css.
  */
 
 :root {
-  --live-a: #2a78d6;
-  --live-b: #eb6834;
+  --live-red: #eb6834;
+  --live-blue: #2a78d6;
+  --live-a: var(--live-red);
+  --live-b: var(--live-blue);
   --live-tie: #8a96a3;
   --live-land: #e4eaf0;
   --live-border: rgb(95 113 132 / 0.45);
@@ -14,8 +19,8 @@
 }
 
 :root[data-theme="dark"] {
-  --live-a: #3987e5;
-  --live-b: #d95926;
+  --live-red: #d95926;
+  --live-blue: #3987e5;
   --live-tie: #8597aa;
   --live-land: #15304d;
   --live-border: rgb(169 187 203 / 0.3);
@@ -24,13 +29,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
-    --live-a: #3987e5;
-    --live-b: #d95926;
+    --live-red: #d95926;
+    --live-blue: #3987e5;
     --live-tie: #8597aa;
     --live-land: #15304d;
     --live-border: rgb(169 187 203 / 0.3);
     --live-hatch: rgb(7 26 46 / 0.5);
   }
+}
+
+/* 22 no slot A: os slots trocam de cor, a candidatura não (13 segue vermelho e 22 segue azul). */
+[data-live-slot-a="blue"] {
+  --live-a: var(--live-blue);
+  --live-b: var(--live-red);
 }
 
 .live-fill-a { background-color: var(--live-a); }

@@ -179,6 +179,12 @@ ideologia. Paletas de dados próprias (`src/lib/dataviz/palette.ts`), validadas 
 Cor oficial de partido só em contexto explicitamente partidário (ex.: PT × PL), com legenda — nunca a
 interface inteira na cor de um partido. Nenhuma classificação ideológica, nenhum score ideológico.
 
+**Regra editorial da apuração do 2º turno de 2026 (decisão do proprietário, 25/10/2026):** 13 (Lula, PT) em
+vermelho e 22 (Flávio Bolsonaro, PL) em azul — página e Modo Apresentação, claro e escuro. Os tons são os dois
+da paleta validada (A × B), sem cor nova. A cor segue a **candidatura pelo número**, nunca o slot: o slot vem
+da ordem `seq` do TSE e pode mudar (`src/lib/live-election/candidate-colors.ts`). A hachura continua no slot B
+e todo lugar com cor tem também o nome da candidatura (a cor nunca é a única pista).
+
 ## 10. Iconografia e imagem
 
 Traço limpo, geometria simples, 20/24px. Sem urna, estrela, bandeira, Congresso ou símbolo ideológico como
@@ -209,8 +215,8 @@ escura e vista de longe. Só dentro de `.pm-root` (`presentation.css`) ela usa:
 Continuam proibidos ali: neon, glassmorphism/`backdrop-filter`, gradiente em texto, partículas, contagem
 animada de números e qualquer número que não venha da API oficial.
 
-A marca é a mesma do produto: logo oficial, Inter, navy dominante, A em azul e B em laranja com hachura
-(pista que não depende de cor). O efeito nunca vem antes do dado (`docs/MOTION_SYSTEM.md`, "Modo Apresentação").
+A marca é a mesma do produto: logo oficial, Inter, navy dominante, 13 em vermelho e 22 em azul pelo número
+(seção 9), com hachura no slot B (pista que não depende de cor). O efeito nunca vem antes do dado (`docs/MOTION_SYSTEM.md`, "Modo Apresentação").
 
 ## 13. Open Graph, exports, PWA
 

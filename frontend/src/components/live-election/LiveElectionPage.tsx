@@ -15,7 +15,7 @@ import { BrazilElectionMap, ExteriorCard } from "./BrazilElectionMap";
 import { LastToTotalize, RegionBreakdown, RemainingVotesPanel, TerritorialSummaryCard } from "./Breakdowns";
 import { LazySection, LiveAnnouncer, NotifyButton } from "./Extras";
 import { Hero, HeroSkeleton } from "./Hero";
-import { LiveStoreProvider, useLive } from "./LiveContext";
+import { LiveStoreProvider, useLive, useSlotAColor } from "./LiveContext";
 import { DistanceCard } from "./MathStatus";
 import { MethodologyButton, MethodologyContent } from "./Methodology";
 import { Completeness, NationalMetrics } from "./NationalMetrics";
@@ -103,6 +103,7 @@ function PageBody({ mapShapes }: Readonly<{ mapShapes: BrazilMapShapes }>) {
   const hasSummary = useLive((s) => s.summary !== null);
   const unavailable = useLive((s) => s.summary === null && s.syncStatus === 404);
   const hasStates = useLive((s) => s.states !== null);
+  const slotA = useSlotAColor();
   const [drawerUf, setDrawerUf] = useState<string | null>(null);
   const [explorerUf, setExplorerUf] = useState("SP");
   const explorerRef = useRef<HTMLDivElement>(null);
@@ -117,7 +118,7 @@ function PageBody({ mapShapes }: Readonly<{ mapShapes: BrazilMapShapes }>) {
 
   if (unavailable) {
     return (
-      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:py-8 lg:px-8" data-testid="live-election-page">
+      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:py-8 lg:px-8" data-testid="live-election-page" data-live-slot-a={slotA}>
         <LiveUnavailable />
         <div className="flex flex-wrap items-center gap-2">
           <MethodologyButton />
@@ -127,7 +128,7 @@ function PageBody({ mapShapes }: Readonly<{ mapShapes: BrazilMapShapes }>) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:py-8 lg:px-8" data-testid="live-election-page">
+    <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:py-8 lg:px-8" data-testid="live-election-page" data-live-slot-a={slotA}>
       {/* Nível 1 — leitura instantânea */}
       <div className="space-y-4">
         <p className="text-micro uppercase tracking-[0.1em] text-fg-muted sm:text-label">Eleições 2026 · Presidente da República · Dados oficiais do TSE</p>
